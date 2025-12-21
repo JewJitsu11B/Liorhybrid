@@ -1,0 +1,45 @@
+# Geometric-Only Training Configuration
+#
+# Trains only geometric weights (wedge, tensor, spinor)
+# and field parameters (alpha, nu, tau).
+# Embeddings are frozen.
+#
+# Use case: Fine-tuning geometric attention on top of
+# pre-trained embeddings.
+
+mode: geometric
+
+# Data
+data_path: ./data/text/train.txt
+val_data_path: ./data/text/val.txt
+data_type: text
+
+# Model architecture
+field_dim: 4              # Tensor dimension D
+spatial_size: [8, 8]      # Field grid size
+d_model: 512              # Transformer hidden dimension
+n_heads: 8                # Attention heads
+n_layers: 6               # Transformer layers
+vocab_size: 32000         # Vocabulary size
+
+# Training hyperparameters
+batch_size: 32
+max_epochs: 10
+lr: 0.0001                # Learning rate (1e-4)
+weight_decay: 0.01
+warmup_steps: 1000
+grad_accum_steps: 1
+max_seq_len: 512
+
+# Field parameters
+adaptive_field: true      # Enable adaptive learning for field params
+evolve_field: true        # Evolve field during training
+
+# Checkpointing
+output_dir: ./checkpoints/geometric
+save_interval: 5000       # Save every 5000 steps
+
+# System
+device: cuda              # or 'cpu'
+num_workers: 4
+seed: 42

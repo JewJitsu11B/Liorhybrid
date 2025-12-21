@@ -1,0 +1,33 @@
+# Requirements for Python 3.13t environment
+# Install PyTorch separately first:
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
+
+# Core ML (torch installed separately)
+numpy>=1.21.0
+scipy>=1.7.0
+
+# Transformers / NLP
+transformers>=4.30.0
+tokenizers>=0.13.0
+huggingface-hub>=0.16.0
+safetensors>=0.3.0
+
+# Visualization
+matplotlib>=3.5.0
+
+# GUI (for file dialogs)
+PyQt6>=6.5.0
+
+# Document parsing
+PyPDF2>=3.0.0
+python-docx>=0.8.11
+lxml>=4.9.0
+
+# Testing
+pytest>=7.0.0
+pytest-cov>=3.0.0
+
+# Utils
+tqdm>=4.65.0
+pyyaml>=6.0
+regex>=2023.0.0

@@ -1,0 +1,46 @@
+# Full Training Configuration
+#
+# Trains everything end-to-end:
+# - Token embeddings
+# - Geometric weights
+# - Field parameters
+# - All transformer layers
+#
+# Use case: Training from scratch or full fine-tuning
+
+mode: full
+
+# Data
+data_path: ./data/multimodal/train
+val_data_path: ./data/multimodal/val
+data_type: text           # or 'image-text', 'video-text', 'multimodal'
+
+# Model architecture
+field_dim: 4              # Tensor dimension D
+spatial_size: [8, 8]      # Field grid size
+d_model: 768              # Transformer hidden dimension (larger for full training)
+n_heads: 12               # More heads for full model
+n_layers: 12              # Deeper for full training
+vocab_size: 32000         # Vocabulary size
+
+# Training hyperparameters
+batch_size: 16            # Smaller batch for full training
+max_epochs: 50            # More epochs for full training
+lr: 0.0003                # Higher LR (3e-4)
+weight_decay: 0.01
+warmup_steps: 5000        # Longer warmup
+grad_accum_steps: 4       # Gradient accumulation for larger effective batch
+max_seq_len: 1024         # Longer sequences
+
+# Field parameters
+adaptive_field: true      # Enable adaptive learning
+evolve_field: true        # Evolve field during training
+
+# Checkpointing
+output_dir: ./checkpoints/full
+save_interval: 10000      # Save every 10k steps
+
+# System
+device: cuda
+num_workers: 8
+seed: 42
