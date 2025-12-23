@@ -337,8 +337,11 @@ class SpinorBilinears(nn.Module):
         
         # Vectorized einsum: compute all (mu, nu) at once
         # Phi_{mu nu} = psi_bar gamma_{mu nu} psi
-        # Use einsum with batched gamma matrices
-        Phi = torch.einsum('bni,mnij,bnj->bnmn', psi, gamma_all, psi)
+        # psi: [B, N, d_spinor] -> 'bti' and 'btj' (b=batch, t=time/sequence, i,j=spinor)
+        # gamma_all: [d_coord, d_coord, d_spinor, d_spinor] -> 'mnij' (m,n=coords, i,j=spinor)
+        # Output: [B, N, d_coord, d_coord] -> 'btmn'
+        # Contract over spinor indices i,j
+        Phi = torch.einsum('bti,mnij,btj->btmn', psi, gamma_all, psi)
 
         return Phi
 
@@ -372,8 +375,10 @@ class SpinorBilinears(nn.Module):
         
         # Vectorized einsum: compute all (mu, nu) at once
         # Theta_{mu nu} = psi_bar gamma_{(mu} gamma_{nu)} psi
-        # Use einsum with batched gamma matrices
-        Theta = torch.einsum('bni,mnij,bnj->bnmn', psi, gamma_all, psi)
+        # psi: [B, N, d_spinor] -> 'bti' and 'btj' (b=batch, t=time/sequence, i,j=spinor)
+        # gamma_all: [d_coord, d_coord, d_spinor, d_spinor] -> 'mnij' (m,n=coords, i,j=spinor)
+        # Output: [B, N, d_coord, d_coord] -> 'btmn'
+        Theta = torch.einsum('bti,mnij,btj->btmn', psi, gamma_all, psi)
 
         return Theta
 

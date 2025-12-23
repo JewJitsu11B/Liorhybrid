@@ -290,19 +290,26 @@ class CognitiveManifold(nn.Module):
             x_minus = x - perturbations[rho]
             g_minus = self.lior_metric(x_minus)
             
-            dg[..., rho, :, :] = (g_plus - g_minus) / (2 * eps)
+            # Store as dg[..., mu, nu, rho] for consistency with original indexing
+            dg[..., :, :, rho] = (g_plus - g_minus) / (2 * eps)
 
         # Vectorized Christoffel symbol computation using einsum
         # Γ^λ_μν = 0.5 * g^λρ * (∂_μ g_νρ + ∂_ν g_μρ - ∂_ρ g_μν)
         # This replaces the O(d^4) nested loop with O(d^3) einsum operations
         
-        # Rearrange dg for einsum: dg[..., rho, mu, nu] -> derivatives
-        # Compute the three terms in the Christoffel formula
-        term1 = dg  # ∂_μ g_νρ is dg[..., mu, nu, rho]
-        term2 = dg.transpose(-2, -3)  # ∂_ν g_μρ is dg[..., nu, mu, rho]
-        term3 = dg.transpose(-1, -2)  # ∂_ρ g_μν is dg[..., rho, mu, nu]
+        # dg has shape [..., mu, nu, rho] where dg[..., :, :, rho] is ∂_rho g_μν
+        # Compute the three terms in the Christoffel formula:
+        # ∂_μ g_νρ = dg[..., mu, nu, rho] with indices permuted
+        # ∂_ν g_μρ = dg[..., nu, mu, rho] with indices permuted
+        # ∂_ρ g_μν = dg[..., rho, mu, nu] with indices permuted
+        
+        # Permute to get correct index order for the Christoffel formula
+        term1 = dg  # [..., mu, nu, rho] represents ∂_μ g_νρ
+        term2 = dg.transpose(-3, -2)  # [..., nu, mu, rho] represents ∂_ν g_μρ
+        term3 = dg.permute(*range(len(shape)), -1, -3, -2)  # [..., rho, mu, nu] represents ∂_ρ g_μν
         
         # Combine terms: (∂_μ g_νρ + ∂_ν g_μρ - ∂_ρ g_μν)
+        # All in shape [..., mu, nu, rho] after permutation
         metric_derivative_combo = term1 + term2 - term3
         
         # Contract with inverse metric: Γ^λ_μν = 0.5 * g^λρ * combo_μνρ
