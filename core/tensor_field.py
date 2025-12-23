@@ -129,7 +129,7 @@ class CognitiveTensorField:
 
         Paper Algorithm 1, lines 5-15 (with Bayesian modification)
         """
-        from bayesian_cognitive_field.utils.pipeline_audit import audit_file_once
+        from Liorhybrid.utils.pipeline_audit import audit_file_once
         audit_file_once("field_evolve_step", __file__)
 
         # 1. Hamiltonian evolution (Paper Eq 2)
@@ -386,7 +386,7 @@ class CognitiveTensorField:
 
         Note: This is intentionally lightweight and does not include history buffers.
         """
-        from bayesian_cognitive_field.utils.pipeline_audit import audit_file_once
+        from Liorhybrid.utils.pipeline_audit import audit_file_once
         audit_file_once("field_state_dict", __file__)
 
         state = {
@@ -418,7 +418,7 @@ class CognitiveTensorField:
         """
         Restore field state from checkpoint / inference load.
         """
-        from bayesian_cognitive_field.utils.pipeline_audit import audit_file_once
+        from Liorhybrid.utils.pipeline_audit import audit_file_once
         audit_file_once("field_load_state_dict", __file__)
 
         if 'T' not in state:

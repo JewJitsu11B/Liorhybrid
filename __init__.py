@@ -13,7 +13,7 @@ Main components:
 - Utilities: Metrics, visualization, diagnostics
 
 Quick Start:
-    >>> from bayesian_cognitive_field import CognitiveTensorField, FAST_TEST_CONFIG
+    >>> from Liorhybrid import CognitiveTensorField, FAST_TEST_CONFIG
     >>> field = CognitiveTensorField(FAST_TEST_CONFIG)
     >>> for _ in range(100):
     ...     field.evolve_step()

@@ -17,16 +17,16 @@ import pytest
 from typing import Tuple
 
 # Import the modules we're testing
-from bayesian_cognitive_field.inference.geometric_attention import (
+from Liorhybrid.inference.geometric_attention import (
     ExponentialPhaseExtractor,
     PhaseExtractor,
     GeometricAttention
 )
-from bayesian_cognitive_field.inference.geometric_products import (
+from Liorhybrid.inference.geometric_products import (
     geometric_score_from_exponential,
     geometric_score_from_phase
 )
-from bayesian_cognitive_field.training.losses import (
+from Liorhybrid.training.losses import (
     band_regularizer,
     generator_band_regularizer
 )

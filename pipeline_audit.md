@@ -4,3 +4,9 @@
 - `2025-12-21T01:37:06.566366+00:00` | `field_evolve_step` | `core/tensor_field.py` | `core`
 - `2025-12-21T01:37:35.008096+00:00` | `lior_loss` | `training/lior_trainer.py` | `training`
 - `2025-12-21T01:38:37.822624+00:00` | `kernel_fractional_memory_weight` | `kernels/fractional_memory.py` | `kernels`
+- `2025-12-22T12:44:17.251525+00:00` | `preflight` | `main.py` | `.`
+- `2025-12-22T12:44:17.408614+00:00` | `trainer` | `training/trainer.py` | `training`
+- `2025-12-22T12:45:26.469532+00:00` | `field_evolve_step` | `core/tensor_field.py` | `core`
+- `2025-12-22T12:45:43.550458+00:00` | `lior_loss` | `training/lior_trainer.py` | `training`
+- `2025-12-22T14:21:38.303791+00:00` | `preflight` | `main.py` | `.`
+- `2025-12-22T18:15:13.651188+00:00` | `preflight` | `main.py` | `.`

@@ -53,7 +53,7 @@ def compute_geodesic_cost(
     High cost = Path deviates from geodesic (not following field flow)
     Low cost = Path follows natural geodesic (aligned with field)
     """
-    from bayesian_cognitive_field.utils.pipeline_audit import audit_file_once
+    from Liorhybrid.utils.pipeline_audit import audit_file_once
     audit_file_once("lior_geodesic", __file__)
 
     _, seq_len, d_model = embeddings.shape
@@ -141,7 +141,7 @@ def compute_field_entropy(field_state: torch.Tensor) -> torch.Tensor:
     Returns:
         Field entropy H (scalar)
     """
-    from bayesian_cognitive_field.utils.pipeline_audit import audit_file_once
+    from Liorhybrid.utils.pipeline_audit import audit_file_once
     audit_file_once("lior_field_entropy", __file__)
 
     # Average over spatial dimensions
@@ -188,7 +188,7 @@ def update_adaptive_parameters(
         learning_rate_nu: Learning rate for ν updates
         learning_rate_tau: Learning rate for τ updates
     """
-    from bayesian_cognitive_field.utils.pipeline_audit import audit_file_once
+    from Liorhybrid.utils.pipeline_audit import audit_file_once
     audit_file_once("lior_adaptive_update", __file__)
 
     if not field.config.adaptive_learning:
@@ -270,7 +270,7 @@ def lior_loss(
         total_loss: Combined loss
         loss_dict: Individual loss components
     """
-    from bayesian_cognitive_field.utils.pipeline_audit import audit_file_once
+    from Liorhybrid.utils.pipeline_audit import audit_file_once
     audit_file_once("lior_loss", __file__)
 
     if weights is None:

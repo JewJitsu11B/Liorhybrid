@@ -14,7 +14,7 @@ TODO: Implement full pipeline when token clustering is ready.
 """
 
 import torch
-from bayesian_cognitive_field.core import CognitiveTensorField, MNIST_CONFIG
+from Liorhybrid.core import CognitiveTensorField, MNIST_CONFIG
 
 
 def load_mnist_sample(n_samples: int = 100):

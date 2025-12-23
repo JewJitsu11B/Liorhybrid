@@ -29,6 +29,36 @@ from .losses import (
     multimodal_alignment_loss
 )
 from .trainer import CognitiveTrainer
+try:
+    import torch as _trainer2_torch
+    _trainer2_cuda_ok = _trainer2_torch.cuda.is_available()
+except Exception as _trainer2_exc:
+    _trainer2_torch = None
+    _trainer2_cuda_ok = False
+    _trainer2_import_error = _trainer2_exc
+
+if _trainer2_cuda_ok:
+    from . import trainer2
+else:
+    if _trainer2_torch is None:
+        _trainer2_reason = (
+            "trainer2 unavailable: torch import failed "
+            f"({str(_trainer2_import_error)})."
+        )
+    else:
+        _trainer2_reason = (
+            "trainer2 is CUDA-only and requires torch.cuda.is_available() == True. "
+            "Import skipped on a CPU-only host."
+        )
+
+    class _Trainer2Unavailable:
+        def __getattr__(self, name):
+            raise RuntimeError(_trainer2_reason)
+
+        def __repr__(self):
+            return f"<trainer2 unavailable: {_trainer2_reason}>"
+
+    trainer2 = _Trainer2Unavailable()
 from .metrics import TrainingMetrics, MetricsLogger
 from .lior_trainer import (
     compute_geodesic_cost,
@@ -73,6 +103,7 @@ __all__ = [
     'contrastive_loss',
     'multimodal_alignment_loss',
     'CognitiveTrainer',
+    'trainer2',
     'TrainingMetrics',
     'MetricsLogger',
     'compute_geodesic_cost',

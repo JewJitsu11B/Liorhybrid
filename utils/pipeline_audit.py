@@ -34,7 +34,7 @@ class AuditEvent:
 
 
 def _repo_root() -> Path:
-    # utils/ -> bayesian_cognitive_field/
+    # utils/ -> Liorhybrid/
     return Path(__file__).resolve().parents[1]
 
 

@@ -18,7 +18,7 @@ import torch
 import torch.nn as nn
 
 # Import geometric components
-from bayesian_cognitive_field.inference import (
+from Liorhybrid.inference import (
     ComplexOctonion,
     TrinorOperator,
     WedgeProjection,

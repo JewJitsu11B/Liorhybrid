@@ -371,9 +371,9 @@ def run_validation_from_checkpoint(
         Dict with validation metrics (val_loss, perplexity, etc.)
 
     Example:
-        from bayesian_cognitive_field.inference.geometric_transformer import GeometricTransformerWithMamba
-        from bayesian_cognitive_field.core.field import CognitiveTensorField
-        from bayesian_cognitive_field.training.datasets import TextDataset
+        from Liorhybrid.inference.geometric_transformer import GeometricTransformerWithMamba
+        from Liorhybrid.core.field import CognitiveTensorField
+        from Liorhybrid.training.datasets import TextDataset
 
         dataset = TextDataset("training_data/", tokenizer, max_length=512)
         metrics = run_validation_from_checkpoint(

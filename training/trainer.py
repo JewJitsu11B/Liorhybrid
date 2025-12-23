@@ -65,7 +65,7 @@ class CognitiveTrainer:
         tokenizer: Optional[object] = None,
         split_info: Optional[Dict] = None
     ):
-        from bayesian_cognitive_field.utils.pipeline_audit import audit_file_once
+        from Liorhybrid.utils.pipeline_audit import audit_file_once
         audit_file_once("trainer", __file__)
 
         self.model = model
@@ -266,7 +266,7 @@ class CognitiveTrainer:
         Returns:
             metrics: Dict of training metrics
         """
-        from bayesian_cognitive_field.utils.pipeline_audit import audit_file_once
+        from Liorhybrid.utils.pipeline_audit import audit_file_once
         audit_file_once("train_epoch", __file__)
 
         self.model.train()
@@ -497,7 +497,7 @@ class CognitiveTrainer:
             loss: Total loss (scalar tensor)
             loss_dict: Dict of loss components (tensors or floats; convert for logging outside forward)
         """
-        from bayesian_cognitive_field.utils.pipeline_audit import audit_file_once
+        from Liorhybrid.utils.pipeline_audit import audit_file_once
         audit_file_once("training_step", __file__)
 
         # Use LIoR training if enabled
@@ -572,7 +572,7 @@ class CognitiveTrainer:
             loss: Total LIoR loss (scalar tensor)
             loss_dict: Dict of loss components (tensors or floats; convert for logging outside forward)
         """
-        from bayesian_cognitive_field.utils.pipeline_audit import audit_file_once
+        from Liorhybrid.utils.pipeline_audit import audit_file_once
         audit_file_once("training_step_lior", __file__)
 
         from .lior_trainer import lior_loss, update_adaptive_parameters
@@ -825,7 +825,7 @@ class CognitiveTrainer:
         Args:
             filename: Checkpoint filename
         """
-        from bayesian_cognitive_field.utils.pipeline_audit import audit_file_once
+        from Liorhybrid.utils.pipeline_audit import audit_file_once
         audit_file_once("save_checkpoint", __file__)
 
         # Get current loss values
@@ -909,7 +909,7 @@ class CognitiveTrainer:
         Args:
             filepath: Path to checkpoint file
         """
-        from bayesian_cognitive_field.utils.pipeline_audit import audit_file_once
+        from Liorhybrid.utils.pipeline_audit import audit_file_once
         audit_file_once("load_checkpoint", __file__)
 
         checkpoint = torch.load(filepath, map_location=self.device)

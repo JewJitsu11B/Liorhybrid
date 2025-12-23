@@ -8,8 +8,8 @@ import torch
 from pathlib import Path
 from typing import Optional, Dict, List
 
-from bayesian_cognitive_field.core import CognitiveTensorField, FieldConfig
-from bayesian_cognitive_field.inference import (
+from Liorhybrid.core import CognitiveTensorField, FieldConfig
+from Liorhybrid.inference import (
     GeometricTransformer,
     GeometricTransformerWithMamba,
     DPRKeyValueGenerator
@@ -151,7 +151,7 @@ class InferenceEngine:
 
         # Initialize language modeling head (d_model -> vocab_size)
         import torch.nn as nn
-        from bayesian_cognitive_field.training.datasets import CognitiveTokenizer
+        from Liorhybrid.training.datasets import CognitiveTokenizer
 
         self.lm_head = nn.Linear(d_model, vocab_size)
 

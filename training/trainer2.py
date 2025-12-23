@@ -737,10 +737,8 @@ class SimpleSDMMemory:
         self.filled = 0
 
     def snapshot(self) -> dict:
+        # SDM is read-only during free/nudged windows; no snapshot copy needed.
         return {
-            "bank_coord": None if self.bank_coord is None else self.bank_coord.detach().clone(),
-            "bank_state": None if self.bank_state is None else self.bank_state.detach().clone(),
-            "valid_mask": None if self.valid_mask is None else self.valid_mask.detach().clone(),
             "ptr": int(self.ptr),
             "filled": int(self.filled),
             "coord_dim_n": int(self.coord_dim_n),
@@ -753,30 +751,8 @@ class SimpleSDMMemory:
         self.capacity = int(snap.get("capacity", self.capacity))
         self.static_shapes = bool(snap.get("static_shapes", self.static_shapes))
 
-        bc = snap.get("bank_coord", None)
-        bs = snap.get("bank_state", None)
-        vm = snap.get("valid_mask", None)
-
-        if bc is None or bs is None or vm is None:
-            self.bank_coord = bc
-            self.bank_state = bs
-            self.valid_mask = vm
-        else:
-            if self.bank_coord is None or self.bank_coord.shape != bc.shape or self.bank_coord.dtype != bc.dtype:
-                self.bank_coord = bc.detach().clone()
-            else:
-                self.bank_coord.copy_(bc)
-            if self.bank_state is None or self.bank_state.shape != bs.shape or self.bank_state.dtype != bs.dtype:
-                self.bank_state = bs.detach().clone()
-            else:
-                self.bank_state.copy_(bs)
-            if self.valid_mask is None or self.valid_mask.shape != vm.shape:
-                self.valid_mask = vm.detach().clone()
-            else:
-                self.valid_mask.copy_(vm)
-
-        self.ptr = int(snap.get("ptr", 0))
-        self.filled = int(snap.get("filled", 0))
+        self.ptr = int(snap.get("ptr", self.ptr))
+        self.filled = int(snap.get("filled", self.filled))
 
     def _ensure_bank(self, d_state: int, dtype: torch.dtype) -> None:
         reset = False

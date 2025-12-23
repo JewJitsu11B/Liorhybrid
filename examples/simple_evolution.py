@@ -13,8 +13,8 @@ This script:
 
 import torch
 import argparse
-from bayesian_cognitive_field.core import CognitiveTensorField, FAST_TEST_CONFIG
-from bayesian_cognitive_field.utils.metrics import compute_norm_conservation
+from Liorhybrid.core import CognitiveTensorField, FAST_TEST_CONFIG
+from Liorhybrid.utils.metrics import compute_norm_conservation
 
 
 def main():

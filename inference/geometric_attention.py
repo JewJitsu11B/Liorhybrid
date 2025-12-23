@@ -21,7 +21,7 @@ from typing import Optional, Tuple, List
 from .geometric_products import geometric_score, geometric_score_from_phase, geometric_score_from_exponential
 from .field_extraction import FieldToKeyValue
 try:
-    from bayesian_cognitive_field.training.execution_tracker import track_first_call
+    from Liorhybrid.training.execution_tracker import track_first_call
 except ModuleNotFoundError:
     from training.execution_tracker import track_first_call
 
@@ -594,7 +594,7 @@ class GeometricTransformerLayer(nn.Module):
         )
 
         # FFN (SwiGLU default)
-        from bayesian_cognitive_field.models.activations import FFN
+        from Liorhybrid.models.activations import FFN
         self.ff = FFN(
             d_model=d_model,
             expansion_factor=expansion_factor,

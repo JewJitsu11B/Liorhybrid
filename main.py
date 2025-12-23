@@ -693,7 +693,7 @@ def start_inference_mode():
 def evaluate_checkpoint_menu():
     """Evaluate a checkpoint on validation data."""
     import math
-    from bayesian_cognitive_field.training import open_file_dialog
+    from Liorhybrid.training import open_file_dialog
 
     print("\n┌─ EVALUATE CHECKPOINT ────────────────────────────────────────┐")
     print("│  Run validation on a saved checkpoint                        │")
@@ -831,7 +831,7 @@ def evaluate_checkpoint_menu():
             tokenizer = CognitiveTokenizer(vocab_size=config.get('vocab_size', 32000))
 
         # Load and tokenize validation data
-        from bayesian_cognitive_field.training import UniversalFileReader
+        from Liorhybrid.training import UniversalFileReader
         reader = UniversalFileReader()
 
         # Handle multiple files
@@ -910,7 +910,7 @@ def evaluate_checkpoint_menu():
             lm_head = nn.Linear(d_model, config.get('vocab_size', 32000)).to(device)
 
         # Create embedding
-        from bayesian_cognitive_field.training.embeddings import MultimodalEmbedding
+        from Liorhybrid.training.embeddings import MultimodalEmbedding
         input_embedding = MultimodalEmbedding(
             vocab_size=config.get('vocab_size', 32000),
             d_model=d_model,
@@ -969,12 +969,12 @@ def evaluate_checkpoint_menu():
 
 def inspect_checkpoint_menu():
     """Inspect checkpoint statistics."""
-    from bayesian_cognitive_field.training.checkpoint_utils import (
+    from Liorhybrid.training.checkpoint_utils import (
         print_checkpoint_summary,
         compare_checkpoints,
         find_best_checkpoint
     )
-    from bayesian_cognitive_field.inference.inference import load_checkpoint_with_gui
+    from Liorhybrid.inference.inference import load_checkpoint_with_gui
 
     print("\n┌─ CHECKPOINT INSPECTION ──────────────────────────────────────┐")
     print("│  1. Inspect single checkpoint                                │")
@@ -1595,7 +1595,7 @@ def start_training(config):
     # Preflight: attach input embedding BEFORE optimizer construction (no trainables created in trainer/forward).
     if tokenizer is not None:
         if not hasattr(model, 'input_embedding') or model.input_embedding is None:
-            from bayesian_cognitive_field.training.embeddings import MultimodalEmbedding
+            from Liorhybrid.training.embeddings import MultimodalEmbedding
             model.input_embedding = MultimodalEmbedding(
                 vocab_size=config.get('vocab_size', 32000),
                 d_model=config['d_model'],
@@ -1722,7 +1722,7 @@ def start_training(config):
     optimizer_type = config.get('optimizer', 'biquat')
 
     if optimizer_type == 'lior':
-        from bayesian_cognitive_field.training.lior_optimizer import LIoROptimizer
+        from Liorhybrid.training.lior_optimizer import LIoROptimizer
         optimizer = LIoROptimizer(
             params,
             lr=config['lr'],
@@ -1732,8 +1732,8 @@ def start_training(config):
         )
         print(f"   ✓ Using LIoROptimizer (curvature-aware, O(N), zero state)")
     elif optimizer_type == 'lior_manifold':
-        from bayesian_cognitive_field.training.lior_optimizer import LIoRManifoldOptimizer
-        from bayesian_cognitive_field.models.manifold import CognitiveManifold
+        from Liorhybrid.training.lior_optimizer import LIoRManifoldOptimizer
+        from Liorhybrid.models.manifold import CognitiveManifold
         # Create manifold for R(x) computation
         manifold = CognitiveManifold(d_coord=config.get('field_dim', 16)).to(config['device'])
         optimizer = LIoRManifoldOptimizer(
@@ -1746,7 +1746,7 @@ def start_training(config):
         )
         print(f"   ✓ Using LIoRManifoldOptimizer (true R(x) from manifold)")
     else:
-        from bayesian_cognitive_field.training.biquat_optimizer import BiquatOptimizer
+        from Liorhybrid.training.biquat_optimizer import BiquatOptimizer
         optimizer = BiquatOptimizer(
             params,
             lr=config['lr'],

@@ -8,9 +8,9 @@ Tests:
 
 import torch
 import gc
-from bayesian_cognitive_field.inference import GeometricTransformerWithMamba
-from bayesian_cognitive_field.core import CognitiveTensorField, FieldConfig
-from bayesian_cognitive_field.training.embeddings import MultimodalEmbedding
+from Liorhybrid.inference import GeometricTransformerWithMamba
+from Liorhybrid.core import CognitiveTensorField, FieldConfig
+from Liorhybrid.training.embeddings import MultimodalEmbedding
 
 
 def get_memory_mb():

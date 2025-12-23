@@ -14,12 +14,12 @@ from torch.utils.data import DataLoader
 from pathlib import Path
 import time
 
-from bayesian_cognitive_field.core import CognitiveTensorField, FieldConfig
-from bayesian_cognitive_field.inference import (
+from Liorhybrid.core import CognitiveTensorField, FieldConfig
+from Liorhybrid.inference import (
     GeometricTransformer,
     GeometricTransformerWithMamba
 )
-from bayesian_cognitive_field.training import (
+from Liorhybrid.training import (
     CognitiveTokenizer,
     TextDataset,
     CognitiveTrainer
@@ -102,7 +102,7 @@ def test_standard_transformer():
     print(f"✓ Dataset: {len(dataset)} examples")
 
     # Create optimizer
-    from bayesian_cognitive_field.training.biquat_optimizer import BiquatOptimizer
+    from Liorhybrid.training.biquat_optimizer import BiquatOptimizer
     optimizer = BiquatOptimizer(model.parameters(), lr=config['lr'])
 
     # Create trainer
@@ -229,7 +229,7 @@ def test_geometric_mamba():
     print(f"✓ Dataset: {len(dataset)} examples")
 
     # Create optimizer
-    from bayesian_cognitive_field.training.biquat_optimizer import BiquatOptimizer
+    from Liorhybrid.training.biquat_optimizer import BiquatOptimizer
     optimizer = BiquatOptimizer(model.parameters(), lr=config['lr'])
 
     # Create trainer

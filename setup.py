@@ -1,5 +1,5 @@
 """
-Setup script for Bayesian Cognitive Field package
+Setup script for Liorhybrid package
 """
 
 from setuptools import setup, find_packages
@@ -10,13 +10,13 @@ readme_file = Path(__file__).parent / "README.md"
 long_description = readme_file.read_text(encoding="utf-8") if readme_file.exists() else ""
 
 setup(
-    name="bayesian_cognitive_field",
+    name="Liorhybrid",
     version="0.1.0",
     author="Sam Leizerman",
     description="Bayesian recursive dynamics with fractional memory for cognitive tensor fields",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/samleizerman/bayesian_cognitive_field",  # Update with actual URL
+    url="https://github.com/samleizerman/Liorhybrid",  # Update with actual URL
     packages=find_packages(),
     classifiers=[
         "Development Status :: 3 - Alpha",
@@ -48,11 +48,11 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "bcf-simple=bayesian_cognitive_field.examples.simple_evolution:main",
+            "liorhybrid-simple=Liorhybrid.examples.simple_evolution:main",
         ],
     },
     include_package_data=True,
     package_data={
-        "bayesian_cognitive_field": ["*.tex", "*.md"],
+        "Liorhybrid": ["*.tex", "*.md"],
     },
 )

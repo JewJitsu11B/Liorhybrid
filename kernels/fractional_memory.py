@@ -175,7 +175,7 @@ def fractional_memory_weight(
         2. Energy conservation (no injection from memory)
         3. True Bayesian posterior: P(ψ|D) ∝ P(D|ψ) P(ψ_prior)
     """
-    from bayesian_cognitive_field.utils.pipeline_audit import audit_file_once
+    from Liorhybrid.utils.pipeline_audit import audit_file_once
     audit_file_once("kernel_fractional_memory_weight", __file__)
 
     if len(history) == 0:

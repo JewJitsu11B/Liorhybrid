@@ -21,8 +21,8 @@ and the transformer acts as "conscious attention" that queries it.
 
 import torch
 import argparse
-from bayesian_cognitive_field.core import CognitiveTensorField, FAST_TEST_CONFIG
-from bayesian_cognitive_field.inference import GeometricTransformer
+from Liorhybrid.core import CognitiveTensorField, FAST_TEST_CONFIG
+from Liorhybrid.inference import GeometricTransformer
 
 
 def simulate_prompt_embedding(prompt: str, d_model: int, device: torch.device) -> torch.Tensor:

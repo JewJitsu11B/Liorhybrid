@@ -40,7 +40,7 @@ import math
 from .manifold import CognitiveManifold
 from .lior_kernel import LiorKernel, LiorMemoryState
 from .biquaternion import BiQuatCausalLayer
-from bayesian_cognitive_field.training.execution_tracker import track_first_call
+from Liorhybrid.training.execution_tracker import track_first_call
 
 
 class AssociatorCurrent(nn.Module):

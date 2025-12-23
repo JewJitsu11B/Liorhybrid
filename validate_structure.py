@@ -23,7 +23,7 @@ warnings = []
 # Test 1: Import core modules
 print("\n1. Testing core module imports...")
 try:
-    from bayesian_cognitive_field.core import (
+    from Liorhybrid.core import (
         CognitiveTensorField,
         FieldConfig,
         get_default_config,
@@ -38,7 +38,7 @@ except ImportError as e:
 # Test 2: Import kernel modules
 print("\n2. Testing kernel module imports...")
 try:
-    from bayesian_cognitive_field.kernels import (
+    from Liorhybrid.kernels import (
         hamiltonian_evolution,
         bayesian_recursive_term,
         fractional_memory_term,
@@ -52,7 +52,7 @@ except ImportError as e:
 # Test 3: Import operator modules
 print("\n3. Testing operator module imports...")
 try:
-    from bayesian_cognitive_field.operators import (
+    from Liorhybrid.operators import (
         collapse_operator,
         measure_observable,
         soft_projection
@@ -65,7 +65,7 @@ except ImportError as e:
 # Test 4: Import utility modules
 print("\n4. Testing utility module imports...")
 try:
-    from bayesian_cognitive_field.utils import (
+    from Liorhybrid.utils import (
         compute_norm_conservation,
         compute_local_correlation,
         compute_effective_dimension
@@ -79,7 +79,7 @@ except ImportError as e:
 print("\n5. Testing field instantiation...")
 try:
     import torch
-    from bayesian_cognitive_field.core import CognitiveTensorField, FAST_TEST_CONFIG
+    from Liorhybrid.core import CognitiveTensorField, FAST_TEST_CONFIG
 
     field = CognitiveTensorField(FAST_TEST_CONFIG)
     print(f"   ✓ Field created: shape {field.T.shape}")
