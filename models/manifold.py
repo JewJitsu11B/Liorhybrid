@@ -293,36 +293,18 @@ class CognitiveManifold(nn.Module):
             dg[..., :, :, rho] = (g_plus - g_minus) / (2 * eps)
 
         # Vectorized Christoffel symbol computation
-        # Original nested loop formula:
-        #   Γ^λ_μν += 0.5 * g^λρ * (dg[μ,ν,ρ] + dg[ν,μ,ρ] - dg[ρ,μ,ν])
-        # where dg[i,j,k] means ∂_k g_ij
+        # Γ^λ_μν = 0.5 * g^λρ * (∂_μ g_νρ + ∂_ν g_μρ - ∂_ρ g_μν)
+        # 
+        # dg storage: dg[..., i, j, k] = ∂_k g_ij (derivative wrt x^k of metric component g_ij)
+        # Original formula accesses: dg[μ,ν,ρ] + dg[ν,μ,ρ] - dg[ρ,μ,ν]
+        #
+        # Replicate this with tensor operations:
+        term1 = dg                                                  # [..., mu, nu, rho]
+        term2 = dg.transpose(-3, -2)                               # [..., nu, mu, rho]
+        term3 = dg.permute(*range(len(shape)), -1, -3, -2)        # [..., rho, mu, nu]
+        combo = term1 + term2 - term3
         
-        # Rearrange dg to match original formula exactly:
-        # term1: dg[..., mu, nu, rho]  ∂_ρ g_μν
-        # term2: dg[..., nu, mu, rho]  ∂_ρ g_νμ  (swap mu <-> nu)
-        # term3: dg[..., mu, nu, rho]  ∂_ν g_μρ  (need ρ in middle: dg[mu, rho, nu])
-        
-        # Build the combination following the original indexing pattern
-        # The formula needs: ∂_μ g_νρ + ∂_ν g_μρ - ∂_ρ g_μν
-        # In dg[i, j, k] = ∂_k g_ij notation:
-        #   ∂_μ g_νρ is missing - we have ∂_k g_ij
-        
-        # Actually, looking at the original nested loop more carefully:
-        #   dg[..., mu, nu, rho] + dg[..., nu, mu, rho] - dg[..., rho, mu, nu]
-        # This is accessing the SAME dg tensor with different indices
-        # The middle index determines which g component, last index is derivative
-        
-        # So the formula in our storage is:
-        #   ∂_ρ g_μν + ∂_ρ g_νμ - ∂_ν g_ρμ
-        # We need to reorganize this to sum correctly
-        
-        # Simpler approach: compute term by term matching original formula
-        combo = dg + dg.transpose(-3, -2) - dg.permute(*range(len(shape)), -1, -3, -2)
-        # dg: [..., mu, nu, rho]
-        # transpose: [..., nu, mu, rho]  
-        # permute: [..., rho, mu, nu]
-        
-        # Contract: g_inv[..., lam, rho] * combo[..., mu, nu, rho]
+        # Contract with inverse metric: Γ^λ_μν = 0.5 * g^λρ * combo_μνρ
         Gamma = 0.5 * torch.einsum('...lr,...mnr->...lmn', g_inv, combo)
 
         return Gamma
