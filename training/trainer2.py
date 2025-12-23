@@ -79,6 +79,40 @@ def assert_no_autograd(params: Optional[Iterable[nn.Parameter]] = None) -> None:
             if getattr(param, "grad", None) is not None:
                 raise RuntimeError("Gradient buffer detected; trainer2 forbids autograd.")
 
+def disable_gradients(*objs: Any) -> None:
+    seen: set[int] = set()
+
+    def _disable(obj: Any) -> None:
+        if obj is None:
+            return
+        obj_id = id(obj)
+        if obj_id in seen:
+            return
+        seen.add(obj_id)
+
+        if isinstance(obj, nn.Module):
+            for param in obj.parameters():
+                if param.requires_grad:
+                    param.requires_grad_(False)
+        if isinstance(obj, torch.Tensor):
+            if obj.requires_grad:
+                obj.requires_grad_(False)
+            return
+        if isinstance(obj, dict):
+            for value in obj.values():
+                _disable(value)
+            return
+        if isinstance(obj, (list, tuple)):
+            for value in obj:
+                _disable(value)
+            return
+        if hasattr(obj, "__dict__"):
+            for value in vars(obj).values():
+                _disable(value)
+
+    for obj in objs:
+        _disable(obj)
+
 
 def get_device() -> torch.device:
     return DEVICE
@@ -277,6 +311,11 @@ def trainer2_entrypoint(
         raise NotImplementedError("trainer2 requires a field.")
     if memory is None:
         raise NotImplementedError("trainer2 requires a memory object.")
+
+    torch.set_grad_enabled(False)
+    disable_gradients(model, field, memory, rotor_state)
+    if isinstance(model, nn.Module):
+        assert_no_autograd(model.parameters())
 
     model.train()
     print(
