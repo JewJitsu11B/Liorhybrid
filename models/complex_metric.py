@@ -320,17 +320,28 @@ class SpinorBilinears(nn.Module):
             Phi: Bivector [B, N, d_coord, d_coord] (antisymmetric)
         """
         B, N, S = psi.shape
-        Phi = torch.zeros(B, N, self.d_coord, self.d_coord, device=psi.device)
-
+        
+        # Vectorized computation: pre-compute all gamma commutators
+        # This avoids the nested loop by batching all (mu, nu) pairs
+        gamma_commutators = []
         for mu in range(self.d_coord):
+            row = []
             for nu in range(self.d_coord):
                 # gamma_{mu nu} = (1/2)[gamma_mu, gamma_nu]
                 gamma_mn = 0.5 * self.gamma_commutator(mu, nu)
-                # Phi_{mu nu} = psi_bar gamma_{mu nu} psi
-                Phi[:, :, mu, nu] = torch.einsum(
-                    '...i,ij,...j->...',
-                    psi, gamma_mn, psi
-                )
+                row.append(gamma_mn)
+            gamma_commutators.append(torch.stack(row))  # [d_coord, d_spinor, d_spinor]
+        
+        # Stack to [d_coord, d_coord, d_spinor, d_spinor]
+        gamma_all = torch.stack(gamma_commutators)
+        
+        # Vectorized einsum: compute all (mu, nu) at once
+        # Phi_{mu nu} = psi_bar gamma_{mu nu} psi
+        # psi: [B, N, d_spinor] -> 'bti' and 'btj' (b=batch, t=time/sequence, i,j=spinor)
+        # gamma_all: [d_coord, d_coord, d_spinor, d_spinor] -> 'mnij' (m,n=coords, i,j=spinor)
+        # Output: [B, N, d_coord, d_coord] -> 'btmn'
+        # Contract over spinor indices i,j
+        Phi = torch.einsum('bti,mnij,btj->btmn', psi, gamma_all, psi)
 
         return Phi
 
@@ -347,17 +358,27 @@ class SpinorBilinears(nn.Module):
             Theta: Symmetric tensor [B, N, d_coord, d_coord]
         """
         B, N, S = psi.shape
-        Theta = torch.zeros(B, N, self.d_coord, self.d_coord, device=psi.device)
-
+        
+        # Vectorized computation: pre-compute all gamma anticommutators
+        # This avoids the nested loop by batching all (mu, nu) pairs
+        gamma_anticommutators = []
         for mu in range(self.d_coord):
+            row = []
             for nu in range(self.d_coord):
                 # gamma_{(mu} gamma_{nu)} = (1/2){gamma_mu, gamma_nu}
                 gamma_sym = 0.5 * self.gamma_anticommutator(mu, nu)
-                # Theta_{mu nu} = psi_bar gamma_{(mu} gamma_{nu)} psi
-                Theta[:, :, mu, nu] = torch.einsum(
-                    '...i,ij,...j->...',
-                    psi, gamma_sym, psi
-                )
+                row.append(gamma_sym)
+            gamma_anticommutators.append(torch.stack(row))  # [d_coord, d_spinor, d_spinor]
+        
+        # Stack to [d_coord, d_coord, d_spinor, d_spinor]
+        gamma_all = torch.stack(gamma_anticommutators)
+        
+        # Vectorized einsum: compute all (mu, nu) at once
+        # Theta_{mu nu} = psi_bar gamma_{(mu} gamma_{nu)} psi
+        # psi: [B, N, d_spinor] -> 'bti' and 'btj' (b=batch, t=time/sequence, i,j=spinor)
+        # gamma_all: [d_coord, d_coord, d_spinor, d_spinor] -> 'mnij' (m,n=coords, i,j=spinor)
+        # Output: [B, N, d_coord, d_coord] -> 'btmn'
+        Theta = torch.einsum('bti,mnij,btj->btmn', psi, gamma_all, psi)
 
         return Theta
 

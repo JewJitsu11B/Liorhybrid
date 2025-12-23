@@ -105,11 +105,12 @@ class ComplexOctonion:
         For octonions: conj(a) reverses all basis vectors
         """
         # First component stays, rest negate
+        # Use in-place negation to avoid unnecessary clones
         real_conj = self.real.clone()
-        real_conj[..., 1:] = -real_conj[..., 1:]
+        real_conj[..., 1:].neg_()
 
         imag_conj = self.imag.clone()
-        imag_conj[..., 1:] = -imag_conj[..., 1:]
+        imag_conj[..., 1:].neg_()
 
         return ComplexOctonion(real_conj, imag_conj)
 

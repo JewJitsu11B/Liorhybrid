@@ -13,6 +13,7 @@ import torch
 from typing import Optional
 
 
+@torch.compile
 def compute_evidence_weights(
     T: torch.Tensor,
     evidence: Optional[torch.Tensor],
@@ -47,6 +48,7 @@ def compute_evidence_weights(
     return weights
 
 
+@torch.compile
 def bayesian_posterior(
     T: torch.Tensor,
     weights: torch.Tensor
