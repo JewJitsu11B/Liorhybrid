@@ -275,32 +275,39 @@ class CognitiveManifold(nn.Module):
         g = self.lior_metric(x)
         g_inv = torch.linalg.inv(g)
 
-        # Compute metric derivatives
+        # Compute metric derivatives more efficiently using vectorized operations
+        # Instead of cloning x for each coordinate, create all perturbed versions at once
         dg = torch.zeros(*shape, d, d, d, device=device)
-
+        
+        # Create perturbation tensor: identity matrix scaled by eps
+        perturbations = torch.eye(d, device=device) * eps
+        
         for rho in range(d):
-            x_plus = x.clone()
-            x_plus[..., rho] += eps
+            # Add/subtract perturbation without cloning entire tensor
+            x_plus = x + perturbations[rho]
             g_plus = self.lior_metric(x_plus)
-
-            x_minus = x.clone()
-            x_minus[..., rho] -= eps
+            
+            x_minus = x - perturbations[rho]
             g_minus = self.lior_metric(x_minus)
-
+            
             dg[..., rho, :, :] = (g_plus - g_minus) / (2 * eps)
 
-        # Christoffel symbols
-        Gamma = torch.zeros(*shape, d, d, d, device=device)
-
-        for lam in range(d):
-            for mu in range(d):
-                for nu in range(d):
-                    for rho in range(d):
-                        Gamma[..., lam, mu, nu] += 0.5 * g_inv[..., lam, rho] * (
-                            dg[..., mu, nu, rho] +
-                            dg[..., nu, mu, rho] -
-                            dg[..., rho, mu, nu]
-                        )
+        # Vectorized Christoffel symbol computation using einsum
+        # Γ^λ_μν = 0.5 * g^λρ * (∂_μ g_νρ + ∂_ν g_μρ - ∂_ρ g_μν)
+        # This replaces the O(d^4) nested loop with O(d^3) einsum operations
+        
+        # Rearrange dg for einsum: dg[..., rho, mu, nu] -> derivatives
+        # Compute the three terms in the Christoffel formula
+        term1 = dg  # ∂_μ g_νρ is dg[..., mu, nu, rho]
+        term2 = dg.transpose(-2, -3)  # ∂_ν g_μρ is dg[..., nu, mu, rho]
+        term3 = dg.transpose(-1, -2)  # ∂_ρ g_μν is dg[..., rho, mu, nu]
+        
+        # Combine terms: (∂_μ g_νρ + ∂_ν g_μρ - ∂_ρ g_μν)
+        metric_derivative_combo = term1 + term2 - term3
+        
+        # Contract with inverse metric: Γ^λ_μν = 0.5 * g^λρ * combo_μνρ
+        # einsum: g_inv[..., lam, rho] * combo[..., mu, nu, rho] -> Gamma[..., lam, mu, nu]
+        Gamma = 0.5 * torch.einsum('...lr,...mnr->...lmn', g_inv, metric_derivative_combo)
 
         return Gamma
 

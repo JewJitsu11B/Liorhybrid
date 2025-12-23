@@ -220,7 +220,10 @@ class CognitiveTensorField:
         Paper Algorithm 1, lines 16-19
 
         Note: Using deque with maxlen automatically handles overflow.
+        The clone() is necessary to preserve snapshots as T evolves.
         """
+        # Clone required: T will be modified in-place on next step
+        # Without clone, all history entries would reference the same updated tensor
         self.history.append(self.T.clone())
 
     def get_norm_squared(self) -> float:
