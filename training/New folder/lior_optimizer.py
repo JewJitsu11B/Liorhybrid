@@ -212,11 +212,11 @@ class LIoRManifoldOptimizer(LIoROptimizer):
             R = self.manifold.scalar_resilience(coords)
             R = torch.clamp(R, self.min_R, self.max_R)
 
-            # Handle scalar vs tensor R
+            # Handle scalar vs tensor R - avoid .item() to prevent GPU sync
             if R.numel() == 1:
-                R_val = R.item()
+                R_val = R
             else:
-                R_val = R.mean().item()
+                R_val = R.mean()
 
             # Compute curvature-modulated gradient: g_scaled = R⁻² · g
             R_inv_sq = 1.0 / (R_val ** 2)
