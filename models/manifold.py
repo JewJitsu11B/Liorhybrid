@@ -275,46 +275,55 @@ class CognitiveManifold(nn.Module):
         g = self.lior_metric(x)
         g_inv = torch.linalg.inv(g)
 
-        # Compute metric derivatives more efficiently using vectorized operations
-        # Instead of cloning x for each coordinate, create all perturbed versions at once
+        # Compute metric derivatives more efficiently
         dg = torch.zeros(*shape, d, d, d, device=device)
         
-        # Create perturbation tensor: identity matrix scaled by eps
+        # Create perturbation tensor to avoid repeated cloning
         perturbations = torch.eye(d, device=device) * eps
         
         for rho in range(d):
-            # Add/subtract perturbation without cloning entire tensor
+            # Perturb along rho direction
             x_plus = x + perturbations[rho]
             g_plus = self.lior_metric(x_plus)
             
             x_minus = x - perturbations[rho]
             g_minus = self.lior_metric(x_minus)
             
-            # Store as dg[..., mu, nu, rho] for consistency with original indexing
+            # Store as dg[..., mu, nu, rho] = ∂_rho g_μν
             dg[..., :, :, rho] = (g_plus - g_minus) / (2 * eps)
 
-        # Vectorized Christoffel symbol computation using einsum
-        # Γ^λ_μν = 0.5 * g^λρ * (∂_μ g_νρ + ∂_ν g_μρ - ∂_ρ g_μν)
-        # This replaces the O(d^4) nested loop with O(d^3) einsum operations
+        # Vectorized Christoffel symbol computation
+        # Original nested loop formula:
+        #   Γ^λ_μν += 0.5 * g^λρ * (dg[μ,ν,ρ] + dg[ν,μ,ρ] - dg[ρ,μ,ν])
+        # where dg[i,j,k] means ∂_k g_ij
         
-        # dg has shape [..., mu, nu, rho] where dg[..., :, :, rho] is ∂_rho g_μν
-        # Compute the three terms in the Christoffel formula:
-        # ∂_μ g_νρ = dg[..., mu, nu, rho] with indices permuted
-        # ∂_ν g_μρ = dg[..., nu, mu, rho] with indices permuted
-        # ∂_ρ g_μν = dg[..., rho, mu, nu] with indices permuted
+        # Rearrange dg to match original formula exactly:
+        # term1: dg[..., mu, nu, rho]  ∂_ρ g_μν
+        # term2: dg[..., nu, mu, rho]  ∂_ρ g_νμ  (swap mu <-> nu)
+        # term3: dg[..., mu, nu, rho]  ∂_ν g_μρ  (need ρ in middle: dg[mu, rho, nu])
         
-        # Permute to get correct index order for the Christoffel formula
-        term1 = dg  # [..., mu, nu, rho] represents ∂_μ g_νρ
-        term2 = dg.transpose(-3, -2)  # [..., nu, mu, rho] represents ∂_ν g_μρ
-        term3 = dg.permute(*range(len(shape)), -1, -3, -2)  # [..., rho, mu, nu] represents ∂_ρ g_μν
+        # Build the combination following the original indexing pattern
+        # The formula needs: ∂_μ g_νρ + ∂_ν g_μρ - ∂_ρ g_μν
+        # In dg[i, j, k] = ∂_k g_ij notation:
+        #   ∂_μ g_νρ is missing - we have ∂_k g_ij
         
-        # Combine terms: (∂_μ g_νρ + ∂_ν g_μρ - ∂_ρ g_μν)
-        # All in shape [..., mu, nu, rho] after permutation
-        metric_derivative_combo = term1 + term2 - term3
+        # Actually, looking at the original nested loop more carefully:
+        #   dg[..., mu, nu, rho] + dg[..., nu, mu, rho] - dg[..., rho, mu, nu]
+        # This is accessing the SAME dg tensor with different indices
+        # The middle index determines which g component, last index is derivative
         
-        # Contract with inverse metric: Γ^λ_μν = 0.5 * g^λρ * combo_μνρ
-        # einsum: g_inv[..., lam, rho] * combo[..., mu, nu, rho] -> Gamma[..., lam, mu, nu]
-        Gamma = 0.5 * torch.einsum('...lr,...mnr->...lmn', g_inv, metric_derivative_combo)
+        # So the formula in our storage is:
+        #   ∂_ρ g_μν + ∂_ρ g_νμ - ∂_ν g_ρμ
+        # We need to reorganize this to sum correctly
+        
+        # Simpler approach: compute term by term matching original formula
+        combo = dg + dg.transpose(-3, -2) - dg.permute(*range(len(shape)), -1, -3, -2)
+        # dg: [..., mu, nu, rho]
+        # transpose: [..., nu, mu, rho]  
+        # permute: [..., rho, mu, nu]
+        
+        # Contract: g_inv[..., lam, rho] * combo[..., mu, nu, rho]
+        Gamma = 0.5 * torch.einsum('...lr,...mnr->...lmn', g_inv, combo)
 
         return Gamma
 

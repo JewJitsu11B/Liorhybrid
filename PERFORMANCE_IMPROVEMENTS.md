@@ -26,7 +26,7 @@ for mu in range(self.d_coord):
 
 # After: Vectorized with batched einsum
 gamma_all = torch.stack([...])  # [d_coord, d_coord, d_spinor, d_spinor]
-Phi = torch.einsum('bni,mnij,bnj->bnmn', psi, gamma_all, psi)
+Phi = torch.einsum('bti,mnij,btj->btmn', psi, gamma_all, psi)
 ```
 
 ### 2. Christoffel Symbol Optimization in `models/manifold.py`
