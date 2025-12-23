@@ -22,7 +22,7 @@ import json
 import os
 import mmap
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple, Iterator
+from typing import List, Dict, Optional, Tuple, Iterator, Sequence, Union
 import random
 
 # Optional dependencies for image/video
@@ -56,7 +56,7 @@ class TextDataset(Dataset):
 
     def __init__(
         self,
-        data_path: str,
+        data_path: Union[str, Sequence[str]],
         tokenizer,
         max_length: int = 512,
         stride: Optional[int] = None
@@ -333,7 +333,7 @@ class ChunkedTextDataset(IterableDataset):
         shuffle_buffer: int = 1000,
         seed: int = 42
     ):
-        self.data_path = Path(data_path)
+        self.data_path = None
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.chunk_size = chunk_size
@@ -343,13 +343,17 @@ class ChunkedTextDataset(IterableDataset):
 
         # Collect file paths only (fast, no tokenization yet)
         self.file_paths = []
-        if self.data_path.is_file():
-            self.file_paths = [self.data_path]
-        elif self.data_path.is_dir():
-            self.file_paths = list(self.data_path.glob('**/*.txt'))
-            self.file_paths += list(self.data_path.glob('**/*.jsonl'))
+        if isinstance(data_path, (list, tuple)):
+            self.file_paths = [Path(p) for p in data_path]
         else:
-            raise ValueError(f"Invalid data path: {data_path}")
+            self.data_path = Path(data_path)
+            if self.data_path.is_file():
+                self.file_paths = [self.data_path]
+            elif self.data_path.is_dir():
+                self.file_paths = list(self.data_path.glob('**/*.txt'))
+                self.file_paths += list(self.data_path.glob('**/*.jsonl'))
+            else:
+                raise ValueError(f"Invalid data path: {data_path}")
 
         # Estimate dataset size
         total_bytes = sum(f.stat().st_size for f in self.file_paths)

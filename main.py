@@ -15,12 +15,19 @@ import yaml
 import sys
 from pathlib import Path
 
-from bayesian_cognitive_field.core import CognitiveTensorField, FieldConfig
-from bayesian_cognitive_field.inference import (
+# Allow running as a script from inside the repo.
+if __package__ is None or __package__ == "":
+    repo_root = Path(__file__).resolve().parent
+    parent_dir = repo_root.parent
+    if str(parent_dir) not in sys.path:
+        sys.path.insert(0, str(parent_dir))
+
+from Liorhybrid.core import CognitiveTensorField, FieldConfig
+from Liorhybrid.inference import (
     GeometricTransformer,
     GeometricTransformerWithMamba
 )
-from bayesian_cognitive_field.training import (
+from Liorhybrid.training import (
     CognitiveTokenizer,
     TextDataset,
     ChunkedTextDataset,
@@ -66,7 +73,7 @@ def run_preflight_checklist_or_die(model, field, tokenizer, config):
     - DPR K/V seeding is initialized outside forward
     - everything lives on the target device
     """
-    from bayesian_cognitive_field.utils.pipeline_audit import audit_file_once
+    from Liorhybrid.utils.pipeline_audit import audit_file_once
     audit_file_once("preflight", __file__)
 
     target_device = torch.device(config.get("device", "cuda" if torch.cuda.is_available() else "cpu"))
@@ -163,7 +170,7 @@ def interactive_menu():
 
 def config_cost_calculator_menu():
     """Interactive one-shot config cost calculator (params/memory/compute)."""
-    from bayesian_cognitive_field.utils.cost_estimator import print_estimate
+    from Liorhybrid.utils.cost_estimator import print_estimate
 
     while True:
         print("\n" + "=" * 70)
@@ -1205,7 +1212,12 @@ def start_training(config):
     config.setdefault('lr', 0.0003)
     config.setdefault('adaptive_field', True)
     config.setdefault('use_dpr', True)
-    config.setdefault('use_causal_field', False)  # False = Standard Transformer
+    config.setdefault('use_causal_field', True)  # True = Causal Field default
+    config.setdefault('trainer_backend', 'trainer2')
+    config.setdefault('trainer2_confirm', False)
+    config.setdefault('force_chunked', True)
+    config.setdefault('trainer2_sdm_capacity', 2048)
+    config.setdefault('trainer2_sdm_static_shapes', False)
     config.setdefault('log_interval', 10)
     config.setdefault('output_dir', './checkpoints/full')
     config.setdefault('val_split', 0.1)
@@ -1254,6 +1266,7 @@ def start_training(config):
 
     print(f"\n▶ Mode: {config['mode']}")
     print(f"▶ Device: {config['device']}")
+    print(f"▶ Trainer backend: {config.get('trainer_backend')}")
     print(f"▶ Data: {config.get('data_path', 'N/A')}")
 
     # Handle resume - load checkpoint and continue training
@@ -1427,54 +1440,12 @@ def start_training(config):
         # Text-based datasets
         tokenizer = CognitiveTokenizer(vocab_size=config['vocab_size'])
 
-        # Handle multiple data paths
+        # Handle multiple data paths (no RAM merge)
         if 'data_paths' in config:
-            # Multiple files - merge them
-            data_paths = config['data_paths']
-            print(f"   ✓ Loading {len(data_paths)} files...")
-
-            merged_content = []
-            reader = UniversalFileReader()
-
-            for i, data_path in enumerate(data_paths, 1):
-                if not Path(data_path).exists():
-                    print(f"   ⚠ File {i} not found: {data_path}")
-                    continue
-
-                print(f"   Loading file {i}/{len(data_paths)}: {Path(data_path).name}")
-
-                file_ext = Path(data_path).suffix.lower()
-
-                # Read and convert if needed
-                if file_ext not in ['.txt', '.text']:
-                    try:
-                        content = reader.read(data_path)
-                        merged_content.append(content)
-                        print(f"   ✓ Converted {len(content)} characters")
-                    except Exception as e:
-                        print(f"   ✗ Error converting file: {e}")
-                else:
-                    # Plain text file
-                    try:
-                        with open(data_path, 'r', encoding='utf-8') as f:
-                            content = f.read()
-                        merged_content.append(content)
-                        print(f"   ✓ Loaded {len(content)} characters")
-                    except Exception as e:
-                        print(f"   ✗ Error reading file: {e}")
-
-            # Save merged content to temp file
-            temp_path = Path('./data/temp_merged.txt')
-            temp_path.parent.mkdir(parents=True, exist_ok=True)
-            merged_text = '\n\n'.join(merged_content)
-            with open(temp_path, 'w', encoding='utf-8') as f:
-                f.write(merged_text)
-
-            data_path = str(temp_path)
-            print(f"   ✓ Merged {len(merged_content)} files → {len(merged_text)} characters")
-
+            data_path = config['data_paths']
+            total_mb = sum(Path(p).stat().st_size for p in data_path) / (1024 * 1024)
+            print(f"   ✓ Using {len(data_path)} files ({total_mb:.1f}MB total) without RAM merge")
         else:
-            # Single data path
             data_path = config['data_path']
 
             # If data file doesn't exist, generate sample data
@@ -1520,8 +1491,14 @@ def start_training(config):
                     print(f"  ⚠ Recommended: {calculated_batch}")
 
         # Check file size to decide dataset type
-        file_size_mb = Path(data_path).stat().st_size / (1024 * 1024)
-        use_chunked = file_size_mb > 50  # Use chunked for files > 50MB
+        if isinstance(data_path, (list, tuple)):
+            file_size_mb = sum(Path(p).stat().st_size for p in data_path) / (1024 * 1024)
+        else:
+            file_size_mb = Path(data_path).stat().st_size / (1024 * 1024)
+        use_chunked = config.get('force_chunked', True) or file_size_mb > 50
+        if isinstance(data_path, (list, tuple)) and not use_chunked:
+            print("   ⚠ Multiple files require ChunkedTextDataset; forcing chunked mode.")
+            use_chunked = True
 
         # Initialize split_info (will be populated for non-chunked datasets)
         split_info = None
@@ -1589,7 +1566,7 @@ def start_training(config):
             train_dataset,
             batch_size=config['batch_size'],
             shuffle=True if not use_chunked else None,  # Chunked handles shuffle internally
-            num_workers=20,  # Max out CPU cores for GPU-bound training
+            num_workers=config.get('num_workers', 0),
             pin_memory=True,
             prefetch_factor=8,  # Increased prefetch for better GPU utilization
             persistent_workers=False if use_chunked else True  # Chunked doesn't need persistence
@@ -1599,7 +1576,7 @@ def start_training(config):
             val_dataset,
             batch_size=config['batch_size'],
             shuffle=False,
-            num_workers=8,  # Fewer workers for validation
+            num_workers=config.get('num_workers', 0),
             pin_memory=True,
             prefetch_factor=4,
             persistent_workers=True
@@ -1612,8 +1589,8 @@ def start_training(config):
         else:
             print(f"   ✓ Using chunked streaming (size unknown until iteration)")
 
-    # Setup optimizer
-    print("\n3. Setting up training...")
+    if config.get('trainer_backend') != 'trainer2':
+        print("\n3. Setting up training...")
 
     # Preflight: attach input embedding BEFORE optimizer construction (no trainables created in trainer/forward).
     if tokenizer is not None:
@@ -1627,6 +1604,106 @@ def start_training(config):
 
     # Preflight checklist gate (initializes DPR K/V outside forward if enabled)
     run_preflight_checklist_or_die(model, field, tokenizer, config)
+
+    if config.get('trainer_backend') != 'trainer2':
+        raise RuntimeError(
+            "This pipeline is locked to trainer2 (no autograd/backprop/optimizers). "
+            "Set config['trainer_backend'] = 'trainer2'."
+        )
+
+    if not torch.cuda.is_available():
+        raise RuntimeError(
+            "trainer2 requires CUDA; torch.cuda.is_available() is False."
+        )
+
+    # Trainer2 wiring (CUDA-only, manual updates). No optimizers/backprop.
+    output_dir = Path(config['output_dir'])
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    from Liorhybrid.training import trainer2 as trainer2_mod
+    t2_cfg = trainer2_mod.TrainConfig()
+    applied_keys = []
+    skipped_keys = []
+    for key, value in config.items():
+        if hasattr(t2_cfg, key):
+            setattr(t2_cfg, key, value)
+            applied_keys.append(key)
+        else:
+            skipped_keys.append(key)
+    t2_cfg.run_dir = str(output_dir)
+    if config.get('run_name'):
+        t2_cfg.run_name = config['run_name']
+
+    print(f"[trainer2] applied config keys: {sorted(applied_keys)}")
+    print(f"[trainer2] skipped config keys: {sorted(skipped_keys)}")
+    mapped_keys = []
+    if 'log_interval' in config:
+        t2_cfg.log_every_windows = config['log_interval']
+        mapped_keys.append('log_interval->log_every_windows')
+    if 'save_interval' in config:
+        t2_cfg.save_every_windows = config['save_interval']
+        mapped_keys.append('save_interval->save_every_windows')
+    if 'output_dir' in config:
+        t2_cfg.run_dir = str(output_dir)
+        mapped_keys.append('output_dir->run_dir')
+    if 'bptt_window' in config and config['bptt_window'] > 0:
+        t2_cfg.tbptt_window_steps = config['bptt_window']
+        mapped_keys.append('bptt_window->tbptt_window_steps')
+    if 'lr' in config:
+        t2_cfg.eta_update = config['lr']
+        mapped_keys.append('lr->eta_update')
+    if mapped_keys:
+        print(f"[trainer2] mapped config keys: {sorted(mapped_keys)}")
+
+    memory = config.get('trainer2_memory')
+    if memory is None:
+        memory = trainer2_mod.SimpleSDMMemory(
+            coord_dim_n=t2_cfg.coord_dim_n,
+            capacity=config.get('trainer2_sdm_capacity', 2048),
+            static_shapes=bool(config.get('trainer2_sdm_static_shapes', False)),
+        )
+        print("WARNING: trainer2_memory not provided; using SimpleSDMMemory (SDM ring buffer).")
+
+    hooks = config.get('trainer2_hooks')
+    if hooks is None:
+        hooks = trainer2_mod.build_sdm_hooks(model, field, memory)
+
+    rotor_state = config.get('trainer2_rotor_state')
+    if t2_cfg.rotor_mode != "off":
+        if rotor_state is None:
+            rotor_state = trainer2_mod.RotorState(
+                theta=torch.zeros(t2_cfg.rotor_k, device=torch.device(config['device']), dtype=torch.float32),
+                theta2=torch.zeros(t2_cfg.rotor_k, device=torch.device(config['device']), dtype=torch.float32),
+            )
+            print("WARNING: trainer2_rotor_state not provided; using zero-initialized RotorState.")
+        if getattr(rotor_state, "theta", None) is None:
+            raise RuntimeError(
+                "trainer2 rotor_mode != 'off' requires rotor_state.theta."
+            )
+
+    print(f"\n3. Trainer2 wired (manual updates, no autograd)")
+    print(f"   ✓ Output directory: {output_dir}")
+
+    if config.get("trainer2_confirm", False):
+        confirm = input("\n▶ Start trainer2? [Y/n]: ").strip().lower()
+        if confirm not in ("", "y", "yes"):
+            print("\n✗ Training cancelled.")
+            return
+
+    print("\n" + "=" * 70)
+    print("  TRAINER2 STARTED")
+    print("=" * 70)
+    trainer2_mod.trainer2_entrypoint(
+        cfg=t2_cfg,
+        model=model,
+        field=field,
+        memory=memory,
+        train_loader=train_loader,
+        hooks=hooks,
+        rotor_state=rotor_state,
+        val_loader=val_loader,
+    )
+    return
 
     if config['mode'] == 'geometric':
         # Only geometric weights
