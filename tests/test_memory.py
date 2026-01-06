@@ -117,9 +117,61 @@ def test_alpha_effect():
     """
     Test that α controls memory decay rate.
 
-    - Small α: Slow decay, long memory
-    - Large α: Fast decay, short memory
+    - Small α: Slow decay, long memory (retains distant past)
+    - Large α: Fast decay, short memory (more weight on recent past)
 
-    TODO: Implement alpha comparison test.
+    Verification Logic:
+    1. Create a history where the OLDEST item is non-zero (pulse from distant past).
+       - Small alpha should preserve this strongly (weight concentrated at oldest index).
+       - Large alpha should dampen this more (weight spread out).
+
+    2. Create a history where the NEWEST item is non-zero (pulse from recent past).
+       - Small alpha should ignore this (weight concentrated at oldest index).
+       - Large alpha should see this better (weight spread out).
+
+    Note: fractional_memory_term expects 4D spatial tensors (N_x, N_y, D, D)
+    to broadcast correctly with weights.
     """
-    pytest.skip("Alpha effect test not yet implemented")
+    # Use 4D tensors to match fractional_memory_term broadcasting expectations
+    # Shape: (1, 1, 1, 1)
+    T_val = torch.ones(1, 1, 1, 1, dtype=torch.complex64)
+    T_zero = torch.zeros(1, 1, 1, 1, dtype=torch.complex64)
+
+    # 1. Distant Past Pulse
+    # History: [Pulse, 0, 0, ..., 0] (Oldest is Pulse)
+    history_old = [T_val.clone()] + [T_zero.clone() for _ in range(9)]
+
+    alpha_small = 0.1
+    alpha_large = 0.9
+    lambda_F = 1.0
+    dt = 0.01
+
+    # Compute terms
+    term_small_old = fractional_memory_term(history_old, alpha_small, lambda_F, dt)
+    term_large_old = fractional_memory_term(history_old, alpha_large, lambda_F, dt)
+
+    norm_small_old = torch.norm(term_small_old).item()
+    norm_large_old = torch.norm(term_large_old).item()
+
+    # Small alpha (long memory) should retain the old pulse more strongly
+    # Expected: alpha=0.1 -> w[0]~1.0 -> norm~1.0
+    #           alpha=0.9 -> w[0]~0.44 -> norm~0.44
+    assert norm_small_old > norm_large_old, \
+        f"Small alpha should retain old memory better: {norm_small_old} vs {norm_large_old}"
+
+    # 2. Recent Past Pulse
+    # History: [0, ..., 0, Pulse] (Newest is Pulse)
+    history_new = [T_zero.clone() for _ in range(9)] + [T_val.clone()]
+
+    term_small_new = fractional_memory_term(history_new, alpha_small, lambda_F, dt)
+    term_large_new = fractional_memory_term(history_new, alpha_large, lambda_F, dt)
+
+    norm_small_new = torch.norm(term_small_new).item()
+    norm_large_new = torch.norm(term_large_new).item()
+
+    # Large alpha (short memory / flatter kernel) should see the new pulse better
+    # because small alpha is extremely peaked at the oldest index (and near zero elsewhere)
+    # Expected: alpha=0.1 -> w[-1]~1e-8 -> norm~0
+    #           alpha=0.9 -> w[-1]~0.05 -> norm~0.05
+    assert norm_large_new > norm_small_new, \
+        f"Large alpha should see new memory better: {norm_large_new} vs {norm_small_new}"
