@@ -1,3 +1,5 @@
+## Note, this is wildly out of date comosred to the repo files. will update soon.
+
 # Bayesian Cognitive Field
 
 A PyTorch implementation of rank-2 tensor field evolution under Bayesian recursive dynamics with fractional memory.
@@ -243,3 +245,4 @@ For complete mathematical derivations, see:
 ## Contact
 
 For questions, issues, or contributions, please [open an issue](repository-issues-url).
+
