@@ -81,11 +81,16 @@ Launch the interactive training interface:
 python main.py
 ```
 
-Choose from:
-- Quick Start (geometric training recommended)
-- Full Training (end-to-end)
-- Resume from checkpoint
-- Generate sample dataset
+Available options:
+1. Quick Start (Geometric Training - Recommended)
+2. Full Training (Train Everything End-to-End)
+3. Resume from Checkpoint
+4. Generate Sample Dataset
+5. Inference/Chat Mode
+6. Inspect Checkpoint
+7. Evaluate Checkpoint (Run Validation)
+8. Config Cost Calculator
+9. Exit
 
 ### Basic Field Evolution
 
