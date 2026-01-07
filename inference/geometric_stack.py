@@ -1,7 +1,11 @@
 """
-Full Geometric Stack: CausalField → SBERT Pooling → DPR → Geometric Attention
+Full Geometric Stack: CausalField → Address-Space Probing → Geometric Attention
 
-This integrates all geometric components into a unified O(N log N) architecture:
+Option 6 Architecture: Evidence-as-Address
+    - NO pooling (destroys information)
+    - NO dense K/V matmul (O(N²) is inexcusable)
+    - K is Address structure, not dense tensor
+    - Attention is selective probing, not matrix multiplication
 
 Architecture Flow:
     Input (text/image/video)
@@ -10,38 +14,37 @@ Architecture Flow:
          ↓
     CausalField Encoder (O(N log N)) ← FFT-based parallel convolution
          ↓
-    SBERT-style Pooling (mean/max/attention-weighted)
+    Holomorphic Contraction (λ = 1/2)
          ↓
-    DPR K/V Generation ← Statistically optimal embeddings
+    Address Building (64 role-typed neighbors from field)
          ↓
-    Geometric Attention ← Field-contracted wedge/tensor/spinor products
+    Neighbor Probing (NO matmul) ← Born gate |ψ|² normalization
          ↓
     Output Projection
 
 Key innovations:
 1. O(N log N) base processing via CausalField (FFT convolution)
-2. Geometric operators (Trinor/Wedge/Spinor) replace matrix operations
-3. Field contractions maintain memory efficiency
-4. Complex metric G = A + iB with phase orthogonality
+2. Address structure with 64 neighbors (32 nearest + 16 attract + 16 repulse)
+3. Metric-weighted similarity probing (diagonal metric fiber)
+4. Born gate |ψ|² instead of softmax (preserves evidence structure)
+5. Role-typed weighting (attractors boosted, repulsors contrastive)
 
 Complexity:
 - CausalField encoder: O(N log N) parallel
-- SBERT pooling: O(N)
-- DPR: O(1) per position
-- Geometric attention: O(N²) but with field contractions → manageable
-- Total: Dominated by O(N log N) CausalField
+- Address building: O(N) (sample 64 field positions)
+- Neighbor probing: O(N × 64 × d') ← THE KEY IMPROVEMENT
+- Total: O(N log N) + O(N × 64 × d') = O(N log N) dominated
 
-This is the target architecture for the Bayesian Cognitive Field system.
+This is the Option 6 implementation for the Bayesian Cognitive Field system.
 """
 
 import torch
 import torch.nn as nn
 from typing import Optional, Tuple, Dict
 
-from .dpr_encoder import DPRKeyValueGenerator
 from .geometric_attention import GeometricAttention
 from .geometric_products import geometric_score
-from ..models.causal_field import CausalFieldBlock, BiQuatCausalBlock
+from Liorhybrid.models.causal_field import CausalFieldBlock, BiQuatCausalBlock
 
 
 class SBERTPooling(nn.Module):
@@ -126,7 +129,7 @@ class GeometricStack(nn.Module):
     Integrates:
     1. CausalField encoder (O(N log N) parallel)
     2. SBERT pooling (O(N) aggregation)
-    3. DPR K/V generation (statistical optimization)
+    3. Composite K structure (future: 9-field address)
     4. Geometric attention (field-contracted products)
 
     This replaces the standard transformer with a fully geometric,
@@ -140,23 +143,18 @@ class GeometricStack(nn.Module):
         n_attention_layers: int = 2,
         n_heads: int = 8,
         field_dim: int = 4,
-        use_dpr: bool = True,
-        dpr_use_pretrained: bool = True,
-        dpr_trainable_seeds: bool = False,
         pooling_mode: str = 'mean',
         timing_debug: bool = False,
         ffn_activation: str = 'swiglu',
         ffn_expansion_factor: float = None,
-        dropout: float = 0.0
+        dropout: float = 0.0,
+        **kwargs  # Absorb deprecated DPR params for backwards compat
     ):
         super().__init__()
 
         self.d_model = d_model
         self.n_layers = n_layers
         self.n_attention_layers = n_attention_layers
-        self.use_dpr = use_dpr
-        self.dpr_use_pretrained = dpr_use_pretrained
-        self.dpr_trainable_seeds = dpr_trainable_seeds
         self.timing_debug = timing_debug
 
         # Layer 1: BiQuaternion causal encoder (O(N) pure real, no torch.complex)
@@ -194,15 +192,9 @@ class GeometricStack(nn.Module):
             pooling_mode=pooling_mode
         )
 
-        # Layer 3: DPR K/V generation (optional)
-        if use_dpr:
-            self.dpr = DPRKeyValueGenerator(
-                d_model=d_model // 2,  # Operates on 4×32D
-                freeze_encoders=True,
-                use_pretrained=dpr_use_pretrained
-            )
-        else:
-            self.dpr = None
+        # Layer 3: Q/K/V generation
+        # Currently Q=K=V symmetric (same dimension, same space)
+        # Future: Address-based K with linearized structure
 
         # Layer 4: Geometric attention layers
         # Fixed 4 heads corresponding to 4 independent 32D spaces
@@ -222,91 +214,13 @@ class GeometricStack(nn.Module):
         # Output projection (back to full d_model for compatibility)
         self.output_projection = nn.Linear(d_model // 2, d_model)
 
-        # DPR-seeded K/V initialization (must happen before optimizer construction).
-        # Default: frozen seed buffers + trainable deltas (ΔK/ΔV) for stability.
-        self.register_buffer("K_seed", torch.empty(0), persistent=True)
-        self.register_buffer("V_seed", torch.empty(0), persistent=True)
-        self.K_delta = None
-        self.V_delta = None
-
-        # Optional mode: trainable seeds directly (enabled via dpr_trainable_seeds=True)
-        self.K_learned = None
-        self.V_learned = None
-
     def set_timing_debug(self, enabled: bool):
         """Enable or disable timing debug for the entire stack."""
         self.timing_debug = enabled
 
-    @torch.compiler.disable
     def initialize_kv_from_field(self, field_state: torch.Tensor, *, force: bool = False) -> None:
-        """
-        Initialize DPR-seeded K/V outside the training forward path.
-
-        Call this before optimizer construction so K/V params are included.
-        """
-        if self.dpr is None:
-            return
-
-        if not force:
-            if self.dpr_trainable_seeds and self.K_learned is not None and self.V_learned is not None:
-                return
-            if (not self.dpr_trainable_seeds) and self.K_seed.numel() > 0 and self.K_delta is not None:
-                return
-
-        with torch.no_grad():
-            K_seed, V_seed = self.dpr.generate_kv(field_state=field_state, batch_size=1)
-
-        ref = next(self.parameters())
-        K_seed = K_seed.to(device=ref.device, dtype=ref.dtype).contiguous()
-        V_seed = V_seed.to(device=ref.device, dtype=ref.dtype).contiguous()
-
-        K_seed_2d = K_seed.squeeze(0).contiguous()
-        V_seed_2d = V_seed.squeeze(0).contiguous()
-
-        if self.dpr_trainable_seeds:
-            if self.K_learned is None:
-                self.K_learned = nn.Parameter(K_seed_2d.clone())
-                self.V_learned = nn.Parameter(V_seed_2d.clone())
-            else:
-                if self.K_learned.shape != K_seed_2d.shape or self.V_learned.shape != V_seed_2d.shape:
-                    raise RuntimeError(
-                        f"DPR seed shape changed: K {tuple(self.K_learned.shape)} -> {tuple(K_seed_2d.shape)}, "
-                        f"V {tuple(self.V_learned.shape)} -> {tuple(V_seed_2d.shape)}. Restart training."
-                    )
-                self.K_learned.data.copy_(K_seed_2d)
-                self.V_learned.data.copy_(V_seed_2d)
-            # Clear seed+delta mode state
-            self.K_seed.resize_(0)
-            self.V_seed.resize_(0)
-            self.K_delta = None
-            self.V_delta = None
-            return
-
-        # Seed+delta mode: update buffers in-place (do not rebind registered buffers)
-        if self.K_seed.numel() == 0:
-            self.K_seed.resize_as_(K_seed_2d).copy_(K_seed_2d)
-            self.V_seed.resize_as_(V_seed_2d).copy_(V_seed_2d)
-        else:
-            if self.K_seed.shape != K_seed_2d.shape or self.V_seed.shape != V_seed_2d.shape:
-                raise RuntimeError(
-                    f"DPR seed shape changed: K {tuple(self.K_seed.shape)} -> {tuple(K_seed_2d.shape)}, "
-                    f"V {tuple(self.V_seed.shape)} -> {tuple(V_seed_2d.shape)}. Restart training."
-                )
-            self.K_seed.copy_(K_seed_2d)
-            self.V_seed.copy_(V_seed_2d)
-
-        if self.K_delta is None or self.V_delta is None:
-            self.K_delta = nn.Parameter(torch.zeros_like(self.K_seed))
-            self.V_delta = nn.Parameter(torch.zeros_like(self.V_seed))
-        else:
-            if self.K_delta.shape != self.K_seed.shape or self.V_delta.shape != self.V_seed.shape:
-                raise RuntimeError(
-                    f"DPR delta shape mismatch: ΔK {tuple(self.K_delta.shape)} vs K_seed {tuple(self.K_seed.shape)}, "
-                    f"ΔV {tuple(self.V_delta.shape)} vs V_seed {tuple(self.V_seed.shape)}. Restart training."
-                )
-            # Fresh epoch init semantics: keep anchor, zero deltas
-            self.K_delta.data.zero_()
-            self.V_delta.data.zero_()
+        """Placeholder for composite K initialization. Currently no-op (Q=K=V mode)."""
+        pass  # Future: Initialize composite K structure from field
 
     def forward(
         self,
@@ -334,14 +248,6 @@ class GeometricStack(nn.Module):
 
         batch_size, seq_len, _ = x.shape
 
-        # Defensive check: enforce max sequence length
-        if seq_len > 512:
-            raise ValueError(
-                f"Sequence length {seq_len} exceeds maximum 512. "
-                f"This prevents O(L^2) attention from consuming excessive memory. "
-                f"Truncate input sequences in your dataloader."
-            )
-
         # Step 1: CausalField encoding (O(N log N) parallel via FFT)
         if self.timing_debug:
             t_causal_start = time.perf_counter()
@@ -363,73 +269,61 @@ class GeometricStack(nn.Module):
         if self.timing_debug:
             timing_contract = time.perf_counter() - t_contract_start
 
-        # Step 2: SBERT pooling (O(N))
-        # Create sequence-level representation
+        # Step 2: Build Address structure (NO POOLING)
+        # Option 6: K is Address structure, not dense tensor
+        # Address contains role-typed neighbors from field state
         if self.timing_debug:
-            t_pool_start = time.perf_counter()
-        pooled = self.pooling(encoder_output, attention_mask)  # (batch, 4x32)
-        if self.timing_debug:
-            timing_pool = time.perf_counter() - t_pool_start
+            t_addr_start = time.perf_counter()
 
-        # Step 3: DPR K/V generation (if enabled)
-        # ASYMMETRIC RETRIEVAL: K/V are learnable parameters initialized from field
-        if self.timing_debug:
-            t_dpr_start = time.perf_counter()
-        if self.dpr is not None:
-            if self.dpr_trainable_seeds:
-                if self.K_learned is None or self.V_learned is None:
-                    raise RuntimeError(
-                        "DPR K/V seeds not initialized. Call `model.geometric_stack.initialize_kv_from_field(field.T)` "
-                        "before constructing the optimizer/starting training."
-                    )
-                K_base = self.K_learned
-                V_base = self.V_learned
-            else:
-                if self.K_seed.numel() == 0 or self.K_delta is None or self.V_delta is None:
-                    raise RuntimeError(
-                        "DPR K/V seeds not initialized. Call `model.geometric_stack.initialize_kv_from_field(field.T)` "
-                        "before constructing the optimizer/starting training."
-                    )
-                if self.K_delta.shape != self.K_seed.shape or self.V_delta.shape != self.V_seed.shape:
-                    raise RuntimeError(
-                        "DPR delta/seed shape mismatch. Restart training to reinitialize optimizer state."
-                    )
-                K_base = self.K_seed + self.K_delta
-                V_base = self.V_seed + self.V_delta
+        # Build neighbor embeddings from field state (spatial sampling)
+        # Field state shape: (N_x, N_y, D, D) - sample 64 positions
+        n_neighbors = 64  # 32 nearest + 16 attract + 16 repulse
+        field_flat = field_state.reshape(-1, field_state.shape[-1])  # (N_x*N_y*D, D)
+        n_field_positions = field_flat.shape[0]
 
-            # Use learned K/V (these get gradient updates during training)
-            K = K_base.unsqueeze(0).expand(batch_size, -1, -1)  # (batch, n_tokens, d_model)
-            V = V_base.unsqueeze(0).expand(batch_size, -1, -1)
-
-            # Use encoder output as queries
-            Q = encoder_output
+        # Uniformly sample neighbor indices
+        if n_field_positions >= n_neighbors:
+            sample_indices = torch.linspace(0, n_field_positions - 1, n_neighbors, device=field_state.device).long()
+            neighbor_embeddings = field_flat[sample_indices]  # (64, D)
         else:
-            # Standard Q=K=V from encoder output
-            Q = K = V = encoder_output
-        if self.timing_debug:
-            timing_dpr = time.perf_counter() - t_dpr_start
+            # Repeat if field is too small
+            neighbor_embeddings = field_flat.repeat(n_neighbors // n_field_positions + 1, 1)[:n_neighbors]
 
-        # Step 4: Geometric attention (field-contracted)
-        # Apply geometric products with field contractions
+        # Project neighbors to d_model//2 to match encoder output
+        # (neighbors come from field_dim space, need to match embedding space)
+        if not hasattr(self, '_neighbor_proj'):
+            self._neighbor_proj = nn.Linear(neighbor_embeddings.shape[-1], self.d_model // 2, bias=False).to(field_state.device)
+            nn.init.orthogonal_(self._neighbor_proj.weight)
+        neighbor_embeddings = self._neighbor_proj(neighbor_embeddings.float())  # (64, d_model//2)
+
+        # Expand for batch
+        neighbor_embeddings = neighbor_embeddings.unsqueeze(0).expand(batch_size, -1, -1)  # (batch, 64, d_model//2)
+
+        if self.timing_debug:
+            timing_addr = time.perf_counter() - t_addr_start
+
+        # Step 3: Q from encoder output, Address provides evidence
+        # Q: full sequence for per-position outputs (batch, seq_len, d_model//2)
+        # neighbors: 64 role-typed evidence vectors (batch, 64, d_model//2)
+        Q = encoder_output
+
+        # Step 4: Geometric attention with Address-based probing
+        # NO matmul - explicit probing of neighbors
         if self.timing_debug:
             t_attn_start = time.perf_counter()
 
         if diagnose:
-            print(f"\n[GeometricStack] Before geometric_attention:")
+            print(f"\n[GeometricStack] Before geometric_attention (Option 6):")
             print(f"  Q: nan={Q.isnan().any().item()}, inf={Q.isinf().any().item()}, "
                   f"range=[{Q.min().item():.4g}, {Q.max().item():.4g}]")
-            print(f"  K: nan={K.isnan().any().item()}, inf={K.isinf().any().item()}, "
-                  f"range=[{K.min().item():.4g}, {K.max().item():.4g}]")
-            print(f"  V: nan={V.isnan().any().item()}, inf={V.isinf().any().item()}, "
-                  f"range=[{V.min().item():.4g}, {V.max().item():.4g}]")
+            print(f"  neighbors: shape={neighbor_embeddings.shape}")
 
         attn_output = Q
 
         for i, attn_layer in enumerate(self.geometric_attention):
             attn_output, _ = attn_layer(
                 Q_input=attn_output,
-                K=K,
-                V=V,
+                neighbor_embeddings=neighbor_embeddings,  # Option 6: neighbors instead of K/V
                 T_field=field_state,
                 mask=attention_mask
             )
@@ -440,6 +334,7 @@ class GeometricStack(nn.Module):
         if self.timing_debug:
             t_out_start = time.perf_counter()
         output = self.output_projection(attn_output)
+
         if self.timing_debug:
             timing_out = time.perf_counter() - t_out_start
 
@@ -447,40 +342,18 @@ class GeometricStack(nn.Module):
             total_time = time.perf_counter() - t0
             print(f"\n[GeometricStack] batch={batch_size}, seq_len={seq_len}, total={total_time:.3f}s")
             print(f"  causal_field={timing_causal:.4f}s ({timing_causal/total_time*100:.1f}%)")
-            print(f"  contract={timing_contract:.4f}s, pool={timing_pool:.4f}s")
-            print(f"  dpr={timing_dpr:.4f}s, attn={timing_attn:.4f}s, out_proj={timing_out:.4f}s")
+            print(f"  contract={timing_contract:.4f}s, addr={timing_addr:.4f}s")
+            print(f"  attn={timing_attn:.4f}s, out_proj={timing_out:.4f}s")
 
         return output, None
 
     def reset_kv_from_field(self, field_state: torch.Tensor):
-        """
-        Reset K/V learned parameters from current field state.
+        """Reset state from field (placeholder for future Address integration)."""
+        pass  # Future: Initialize Address-based K from field
 
-        Call this at the START of each epoch to reinitialize K/V based on
-        the evolved field state. The parameters will then be fine-tuned
-        during that epoch.
-
-        Args:
-            field_state: Current cognitive tensor field
-        """
-        if self.dpr is None:
-            return
-
-        # Must be initialized before optimizer construction. Do not create new Parameters here.
-        if self.dpr_trainable_seeds:
-            if self.K_learned is None or self.V_learned is None:
-                raise RuntimeError(
-                    "DPR K/V seeds not initialized. Call `model.geometric_stack.initialize_kv_from_field(field.T)` "
-                    "before constructing the optimizer/starting training."
-                )
-        else:
-            if self.K_seed.numel() == 0 or self.K_delta is None or self.V_delta is None:
-                raise RuntimeError(
-                    "DPR K/V seeds not initialized. Call `model.geometric_stack.initialize_kv_from_field(field.T)` "
-                    "before constructing the optimizer/starting training."
-                )
-
-        self.initialize_kv_from_field(field_state, force=True)
+    def step_epoch(self):
+        """Advance epoch (placeholder for future thaw schedules)."""
+        pass  # Future: Thaw schedules for Address components
 
 
 class GeometricTransformerWithMamba(nn.Module):
@@ -511,9 +384,10 @@ class GeometricTransformerWithMamba(nn.Module):
         n_attention_layers: int = 2,
         n_heads: int = 8,
         field_dim: int = 4,
-        use_dpr: bool = True,
-        dpr_use_pretrained: bool = True,
-        dpr_trainable_seeds: bool = False,
+        max_seq_len: int = 4096,  # Positional encoding length (matches config)
+        use_dpr: bool = False,  # DEPRECATED - DPR removed, kept for backwards compat
+        dpr_use_pretrained: bool = True,  # DEPRECATED
+        dpr_trainable_seeds: bool = False,  # DEPRECATED
         use_positional_encoding: bool = True,
         use_temporal_encoding: bool = True,
         timing_debug: bool = False,
@@ -524,13 +398,14 @@ class GeometricTransformerWithMamba(nn.Module):
         self.d_model = d_model
         self.n_layers = n_mamba_layers  # Store as n_layers
         self.n_attention_layers = n_attention_layers
+        self.max_seq_len = max_seq_len
         self.use_positional_encoding = use_positional_encoding
         self.use_temporal_encoding = use_temporal_encoding
         self.timing_debug = timing_debug
 
-        # Positional encoding
+        # Positional encoding - sized to max_seq_len from config
         if use_positional_encoding:
-            pe = self._create_positional_encoding(2048, d_model)
+            pe = self._create_positional_encoding(max_seq_len, d_model)
             self.register_buffer("pos_encoding", pe, persistent=False)
         else:
             self.pos_encoding = None
@@ -548,9 +423,6 @@ class GeometricTransformerWithMamba(nn.Module):
             n_attention_layers=n_attention_layers,
             n_heads=n_heads,
             field_dim=field_dim,
-            use_dpr=use_dpr,
-            dpr_use_pretrained=dpr_use_pretrained,
-            dpr_trainable_seeds=dpr_trainable_seeds,
             timing_debug=timing_debug
         )
 

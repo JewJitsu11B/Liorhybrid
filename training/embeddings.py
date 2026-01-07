@@ -4,27 +4,113 @@ Multimodal Embeddings
 Converts different modalities into unified d_model dimensional space.
 
 Modalities:
-- Text: Learned token embeddings
+- Text: Learned token embeddings + RoPE (no length limit)
 - Images: Patch embeddings (ViT-style)
 - Video: Frame sampling + temporal encoding
 
 All modalities project to same d_model space for geometric attention.
+
+RoPE (Rotary Position Embedding):
+- No fixed sequence length limit - extrapolates to any length
+- Applied in attention, not added to embeddings
+- Better length generalization than learned positional embeddings
 """
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List, Union
 import math
+
+
+class RotaryPositionEmbedding(nn.Module):
+    """
+    Rotary Position Embedding (RoPE) - NO LENGTH LIMIT.
+
+    Instead of adding positional embeddings, RoPE rotates query/key vectors
+    by position-dependent angles. This allows extrapolation to any sequence length.
+
+    Reference: "RoFormer: Enhanced Transformer with Rotary Position Embedding"
+
+    Properties:
+    - No max_seq_len limit - works for any sequence length
+    - Relative position aware (q_m * k_n depends on m-n)
+    - Compatible with linear attention
+    """
+
+    def __init__(self, dim: int, base: float = 10000.0):
+        super().__init__()
+        self.dim = dim
+        self.base = base
+        # Precompute inverse frequencies
+        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2).float() / dim))
+        self.register_buffer('inv_freq', inv_freq, persistent=False)
+        self._seq_len_cached = 0
+        self._cos_cached = None
+        self._sin_cached = None
+
+    def _update_cos_sin_cache(self, seq_len: int, device: torch.device, dtype: torch.dtype):
+        """Update cached cos/sin values if sequence length changed."""
+        if seq_len > self._seq_len_cached:
+            self._seq_len_cached = seq_len
+            t = torch.arange(seq_len, device=device, dtype=dtype)
+            freqs = torch.einsum('i,j->ij', t, self.inv_freq.to(device=device, dtype=dtype))
+            # Duplicate for pairing: [f0, f0, f1, f1, ...]
+            emb = torch.cat([freqs, freqs], dim=-1)
+            self._cos_cached = emb.cos()[None, None, :, :]  # (1, 1, seq, dim)
+            self._sin_cached = emb.sin()[None, None, :, :]
+
+    def forward(self, x: torch.Tensor, seq_len: Optional[int] = None) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Get cos/sin for rotary embedding.
+
+        Args:
+            x: Input tensor to get device/dtype from
+            seq_len: Sequence length (if None, infer from x)
+
+        Returns:
+            (cos, sin): Each (1, 1, seq_len, dim)
+        """
+        if seq_len is None:
+            seq_len = x.shape[-2]
+        self._update_cos_sin_cache(seq_len, x.device, x.dtype)
+        return (
+            self._cos_cached[:, :, :seq_len, :],
+            self._sin_cached[:, :, :seq_len, :]
+        )
+
+
+def apply_rotary_pos_emb(q: torch.Tensor, k: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Apply rotary position embedding to query and key tensors.
+
+    Args:
+        q: Query tensor (batch, heads, seq, dim)
+        k: Key tensor (batch, heads, seq, dim)
+        cos: Cosine values (1, 1, seq, dim)
+        sin: Sine values (1, 1, seq, dim)
+
+    Returns:
+        (q_rotated, k_rotated): Rotated tensors
+    """
+    def rotate_half(x):
+        """Rotate half the hidden dims."""
+        x1, x2 = x[..., :x.shape[-1]//2], x[..., x.shape[-1]//2:]
+        return torch.cat([-x2, x1], dim=-1)
+
+    q_rotated = (q * cos) + (rotate_half(q) * sin)
+    k_rotated = (k * cos) + (rotate_half(k) * sin)
+    return q_rotated, k_rotated
 
 
 class TextEmbedding(nn.Module):
     """
-    Learned text token embeddings with positional encoding.
+    Text token embeddings with RoPE (Rotary Position Embedding).
 
-    Standard transformer-style embeddings:
-    - Token embedding lookup
-    - Learned positional embeddings
+    NO SEQUENCE LENGTH LIMIT - RoPE extrapolates to any length.
+
+    - Token embedding lookup (learned)
+    - RoPE for positions (applied in attention, stored here for convenience)
     - Dropout
     """
 
@@ -32,50 +118,81 @@ class TextEmbedding(nn.Module):
         self,
         vocab_size: int,
         d_model: int,
-        max_seq_len: int = 2048,
-        dropout: float = 0.1
+        max_seq_len: int = 2048,  # Ignored - kept for API compatibility
+        dropout: float = 0.1,
+        rope_base: float = 10000.0
     ):
         super().__init__()
 
         self.d_model = d_model
 
-        # Token embeddings
+        # Token embeddings (learned)
         self.token_embedding = nn.Embedding(vocab_size, d_model)
 
-        # Positional embeddings (learned)
-        self.position_embedding = nn.Embedding(max_seq_len, d_model)
+        # RoPE - NO LENGTH LIMIT
+        self.rotary_emb = RotaryPositionEmbedding(d_model, base=rope_base)
 
         self.dropout = nn.Dropout(dropout)
 
         # Initialize embeddings
         nn.init.normal_(self.token_embedding.weight, std=0.02)
-        nn.init.normal_(self.position_embedding.weight, std=0.02)
 
-    def forward(self, token_ids: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        token_ids: torch.Tensor,
+        spans: Optional[List[List[Tuple[int, int]]]] = None,
+        return_span_emb: bool = False
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
         """
-        Embed text tokens.
+        Embed text tokens, optionally with span pooling.
 
         Args:
-            token_ids: (batch, seq_len) integer token IDs
+            token_ids: (batch, seq_len) integer token IDs - ANY LENGTH
+            spans: Optional list of span boundaries per batch item.
+                   Each item is List[(start_token_idx, end_token_idx)]
+            return_span_emb: If True and spans provided, also return span embeddings
 
         Returns:
-            embeddings: (batch, seq_len, d_model)
+            If return_span_emb=False or spans=None:
+                embeddings: (batch, seq_len, d_model)
+            If return_span_emb=True and spans provided:
+                Tuple of (token_embeddings, span_embeddings, span_mask)
+                - token_embeddings: (batch, seq_len, d_model)
+                - span_embeddings: (batch, max_spans, d_model) - pooled from token embeddings
+                - span_mask: (batch, max_spans) - True for valid spans
         """
-        batch_size, seq_len = token_ids.shape
+        # Token embeddings only - RoPE applied in attention
+        token_emb = self.token_embedding(token_ids)  # (batch, seq_len, d_model)
+        token_emb = self.dropout(token_emb)
+
+        if not return_span_emb or spans is None:
+            return token_emb
+
+        # Compute span embeddings by pooling token embeddings within each span
+        batch_size = token_ids.shape[0]
         device = token_ids.device
 
-        # Token embeddings
-        token_emb = self.token_embedding(token_ids)  # (batch, seq_len, d_model)
+        # Find max spans for padding
+        max_spans = max(len(s) for s in spans) if spans else 1
 
-        # Position embeddings
-        positions = torch.arange(seq_len, device=device).unsqueeze(0)  # (1, seq_len)
-        pos_emb = self.position_embedding(positions)  # (1, seq_len, d_model)
+        span_emb = torch.zeros(batch_size, max_spans, self.d_model, device=device, dtype=token_emb.dtype)
+        span_mask = torch.zeros(batch_size, max_spans, dtype=torch.bool, device=device)
 
-        # Combine
-        embeddings = token_emb + pos_emb
-        embeddings = self.dropout(embeddings)
+        for b, batch_spans in enumerate(spans):
+            for s, (start, end) in enumerate(batch_spans):
+                if start >= end or end > token_emb.shape[1]:
+                    continue
 
-        return embeddings
+                # Mean pooling over tokens in span
+                span_tokens = token_emb[b, start:end]  # (span_len, d_model)
+                span_emb[b, s] = span_tokens.mean(dim=0)
+                span_mask[b, s] = True
+
+        return token_emb, span_emb, span_mask
+
+    def get_rotary_emb(self, x: torch.Tensor, seq_len: Optional[int] = None) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Get RoPE cos/sin for attention layers."""
+        return self.rotary_emb(x, seq_len)
 
 
 class ImagePatchEmbedding(nn.Module):
@@ -357,3 +474,84 @@ class MultimodalEmbedding(nn.Module):
         emb = emb + modality_emb
 
         return emb
+
+
+# =============================================================================
+# MULTI-DOMAIN COARSE/FINE EMBEDDING SYSTEM (SCAFFOLD)
+# =============================================================================
+#
+# Architecture Overview:
+# ---------------------
+# K (key) in attention is factorized into domain slots, each with coarse + fine granularity:
+#
+#   K = [coding_coarse | coding_fine | math_coarse | math_fine | legal_coarse | legal_fine | ...]
+#
+# Each domain captures different semantic spaces with different granularity levels:
+#
+#   Domain        Fine (syntax/rules)           Coarse (patterns/concepts)
+#   ------        ------------------            -------------------------
+#   coding        syntax rules, operators       architectural patterns, idioms
+#   math          formulas, proofs              conceptual frameworks, intuition
+#   legal         clauses, statutes             principles, precedents
+#   ethics        specific rules                philosophical frameworks
+#
+# Attention Head Structure (Bifaceted):
+# ------------------------------------
+# Each attention head has two "faces":
+#   - Granularity face: attends across fine <-> coarse within same domain
+#   - Domain face: attends across domains at same granularity level
+#
+# This allows learning both:
+#   - "code syntax is like math formulas" (cross-domain, same granularity)
+#   - "this code pattern relates to this syntax rule" (same domain, cross-granularity)
+#
+# Parameter Layout:
+# ----------------
+# config['embedding_domains'] = ['coding', 'math', 'legal', 'ethics']  # n_domains = 4
+# config['embedding_dim_per_slot'] = 64                                 # per coarse/fine slot
+# config['bifaceted_heads'] = True
+#
+# Total K dimension = n_domains × 2 × dim_per_slot = 4 × 2 × 64 = 512
+#
+# Implementation Steps:
+# --------------------
+# 1. DomainTokenizer: Per-domain tokenizers with coarse/fine granularity
+#    - Fine: BPE/SentencePiece with small vocab (captures syntax)
+#    - Coarse: BPE/SentencePiece with large vocab (captures concepts)
+#
+# 2. DomainEmbedding(nn.Module):
+#    - Embedding tables per domain × granularity
+#    - forward() returns [batch, seq, n_domains × 2 × dim_per_slot]
+#
+# 3. BifacetedAttention(nn.Module):
+#    - Modified Q/K/V projections aware of domain structure
+#    - Attention patterns that can attend across granularity OR domain axes
+#    - Head specialization: some heads are "granularity heads", others are "domain heads"
+#
+# 4. Position Encoding:
+#    - RoPE applied per-domain (positions relative within each domain's token stream)
+#    - Cross-domain position encoding for alignment
+#
+# Example Usage (when implemented):
+# --------------------------------
+# class DomainEmbedding(nn.Module):
+#     def __init__(self, domains: List[str], dim_per_slot: int):
+#         super().__init__()
+#         self.domains = domains
+#         self.dim_per_slot = dim_per_slot
+#
+#         # Embedding tables: [domain][granularity]
+#         self.embeddings = nn.ModuleDict({
+#             f"{domain}_{gran}": nn.Embedding(vocab_size, dim_per_slot)
+#             for domain in domains
+#             for gran in ['coarse', 'fine']
+#         })
+#
+#     def forward(self, tokens: Dict[str, Dict[str, torch.Tensor]]) -> torch.Tensor:
+#         # tokens['coding']['fine'] = (batch, seq_coding_fine)
+#         # tokens['math']['coarse'] = (batch, seq_math_coarse)
+#         # ... etc
+#         # Returns: (batch, total_seq, n_domains * 2 * dim_per_slot)
+#         pass
+#
+# =============================================================================

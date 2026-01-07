@@ -6,7 +6,7 @@ a fallback only.
 
 Geometry is configurable via a mode menu:
 - frame: derived | learned_lowrank | rotor
-- metric: diag_rot (only)
+- metric: diag_rot | block_rot
 - R source: constitutive | curvature
 
 Retrieval cost uses:
@@ -32,12 +32,20 @@ import math
 import json
 import dataclasses
 import inspect
+import datetime
 from collections import deque
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable, Optional, Sequence, Tuple, Union
 
 import torch
 import torch.nn as nn
+
+from .geometric_diagnostics import PathBuffer, format_diagnostics
+
+
+def _ts() -> str:
+    """Timestamp helper for log messages."""
+    return datetime.datetime.now().strftime("%H:%M:%S")
 
 # NOTE: No einsum in Sections 1-2. Hot-path kernels will use precomputed
 # contractions and matmul later.
@@ -48,6 +56,24 @@ if not torch.cuda.is_available():
         "Install a CUDA-enabled PyTorch build, verify your GPU driver, and set "
         "CUDA_VISIBLE_DEVICES if needed."
     )
+
+# Debug tracing for first-run of each step
+_TRACE_FIRST = {}
+_TRACE_TIMES = {}
+
+def _trace(tag: str, force: bool = False) -> None:
+    """Print trace message with timestamp on first call for each tag."""
+    if tag not in _TRACE_FIRST or force:
+        _TRACE_FIRST[tag] = True
+        now = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
+        # Calculate elapsed time from last trace
+        elapsed = ""
+        if _TRACE_TIMES:
+            last_time = max(_TRACE_TIMES.values())
+            delta_ms = (time.time() - last_time) * 1000
+            elapsed = f" (+{delta_ms:.0f}ms)"
+        _TRACE_TIMES[tag] = time.time()
+        print(f"[{now}] TRACE: {tag}{elapsed}", flush=True)
 torch.set_grad_enabled(False)
 torch.autograd.set_detect_anomaly(False)
 
@@ -164,7 +190,7 @@ class TrainConfig:
 
     # Mode Menu
     frame_mode: str = "rotor"        # derived | learned_lowrank | rotor
-    metric_mode: str = "diag_rot"    # diag_rot (only)
+    metric_mode: str = "diag_rot"    # diag_rot | block_rot
     R_source: str = "constitutive"   # constitutive | curvature
     rotor_mode: str = "stateful"     # off | derived | stateful
 
@@ -181,7 +207,7 @@ class TrainConfig:
     max_windows: int = 0
 
     # SPSA Fallback Toggles
-    enable_spsa_fallback: bool = True
+    enable_spsa_fallback: bool = False 
     spsa_sigma: float = 0.01
     spsa_lr: float = 0.01
     spsa_directions: int = 4
@@ -204,6 +230,10 @@ class TrainConfig:
     save_every_windows: int = 100
     run_dir: str = "./runs"
     run_name: str = "experiment_01"
+
+    # Timing and debugging
+    timing_debug: bool = False
+    step_progress_every: int = 0
 
 
 def validate_config(cfg: TrainConfig) -> None:
@@ -289,13 +319,18 @@ def trainer2_entrypoint(
     hooks: Optional["StepHooks"] = None,
     rotor_state: Any = None,
     val_loader: Any = None,
+    tokenizer: Any = None,
 ) -> None:
     """Entry hook for wiring from main; do not call at import time."""
+    _trace("entrypoint:start")
     validate_config(cfg)
+    _trace("entrypoint:config_validated")
     apply_backend_flags(cfg)
     sig = mode_signature(cfg)
     print(f"trainer2 mode: {sig}")
+    _trace("entrypoint:precompute_geometry:start")
     geom = precompute_geometry(cfg)
+    _trace("entrypoint:precompute_geometry:done")
     if cfg.run_smoke_tests:
         run_smoke_tests(cfg, geom)
     if hooks is None:
@@ -312,10 +347,12 @@ def trainer2_entrypoint(
     if memory is None:
         raise NotImplementedError("trainer2 requires a memory object.")
 
+    _trace("entrypoint:disable_grads:start")
     torch.set_grad_enabled(False)
     disable_gradients(model, field, memory, rotor_state)
     if isinstance(model, nn.Module):
         assert_no_autograd(model.parameters())
+    _trace("entrypoint:disable_grads:done")
 
     model.train()
     print(
@@ -332,23 +369,46 @@ def trainer2_entrypoint(
     nudge_every = max(int(cfg.nudge_every_windows), 1)
     did_log_first_batch = False
 
+    print(f"[{_ts()}] entering epoch loop (max_epochs={cfg.max_epochs})")
+    batch_count = 0
+    t_epoch_start = time.time()
+
     for epoch_idx in range(int(cfg.max_epochs)):
+        print(f"[{_ts()}] EPOCH {epoch_idx}/{cfg.max_epochs-1} started")
+        t_batch_start = time.time()
+        batches_this_epoch = 0
+
         for batch in train_loader:
+            batch_count += 1
+            batches_this_epoch += 1
+
+            # Batch received indicator
+            t_recv = time.time()
+            if batch_count <= 3 or batch_count % 50 == 0:
+                print(f"[{_ts()}] batch {batch_count} received (epoch {epoch_idx})")
+
             batch = to_device(batch)
+            t_device = time.time()
+
             if not did_log_first_batch:
                 if isinstance(batch, dict):
                     shape_info = {
                         k: (tuple(v.shape) if torch.is_tensor(v) else type(v).__name__)
                         for k, v in batch.items()
                     }
-                    print(f"[trainer2] first batch keys: {list(batch.keys())}")
-                    print(f"[trainer2] first batch shapes: {shape_info}")
+                    print(f"[{_ts()}] first batch keys: {list(batch.keys())}")
+                    print(f"[{_ts()}] first batch shapes: {shape_info}")
                 else:
-                    print(f"[trainer2] first batch type: {type(batch).__name__}")
-                print(f"[trainer2] starting window 0, epoch {epoch_idx}")
+                    print(f"[{_ts()}] first batch type: {type(batch).__name__}")
+                print(f"[{_ts()}] to_device took {(t_device - t_recv)*1000:.1f}ms")
+                print(f"[{_ts()}] starting window 0, epoch {epoch_idx}")
                 did_log_first_batch = True
 
+            # Run window (free or free+nudge)
+            t_window_start = time.time()
             if window_idx % nudge_every == 0:
+                if batch_count <= 3:
+                    print(f"[{_ts()}] window {window_idx}: running two-phase (free+nudge)")
                 free, _nudged = run_two_phase_and_update(
                     model=model,
                     field=field,
@@ -358,9 +418,13 @@ def trainer2_entrypoint(
                     cfg=cfg,
                     geom=geom,
                     hooks=hooks,
+                    window_idx=window_idx,
+                    epoch_idx=epoch_idx,
                 )
                 metrics = free.metrics
             else:
+                if batch_count <= 3:
+                    print(f"[{_ts()}] window {window_idx}: running free-only")
                 free = run_window(
                     model=model,
                     field=field,
@@ -371,9 +435,18 @@ def trainer2_entrypoint(
                     geom=geom,
                     hooks=hooks,
                     external_nudge=None,
+                    window_idx=window_idx,
+                    epoch_idx=epoch_idx,
                 )
                 metrics = free.metrics
-                _maybe_update_memory(memory, free)
+            t_window_end = time.time()
+
+            # Log timing for first few batches
+            if batch_count <= 3:
+                print(f"[{_ts()}] window {window_idx} took {(t_window_end - t_window_start)*1000:.1f}ms")
+
+            # Single commit point (after free-only or free+nudge window)
+            _maybe_update_memory(memory, free)
 
             maybe_log_metrics(window_idx, metrics, cfg, telemetry)
             maybe_checkpoint(
@@ -384,12 +457,26 @@ def trainer2_entrypoint(
                 field=field,
                 memory=memory,
                 rotor_state=rotor_state,
+                tokenizer=tokenizer,
             )
 
             window_idx += 1
+            # Window progression diagnostic
+            mem_norm = memory.bank_coord.norm().item() if hasattr(memory, 'bank_coord') else 0.0
+            print(f"[PROGRESS] window={window_idx} mem_norm={mem_norm:.4f} lior={metrics.lior_mean.item():.6f}")
+
             if cfg.max_windows > 0 and window_idx >= cfg.max_windows:
-                print(f"[trainer2] max_windows reached: {cfg.max_windows}")
+                print(f"[{_ts()}] max_windows reached: {cfg.max_windows}")
                 return
+
+        # End of epoch summary
+        t_epoch_end = time.time()
+        epoch_time = t_epoch_end - t_batch_start
+        batches_per_sec = batches_this_epoch / max(epoch_time, 0.001)
+        print(f"[{_ts()}] EPOCH {epoch_idx} done: {batches_this_epoch} batches in {epoch_time:.1f}s ({batches_per_sec:.2f} batch/s)")
+
+    total_time = time.time() - t_epoch_start
+    print(f"[{_ts()}] training complete: {batch_count} total batches in {total_time:.1f}s")
 
 # ==============================================================================
 # SECTION 3: GEOMETRY PRECOMPUTE (GPU-only caches, no hot-path einsum)
@@ -524,6 +611,45 @@ def retrieval_step(
     w = retrieval_weights_from_cost(cost, beta=cfg.retrieval_beta)
     return retrieval_mix(cand_state, w)
 
+
+def retrieval_step_with_rotor(
+    q_coord: torch.Tensor,
+    cand_coord: torch.Tensor,
+    cand_state: torch.Tensor,
+    R_sc: torch.Tensor,
+    g: torch.Tensor,
+    g_diag: Optional[torch.Tensor],
+    theta1: Optional[torch.Tensor],
+    theta2: Optional[torch.Tensor],
+    rotor_layers2: Optional[torch.Tensor],
+    geom: "GeometryCache",
+    cfg: TrainConfig,
+) -> torch.Tensor:
+    """
+    Retrieval step with rotor transformation applied.
+
+    Applies diagonal rotation via theta1/theta2 before computing retrieval cost.
+    This is the Option 6 approach: diag/box rotation on coordinates.
+    """
+    # Apply rotor to query coordinates if available
+    if cfg.rotor_mode != "off":
+        if theta1 is not None and geom.rotor_layers is not None:
+            q_coord = rotor_apply(q_coord, theta1, geom.rotor_layers)
+        if theta2 is not None and rotor_layers2 is not None:
+            cand_coord = rotor_apply(cand_coord, theta2, rotor_layers2)
+
+    # Delegate to base retrieval step
+    return retrieval_step(
+        q_coord=q_coord,
+        cand_coord=cand_coord,
+        cand_state=cand_state,
+        R_sc=R_sc,
+        g=g,
+        g_diag=g_diag,
+        cfg=cfg,
+    )
+
+
 # ==============================================================================
 # SECTION 5: LIoR PIPELINE (R4 -> scalar collapse, integrator, diagnostics)
 # ==============================================================================
@@ -583,6 +709,7 @@ class PhaseStats:
     metrics: WindowMetrics
     act: Any
     mem_update: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
+    velocity: Optional[torch.Tensor] = None  # Mean velocity for directional learning
 
 
 class Snapshot:
@@ -634,17 +761,28 @@ def _snapshot_attrs(obj: Any) -> dict:
     return payload
 
 
+def _clone_value(v):
+    if torch.is_tensor(v):
+        return v.detach().clone()
+    return v
+
+
 def _snapshot_any(obj: Any) -> Tuple[str, Any]:
     if obj is None:
         return ("none", None)
+    # Early escape for scalars - never recurse into tensor logic
+    if isinstance(obj, (int, float, str, bool)):
+        return ("scalar", obj)
     if hasattr(obj, "snapshot") and callable(obj.snapshot):
         return ("snapshot", obj.snapshot())
     if torch.is_tensor(obj):
         return ("tensor", obj.detach().clone())
     if hasattr(obj, "state_dict") and callable(obj.state_dict):
         state = obj.state_dict()
-        return ("state_dict", {k: v.detach().clone() for k, v in state.items()})
-    return ("attrs", _snapshot_attrs(obj))
+        return ("state_dict", {k: _clone_value(v) for k, v in state.items()})
+    # DO NOT recurse into arbitrary objects - treat as opaque
+    # Only objects with explicit .snapshot() or .state_dict() get snapshotted
+    return ("opaque", None)
 
 
 def _restore_attrs(obj: Any, payload: dict) -> None:
@@ -674,6 +812,10 @@ def _restore_any(obj: Any, snap: Tuple[str, Any]) -> Any:
     kind, data = snap
     if kind == "none":
         return obj
+    if kind == "scalar":
+        return data  # Scalars are immutable, just return the value
+    if kind == "opaque":
+        return obj  # Opaque objects are not restored (not snapshotted)
     if obj is None:
         raise RuntimeError("Restore failed: target object is None.")
     if kind == "snapshot":
@@ -795,32 +937,38 @@ class SimpleSDMMemory:
 
     def _ensure_bank(self, d_state: int, dtype: torch.dtype) -> None:
         reset = False
+        # CRITICAL: Create tensors OUTSIDE inference_mode to allow mutation
+        # Use empty().fill_(0) pattern which creates mutable tensors even if
+        # called under inference_mode context
         if self.bank_coord is None or self.bank_coord.dtype != dtype:
-            self.bank_coord = torch.zeros(
-                self.capacity,
-                self.coord_dim_n,
-                device=self.device,
-                dtype=dtype,
-            )
+            with torch.inference_mode(False):
+                self.bank_coord = torch.zeros(
+                    self.capacity,
+                    self.coord_dim_n,
+                    device=self.device,
+                    dtype=dtype,
+                )
             reset = True
         if (
             self.bank_state is None
             or self.bank_state.dtype != dtype
             or self.bank_state.shape[1] != d_state
         ):
-            self.bank_state = torch.zeros(
-                self.capacity,
-                d_state,
-                device=self.device,
-                dtype=dtype,
-            )
+            with torch.inference_mode(False):
+                self.bank_state = torch.zeros(
+                    self.capacity,
+                    d_state,
+                    device=self.device,
+                    dtype=dtype,
+                )
             reset = True
         if self.valid_mask is None or self.valid_mask.device != self.device:
-            self.valid_mask = torch.zeros(
-                self.capacity,
-                device=self.device,
-                dtype=torch.bool,
-            )
+            with torch.inference_mode(False):
+                self.valid_mask = torch.zeros(
+                    self.capacity,
+                    device=self.device,
+                    dtype=torch.bool,
+                )
             reset = True
         if reset:
             self.ptr = 0
@@ -828,17 +976,14 @@ class SimpleSDMMemory:
             self.valid_mask.zero_()
 
     def query(self, batch_size: int) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]:
-        if self.filled == 0 or self.bank_coord is None or self.bank_state is None:
+        if self.bank_coord is None or self.bank_state is None or self.valid_mask is None:
             return None, None, None
-        if self.static_shapes:
-            mem_coord = self.bank_coord.unsqueeze(0).expand(batch_size, -1, -1)
-            mem_state = self.bank_state.unsqueeze(0).expand(batch_size, -1, -1)
-            invalid = (~self.valid_mask).view(1, -1, 1).to(mem_coord.dtype)
-            mem_coord = mem_coord + invalid * 1.0e4
-            return mem_coord, mem_state, self.valid_mask
-        mem_coord = self.bank_coord[: self.filled].unsqueeze(0).expand(batch_size, -1, -1)
-        mem_state = self.bank_state[: self.filled].unsqueeze(0).expand(batch_size, -1, -1)
-        return mem_coord, mem_state, None
+        # Always return capacity-sized banks; invalidate via mask.
+        mem_coord = self.bank_coord.unsqueeze(0).expand(batch_size, -1, -1)
+        mem_state = self.bank_state.unsqueeze(0).expand(batch_size, -1, -1)
+        invalid = (~self.valid_mask).view(1, -1, 1).to(mem_coord.dtype)
+        mem_coord = mem_coord + invalid * 1.0e4
+        return mem_coord, mem_state, self.valid_mask
 
     def update(self, q_coord: torch.Tensor, q_state: torch.Tensor) -> None:
         self._ensure_bank(q_state.shape[-1], q_state.dtype)
@@ -872,7 +1017,7 @@ def _make_sig_caller(fn: Callable[..., Any], name: str) -> Callable[..., Any]:
     if any(p.kind == inspect.Parameter.VAR_POSITIONAL for p in params):
         raise RuntimeError(f"{name} uses *args; define explicit parameters.")
     if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params):
-        raise RuntimeError(f"{name} uses **kwargs; define explicit parameters.")
+        raise RuntimeError(f"{name} uses **args; define explicit parameters.")
 
     def _caller(
         model: nn.Module,
@@ -916,21 +1061,70 @@ def _make_sig_caller(fn: Callable[..., Any], name: str) -> Callable[..., Any]:
     return _caller
 
 
+def _masked_mean(x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    """
+    Capture-safe masked mean.
+
+    Args:
+        x:    [B, T, D]
+        mask: [B, T] (float or bool; 1=keep, 0=ignore)
+
+    Returns:
+        [B, D]
+    """
+    if mask.dtype != x.dtype:
+        mask = mask.to(dtype=x.dtype)
+
+    mask = mask.unsqueeze(-1)  # [B, T, 1]
+    weighted_sum = (x * mask).sum(dim=1)
+    denom = mask.sum(dim=1).clamp(min=1.0)
+    return weighted_sum / denom
+
+
 def build_sdm_hooks(model: nn.Module, field: Any, memory: Any) -> "StepHooks":
     missing = []
     if not hasattr(memory, "query"):
         missing.append("memory.query")
-    if not hasattr(field, "velocity"):
-        missing.append("field.velocity")
     if not (hasattr(field, "step") or hasattr(field, "evolve_step")):
         missing.append("field.step or field.evolve_step")
-    if not hasattr(model, "compute_R_sc"):
-        missing.append("model.compute_R_sc")
     if missing:
         raise RuntimeError("trainer2 SDM/connection hooks missing: " + ", ".join(missing))
 
-    get_velocity = _make_sig_caller(field.velocity, "field.velocity")
-    compute_R_sc = _make_sig_caller(model.compute_R_sc, "model.compute_R_sc")
+    if hasattr(field, "velocity"):
+        get_velocity = _make_sig_caller(field.velocity, "field.velocity")
+    else:
+        def get_velocity(
+            model: nn.Module,
+            field: Any,
+            memory: Any,
+            rotor_state: Any,
+            batch: Any,
+        ) -> torch.Tensor:
+            if isinstance(batch, dict):
+                if "_trainer2_v" in batch:
+                    return batch["_trainer2_v"]
+                if "_trainer2_q_coord" in batch:
+                    return batch["_trainer2_q_coord"]
+            B = batch["input_ids"].shape[0] if isinstance(batch, dict) and "input_ids" in batch else 1
+            return torch.zeros(B, memory.coord_dim_n, device=DEVICE, dtype=torch.float32)
+
+    if hasattr(model, "compute_R_sc"):
+        compute_R_sc = _make_sig_caller(model.compute_R_sc, "model.compute_R_sc")
+    else:
+        def compute_R_sc(
+            model: nn.Module,
+            field: Any,
+            memory: Any,
+            rotor_state: Any,
+            batch: Any,
+        ) -> torch.Tensor:
+            T = getattr(field, "T", None)
+            if T is None:
+                raise RuntimeError("Field missing T; cannot compute default R_sc.")
+            R = torch.mean(torch.abs(T))
+            B = batch["input_ids"].shape[0] if isinstance(batch, dict) and "input_ids" in batch else 1
+            return R.expand(B)
+
     step_fn = field.evolve_step if hasattr(field, "evolve_step") else field.step
     step_dynamics = _make_sig_caller(step_fn, "field.step/evolve_step")
 
@@ -988,11 +1182,17 @@ def build_sdm_hooks(model: nn.Module, field: Any, memory: Any) -> "StepHooks":
             coords = torch.cat([output, pad], dim=-1)
         else:
             coords = output[..., :n]
-        q_coord = coords.mean(dim=1)
-        q_state = output.mean(dim=1)
+
+        T = output.shape[1]
+        attn_mask = _get_attention_mask(batch, output.device, T)
+        q_coord = _masked_mean(coords, attn_mask)
+        q_state = _masked_mean(output, attn_mask)
+
         if isinstance(batch, dict):
             batch["_trainer2_q_coord"] = q_coord
             batch["_trainer2_q_state"] = q_state
+            batch["_trainer2_v"] = q_coord
+
         mem_coord, mem_state, _mask = memory.query(output.shape[0])
         if mem_coord is None or mem_state is None:
             return q_coord, coords, output
@@ -1015,6 +1215,28 @@ def build_sdm_hooks(model: nn.Module, field: Any, memory: Any) -> "StepHooks":
         theta2 = getattr(rotor_state, "theta2", None)
         layers2 = getattr(rotor_state, "rotor_layers2", None)
         return theta1, theta2, layers2
+
+    def _get_attention_mask(batch: Any, device: torch.device, T: int) -> torch.Tensor:
+        # Derive batch size once
+        if isinstance(batch, dict) and "input_ids" in batch:
+            B = batch["input_ids"].shape[0]
+        else:
+            B = 1
+
+        attn_mask = None
+        if isinstance(batch, dict):
+            attn_mask = batch.get("attention_mask", batch.get("mask", None))
+
+        if attn_mask is None:
+            # Always create [B, T]
+            attn_mask = torch.ones((B, T), device=device, dtype=torch.float32)
+        else:
+            # Normalize to [B, T]
+            if attn_mask.dim() == 1:
+                attn_mask = attn_mask.unsqueeze(0)
+            attn_mask = attn_mask.to(device=device, dtype=torch.float32)
+
+        return attn_mask
 
     return StepHooks(
         build_retrieval_batch=build_retrieval_batch,
@@ -1206,24 +1428,65 @@ def run_window(
     geom: GeometryCache,
     hooks: StepHooks,
     external_nudge: Optional[torch.Tensor],
+    window_idx: int = 0,
+    epoch_idx: int = 0,
 ) -> PhaseStats:
     with inference_context():
+        _trace("run_window:enter")
         steps = int(cfg.tbptt_window_steps)
         lior_acc = torch.zeros((), device=DEVICE, dtype=torch.float32)
         R_acc = torch.zeros((), device=DEVICE, dtype=torch.float32)
         spd_acc = torch.zeros((), device=DEVICE, dtype=torch.float32)
+        velocity_acc: Optional[torch.Tensor] = None  # For directional metric learning
+        ce_acc = torch.zeros((), device=DEVICE, dtype=torch.float32)
+        ce_count = 0
+
+        # Geometric diagnostics buffer
+        path_buffer = PathBuffer(
+            buffer_size=steps,
+            dim=cfg.coord_dim_n,
+            device=DEVICE
+        )
+
+        ev0 = ev1 = None
+        if cfg.timing_debug:
+            ev0 = torch.cuda.Event(enable_timing=True)
+            ev1 = torch.cuda.Event(enable_timing=True)
+            ev0.record()
 
         act = None
         mem_update: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
 
+        progress_every = int(getattr(cfg, "step_progress_every", 0) or 0)
+
         for _t in range(steps):
+            if _t == 0:
+                _trace("run_window:step0:start")
+            if progress_every > 0 and (_t % progress_every == 0) and _t > 0:
+                # Live perf metrics (uses accumulated values, no extra cuda sync)
+                import math
+                inv_t = 1.0 / float(_t)
+                lior_now = (lior_acc * inv_t).item()
+                R_now = (R_acc * inv_t).item()
+                spd_now = (spd_acc * inv_t).item()
+                ppl = math.exp(min(lior_now, 20.0))  # Perplexity = exp(loss), capped
+                print(f"[{_ts()}] e{epoch_idx} w{window_idx} step {_t}/{steps} | loss={lior_now:.4f} ppl={ppl:.2f} R={R_now:.4f} spd={spd_now:.4f}", flush=True)
+
+            if _t == 0:
+                _trace("run_window:step0:compute_R_sc:start")
             R_sc = _compute_R_sc_via_hooks(cfg, geom, hooks, model, field, memory, rotor_state, batch)
+            if _t == 0:
+                _trace("run_window:step0:compute_R_sc:done")
             if R_sc.dim() > 1:
                 R_sc = R_sc.reshape(R_sc.shape[0])
 
+            if _t == 0:
+                _trace("run_window:step0:build_retrieval_batch:start")
             q_coord, cand_coord, cand_state = hooks.build_retrieval_batch(
                 model, field, memory, rotor_state, batch
             )
+            if _t == 0:
+                _trace("run_window:step0:build_retrieval_batch:done")
             q_coord = _ensure_cuda(q_coord, "q_coord")
             cand_coord = _ensure_cuda(cand_coord, "cand_coord")
             cand_state = _ensure_cuda(cand_state, "cand_state")
@@ -1246,6 +1509,8 @@ def run_window(
                 if theta2 is not None:
                     _ensure_cuda(theta2, "theta2")
 
+            if _t == 0:
+                _trace("run_window:step0:retrieval_step:start")
             y = retrieval_step_with_rotor(
                 q_coord=q_coord,
                 cand_coord=cand_coord,
@@ -1259,13 +1524,23 @@ def run_window(
                 geom=geom,
                 cfg=cfg,
             )
+            if _t == 0:
+                _trace("run_window:step0:retrieval_step:done")
             act = y
 
+            if _t == 0:
+                _trace("run_window:step0:get_velocity:start")
             v = hooks.get_velocity(model, field, memory, rotor_state, batch)
+            if _t == 0:
+                _trace("run_window:step0:get_velocity:done")
             v = _ensure_cuda(v, "v")
             if v.dim() == 3:
                 v = v.squeeze(1)
+            if _t == 0:
+                _trace("run_window:step0:lior_step:start")
             dlior = lior_step(R_sc=R_sc, v=v, g0=geom.g0, g0_diag=geom.g0_diag, cfg=cfg)
+            if _t == 0:
+                _trace("run_window:step0:lior_step:done")
 
             lior_acc = lior_acc + dlior.mean()
             R_acc = R_acc + R_sc.mean()
@@ -1273,7 +1548,31 @@ def run_window(
             spd = quad_form_batch(v.unsqueeze(1), g=geom.g0, eps=cfg.eps, g_diag=geom.g0_diag).squeeze(1)
             spd_acc = spd_acc + spd.mean()
 
+            # Accumulate velocity for directional metric learning
+            # CRITICAL: Must detach BOTH sides to prevent graph accumulation
+            if velocity_acc is None:
+                velocity_acc = v.detach().clone()
+            else:
+                velocity_acc = velocity_acc.detach() + v.detach()
+
+            # Push to geometric diagnostics buffer
+            path_buffer.push(
+                velocity=v.detach(),
+                curvature=R_sc.detach(),
+                lior=dlior.detach()
+            )
+
+            if _t == 0:
+                _trace("run_window:step0:step_dynamics:start")
             hooks.step_dynamics(model, field, memory, rotor_state, batch, external_nudge)
+            if _t == 0:
+                _trace("run_window:step0:step_dynamics:done")
+
+        if cfg.timing_debug and ev1 is not None and ev0 is not None:
+            ev1.record()
+            torch.cuda.synchronize()
+            ms = float(ev0.elapsed_time(ev1))
+            print(f"[{_ts()}] window gpu_ms={ms:.2f}", flush=True)
 
         inv_steps = 1.0 / float(steps)
         metrics = WindowMetrics(
@@ -1281,7 +1580,20 @@ def run_window(
             R_mean=R_acc * inv_steps,
             spd_mean=spd_acc * inv_steps,
         )
-        return PhaseStats(metrics=metrics, act=act, mem_update=mem_update)
+
+        # Compute and log geometric diagnostics
+        if geom is not None and geom.g0_diag is not None:
+            diag = path_buffer.compute_diagnostics(
+                metric_diag=geom.g0_diag,
+                n_perturbations=8,
+                perturbation_scale=0.1
+            )
+            if diag is not None:
+                print(f"[{_ts()}] GEOM: {format_diagnostics(diag)}")
+
+        # Normalize velocity by number of steps
+        mean_velocity = velocity_acc * inv_steps if velocity_acc is not None else None
+        return PhaseStats(metrics=metrics, act=act, mem_update=mem_update, velocity=mean_velocity)
 
 
 def build_nudge(free_stats: PhaseStats, batch: Any, cfg: TrainConfig) -> Optional[torch.Tensor]:
@@ -1290,27 +1602,164 @@ def build_nudge(free_stats: PhaseStats, batch: Any, cfg: TrainConfig) -> Optiona
     return None
 
 
-def apply_manual_update(model: nn.Module, free: PhaseStats, nudged: PhaseStats, cfg: TrainConfig) -> bool:
+def apply_manual_update(
+    model: nn.Module,
+    free: PhaseStats,
+    nudged: PhaseStats,
+    cfg: TrainConfig,
+    geom: Optional["GeometryCache"] = None,
+    velocity: Optional[torch.Tensor] = None,
+    rotor_state: Any = None,
+) -> bool:
     """
-    Return True if update applied cleanly, False if rejected (NaNs/inf/invalid).
-    Keep this tiny at first: update only the smallest parameter family you trust.
-    """
-    with inference_context():
-        if not hasattr(model, "theta_update_target"):
-            return True
+    Apply metric + rotor update based on free vs nudged LIoR difference.
 
+    CRITICAL: This function must NOT be wrapped in inference_context().
+    InferenceMode = immutable state. Learning cannot occur inside it.
+
+    Implements:
+    1. Directional metric update: Δg_ii ∝ -ΔLIoR · γ̇_i²
+    2. Rotor coupling: Δθ ∝ -ΔLIoR · angle(γ̇ in rotor plane)
+
+    This learns both the cost (D) and orientation (R) in g = R^T D R
+
+    Returns True if update applied cleanly, False if rejected.
+    """
+    # Compute LIoR difference (can be computed earlier in inference mode, but write must be outside)
+    lior_diff = nudged.metrics.lior_mean - free.metrics.lior_mean
+    lior_diff_val = lior_diff.item() if torch.is_tensor(lior_diff) else float(lior_diff)
+
+    # Check for NaN/inf
+    if not math.isfinite(lior_diff_val):
+        print(f"[UPDATE] REJECTED: LIoR diff is {lior_diff_val}")
+        return False
+
+    eta = float(cfg.eta_update / cfg.beta_nudge)
+    updated_something = False
+
+    # Option 1: Update model.theta_update_target if it exists
+    if hasattr(model, "theta_update_target"):
         tgt = getattr(model, "theta_update_target")
-        if not isinstance(tgt, torch.Tensor) or not tgt.is_cuda:
-            return False
+        if isinstance(tgt, torch.Tensor) and tgt.is_cuda:
+            delta = lior_diff_val * eta
+            if math.isfinite(delta):
+                tgt.add_(delta)
+                print(f"[UPDATE] theta_update_target += {delta:.6f} (LIoR diff={lior_diff_val:.6f})")
+                updated_something = True
 
-        scale = float(cfg.eta_update / cfg.beta_nudge)
-        delta = (nudged.metrics.lior_mean - free.metrics.lior_mean) * scale
+    # Option 2 + 3: Combined metric + rotor update
+    # The metric is g = R^T D R where:
+    #   - D = diag(g0_diag) learns costs
+    #   - R = Givens rotations (theta) learns orientation
+    #
+    # Update law: Δg_ii ∝ -ΔLIoR · γ̇_i² (in rotated frame)
+    # Rotor update: Δθ ∝ -ΔLIoR · angle(γ̇) (in each plane)
 
-        # Window-level sanity check; sync is acceptable here (not hot path).
-        finite_ok = torch.isfinite(delta).all()
-        delta = torch.where(finite_ok, delta, torch.zeros_like(delta))
-        tgt.add_(delta)
-        return True
+    if geom is not None and geom.g0_diag is not None:
+        g_diag = geom.g0_diag
+        if g_diag.is_cuda and velocity is not None and velocity.numel() > 0:
+            # Get mean velocity
+            if velocity.dim() > 1:
+                v_mean = velocity.mean(dim=0)
+            else:
+                v_mean = velocity
+
+            # Step 1: Rotate velocity into rotor frame (if rotors exist)
+            if (rotor_state is not None and hasattr(rotor_state, 'theta') and
+                rotor_state.theta is not None and geom.rotor_layers is not None):
+                v_rot = rotor_apply(v_mean.unsqueeze(0), rotor_state.theta, geom.rotor_layers).squeeze(0)
+            else:
+                v_rot = v_mean
+
+            # Step 2: Compute diagonal metric update in rotated frame
+            v_sq = v_rot.pow(2)
+            v_sq_norm = v_sq / (v_sq.sum() + 1e-8)
+
+            # Δg_ii: if nudge helped (ΔLIoR < 0), make these directions cheaper
+            delta_g = eta * (-lior_diff_val) * v_sq_norm
+
+            # Apply update to diagonal metric
+            g_diag.add_(delta_g)
+            g_diag.clamp_(min=0.01, max=100.0)
+
+            v_sq_max = v_sq.max().item()
+            delta_norm = delta_g.abs().mean().item()
+            print(f"[UPDATE] g0_diag += directional (|Δ|={delta_norm:.6f}, v²_max={v_sq_max:.4f}, LIoR diff={lior_diff_val:.6f})")
+            updated_something = True
+
+            # Step 3: Update rotor angles to align with velocity direction
+            if (rotor_state is not None and hasattr(rotor_state, 'theta') and
+                rotor_state.theta is not None and geom.rotor_layers is not None):
+
+                theta = rotor_state.theta
+                if theta.is_cuda:
+                    layers = geom.rotor_layers.shape[0]
+                    pairs_per_layer = geom.rotor_layers.shape[1]
+                    total_updates = 0
+                    total_delta_theta = 0.0
+
+                    # Rotor learning rate (smaller than metric lr)
+                    rotor_lr = eta * 0.01
+
+                    for layer_idx in range(layers):
+                        for pair_idx in range(pairs_per_layer):
+                            i, j = geom.rotor_layers[layer_idx, pair_idx]
+                            i, j = int(i.item()), int(j.item())
+
+                            if i >= v_mean.shape[-1] or j >= v_mean.shape[-1]:
+                                continue
+
+                            # Velocity in this plane (original frame)
+                            v_i, v_j = v_mean[i].item(), v_mean[j].item()
+                            v_plane_mag = math.sqrt(v_i**2 + v_j**2)
+
+                            if v_plane_mag < 1e-6:
+                                continue
+
+                            # Angle of velocity in this plane
+                            v_angle = math.atan2(v_j, v_i)
+
+                            k_idx = layer_idx * pairs_per_layer + pair_idx
+                            if k_idx >= theta.shape[-1]:
+                                continue
+
+                            # Update rotor to align with velocity direction
+                            # If nudge helped, reinforce alignment
+                            delta_theta = rotor_lr * (-lior_diff_val) * v_angle * v_plane_mag
+                            if math.isfinite(delta_theta):
+                                theta[..., k_idx].add_(delta_theta)
+                                total_updates += 1
+                                total_delta_theta += abs(delta_theta)
+
+                    if total_updates > 0:
+                        # Wrap theta to [-π, π] (in-place)
+                        theta.remainder_(2 * math.pi)
+                        theta.sub_(math.pi)
+                        theta.add_(2 * math.pi)
+                        theta.remainder_(2 * math.pi)
+                        theta.sub_(math.pi)
+
+                        avg_delta = total_delta_theta / total_updates
+                        print(f"[UPDATE] rotor: {total_updates} planes (avg |Δθ|={avg_delta:.6f})")
+                        updated_something = True
+
+        elif g_diag.is_cuda:
+            # Fallback: scalar update if no velocity available
+            delta_mag = abs(lior_diff_val) * eta * 0.01
+            if lior_diff_val < 0:
+                adjustment = 1.0 + delta_mag
+            else:
+                adjustment = 1.0 - delta_mag
+            adjustment = max(0.95, min(1.05, adjustment))
+            g_diag.mul_(adjustment)
+            g_diag.clamp_(min=0.01, max=100.0)
+            print(f"[UPDATE] g0_diag *= {adjustment:.6f} (scalar, no velocity, LIoR diff={lior_diff_val:.6f})")
+            updated_something = True
+
+    if not updated_something:
+        print(f"[UPDATE] SKIPPED: no update target (LIoR diff={lior_diff_val:.6f})")
+
+    return True
 
 
 def _maybe_update_memory(memory: Any, stats: PhaseStats) -> None:
@@ -1338,44 +1787,103 @@ def run_two_phase_and_update(
     cfg: TrainConfig,
     geom: GeometryCache,
     hooks: StepHooks,
+    window_idx: int = 0,
+    epoch_idx: int = 0,
 ) -> Tuple[PhaseStats, PhaseStats]:
-    with inference_context():
-        snap = snapshot_system(field, memory, rotor_state)
+    """
+    Two-phase training: free window + nudged window, then update geometry.
 
-        free = run_window(
-            model=model, field=field, memory=memory, rotor_state=rotor_state,
-            batch=batch, cfg=cfg, geom=geom, hooks=hooks, external_nudge=None
-        )
+    CRITICAL: Updates (apply_manual_update, _maybe_update_memory) MUST happen
+    OUTSIDE inference_context(). InferenceMode = immutable state.
+    """
+    # Phase 1: Run both windows inside inference mode (read-only is fine)
+    snap = None
+    try:
+        with inference_context():
+            _trace("two_phase:snapshot:start")
+            snap = snapshot_system(field, memory, rotor_state)
+            _trace("two_phase:snapshot:done")
 
-        nudge = build_nudge(free, batch, cfg)
-        restore_system(field, memory, rotor_state, snap)
+            _trace("two_phase:free_window:start")
+            free = run_window(
+                model=model, field=field, memory=memory, rotor_state=rotor_state,
+                batch=batch, cfg=cfg, geom=geom, hooks=hooks, external_nudge=None,
+                window_idx=window_idx, epoch_idx=epoch_idx
+            )
+            _trace("two_phase:free_window:done")
 
-        nudged = run_window(
-            model=model, field=field, memory=memory, rotor_state=rotor_state,
-            batch=batch, cfg=cfg, geom=geom, hooks=hooks, external_nudge=nudge
-        )
+            _trace("two_phase:build_nudge:start")
+            nudge = build_nudge(free, batch, cfg)
+            _trace("two_phase:build_nudge:done")
+            _trace("two_phase:restore:start")
+            restore_system(field, memory, rotor_state, snap)
+            _trace("two_phase:restore:done")
 
-        ok = apply_manual_update(model, free, nudged, cfg)
+            _trace("two_phase:nudged_window:start")
+            nudged = run_window(
+                model=model, field=field, memory=memory, rotor_state=rotor_state,
+                batch=batch, cfg=cfg, geom=geom, hooks=hooks, external_nudge=nudge,
+                window_idx=window_idx, epoch_idx=epoch_idx
+            )
+            _trace("two_phase:nudged_window:done")
+    finally:
+        # Explicit cleanup of snapshot to free GPU memory
+        if snap is not None:
+            del snap
+            snap = None
 
-        if (not ok) and cfg.enable_spsa_fallback and hasattr(model, "theta_update_target"):
-            theta = getattr(model, "theta_update_target")
-            if isinstance(theta, torch.Tensor) and theta.is_cuda:
-                def obj_fn(th: torch.Tensor) -> torch.Tensor:
-                    old = theta.clone()
-                    theta.copy_(th)
-                    snap2 = snapshot_system(field, memory, rotor_state)
-                    stats = run_window(
-                        model=model, field=field, memory=memory, rotor_state=rotor_state,
-                        batch=batch, cfg=cfg, geom=geom, hooks=hooks, external_nudge=None
-                    )
-                    restore_system(field, memory, rotor_state, snap2)
-                    theta.copy_(old)
-                    return stats.metrics.lior_mean
+    # Phase 2: Apply updates OUTSIDE inference mode (mutations allowed)
+    _trace("two_phase:apply_update:start")
 
-                spsa_step(theta, obj_fn, cfg)
+    # Get velocity from PhaseStats if available
+    velocity = getattr(free, 'velocity', None)
 
-        _maybe_update_memory(memory, free)
-        return free, nudged
+    # Apply metric + rotor update (directional learning)
+    ok = apply_manual_update(
+        model=model,
+        free=free,
+        nudged=nudged,
+        cfg=cfg,
+        geom=geom,
+        velocity=velocity,
+        rotor_state=rotor_state,
+    )
+    _trace("two_phase:apply_update:done")
+
+    # SPSA fallback if update failed
+    if (not ok) and cfg.enable_spsa_fallback and hasattr(model, "theta_update_target"):
+        theta = getattr(model, "theta_update_target")
+        if isinstance(theta, torch.Tensor) and theta.is_cuda:
+            def obj_fn(th: torch.Tensor) -> torch.Tensor:
+                old = theta.clone()
+                theta.copy_(th)
+                snap2 = None
+                try:
+                    with inference_context():
+                        snap2 = snapshot_system(field, memory, rotor_state)
+                        stats = run_window(
+                            model=model, field=field, memory=memory, rotor_state=rotor_state,
+                            batch=batch, cfg=cfg, geom=geom, hooks=hooks, external_nudge=None,
+                            window_idx=window_idx, epoch_idx=epoch_idx
+                        )
+                        restore_system(field, memory, rotor_state, snap2)
+                finally:
+                    if snap2 is not None:
+                        del snap2
+                theta.copy_(old)
+                return stats.metrics.lior_mean
+
+            spsa_step(theta, obj_fn, cfg)
+
+    # Memory update OUTSIDE inference mode
+    _maybe_update_memory(memory, free)
+
+    # Periodic GPU memory cleanup to prevent fragmentation
+    # Only do this every N windows to avoid overhead
+    if window_idx > 0 and window_idx % 10 == 0:
+        torch.cuda.empty_cache()
+
+    return free, nudged
 
 # ==============================================================================
 # SECTION 7: STRUCTURED R / CURVATURE SOURCES AND REPRESENTATIONS
@@ -1606,7 +2114,7 @@ def clamp_update_norm(delta: torch.Tensor, max_norm: Optional[float]) -> torch.T
 
 def apply_contrastive_linear_update(
     weight: torch.Tensor,
-    bias: Optional[torch.Tensor],
+    bias: Optional[torch.Tensor],#stop  fucking  changing  this!  leave  it  in  brackets
     free_stats: LinearActivityStats,
     nudged_stats: LinearActivityStats,
     cfg: TrainConfig,
@@ -1664,27 +2172,87 @@ def maybe_capture_cudagraph(step_fn: Callable[..., Any], static_inputs: Any, cfg
     raise NotImplementedError("CUDA graph capture is not implemented in trainer2 skeleton.")
 
 
-def retrieval_step_with_rotor(
+@dataclass
+class SpectralHeadConfig:
+    spectral_dim: int = 8
+    spectral_beta: float = 1.0
+    use_spectral_in_retrieval: bool = False
+
+
+@dataclass
+class SpectralCoords:
+    spec: torch.Tensor  # [B, T, d_spec]
+
+
+class SpectralCoordinateHead(nn.Module):
+    """
+    Minimal spectral head: projects token states -> spectral coordinates.
+
+    Design constraints:
+    - stateless in forward (no side effects)
+    - deterministic
+    - CUDA-only tensors (enforced by caller)
+    - no nonlinear routing/gating
+    """
+    def __init__(self, d_model: int, cfg: SpectralHeadConfig):
+        super().__init__()
+        self.cfg = cfg
+        self.proj = nn.Linear(d_model, cfg.spectral_dim, bias=False)
+
+    def forward(self, x: torch.Tensor) -> SpectralCoords:
+        spec = self.proj(x)
+        return SpectralCoords(spec=spec)
+
+
+def _spectral_cost(
+    q_spec: torch.Tensor,
+    cand_spec: torch.Tensor,
+    eps: float,
+) -> torch.Tensor:
+    """
+    Simple SPD-ish spectral distance proxy.
+
+    q_spec:    [B, dS]
+    cand_spec: [B, K, dS]
+    returns:   [B, K]
+    """
+    dv = cand_spec - q_spec.unsqueeze(1)
+    q = (dv * dv).sum(dim=-1)
+    q = torch.clamp(q, min=0.0)
+    return torch.sqrt(q + eps)
+
+
+def retrieval_step_with_spectral(
+    *,
     q_coord: torch.Tensor,
     cand_coord: torch.Tensor,
     cand_state: torch.Tensor,
     R_sc: torch.Tensor,
     g: torch.Tensor,
     g_diag: Optional[torch.Tensor],
-    theta1: Optional[torch.Tensor],
-    theta2: Optional[torch.Tensor],
-    rotor_layers2: Optional[torch.Tensor],
-    geom: GeometryCache,
+    q_spec: Optional[torch.Tensor],
+    cand_spec: Optional[torch.Tensor],
     cfg: TrainConfig,
+    spectral_cfg: SpectralHeadConfig,
 ) -> torch.Tensor:
+    """
+    Base geometric retrieval cost + optional spectral additive cost.
+
+    Important: this only changes *relative weights* via softmax over a cost;
+    it does not inject energy/mass.
+    """
     v = cand_coord - q_coord.unsqueeze(1)
-    layers2 = rotor_layers2 if rotor_layers2 is not None else geom.rotor_layers
-    v = apply_rotors_parallel(v, theta1, geom.rotor_layers, theta2, layers2, cfg)
     spd = quad_form_batch(v, g=g, eps=cfg.eps, g_diag=g_diag)
+
     if R_sc.dim() == 1:
         cost = R_sc.unsqueeze(1) * spd
     else:
         cost = R_sc * spd
+
+    if spectral_cfg.use_spectral_in_retrieval and (q_spec is not None) and (cand_spec is not None):
+        s_cost = _spectral_cost(q_spec=q_spec, cand_spec=cand_spec, eps=cfg.eps)
+        cost = cost + float(spectral_cfg.spectral_beta) * s_cost
+
     w = retrieval_weights_from_cost(cost, beta=cfg.retrieval_beta)
     return retrieval_mix(cand_state, w)
 
@@ -1695,22 +2263,83 @@ def retrieval_step_with_rotor(
 @dataclass
 class TelemetryState:
     last_log_window: int = -1
+    buffer: Optional[torch.Tensor] = None  # shape [3, N]
+    ptr: int = 0
+    flush_stream: Optional[torch.cuda.Stream] = None
+    staging_cpu: Optional[torch.Tensor] = None  # pinned [3]
 
 
-def maybe_log_metrics(window_idx: int, metrics: WindowMetrics, cfg: TrainConfig, state: TelemetryState) -> None:
+def _ensure_flush_stream(state: TelemetryState) -> None:
+    if state.flush_stream is None:
+        state.flush_stream = torch.cuda.Stream()
+
+
+def _ensure_staging_cpu(state: TelemetryState, dtype: torch.dtype) -> None:
+    if state.staging_cpu is None or state.staging_cpu.dtype != dtype or state.staging_cpu.numel() != 3:
+        state.staging_cpu = torch.empty((3,), device="cpu", dtype=dtype, pin_memory=True)
+
+
+def _log_metrics_buffered(window_idx: int, metrics: WindowMetrics, cfg: TrainConfig, state: TelemetryState) -> None:
+    """Buffer metrics on GPU; async flush to host at log interval (side stream + pinned staging)."""
     if cfg.log_every_windows <= 0:
         return
+
+    if state.buffer is None:
+        buf_len = max(int(cfg.log_every_windows), 1)
+        dtype = metrics.lior_mean.dtype
+        device = metrics.lior_mean.device
+        state.buffer = torch.zeros((3, buf_len), device=device, dtype=dtype)
+        state.ptr = 0
+
+    buf = state.buffer
+    idx = state.ptr % buf.shape[1]
+    buf[0, idx] = metrics.lior_mean
+    buf[1, idx] = metrics.R_mean
+    buf[2, idx] = metrics.spd_mean
+    state.ptr += 1
+
     if window_idx % cfg.log_every_windows != 0:
         return
     if state.last_log_window == window_idx:
         return
     state.last_log_window = window_idx
 
-    torch.cuda.synchronize()
-    lior = float(metrics.lior_mean.item())
-    r_mean = float(metrics.R_mean.item())
-    spd = float(metrics.spd_mean.item())
-    print(f"[trainer2] window={window_idx} lior={lior:.6f} R={r_mean:.6f} spd={spd:.6f}")
+    means_gpu = buf.mean(dim=1)
+
+    _ensure_flush_stream(state)
+    _ensure_staging_cpu(state, means_gpu.dtype)
+
+    stream = state.flush_stream
+    staging = state.staging_cpu
+    assert stream is not None
+    assert staging is not None
+
+    with torch.cuda.stream(stream):
+        staging.copy_(means_gpu, non_blocking=True)
+
+    # Sync only the side stream (printing is outside any capture path)
+    stream.synchronize()
+
+    lior = float(staging[0])
+    r_mean = float(staging[1])
+    spd = float(staging[2])
+    print(f"[{_ts()}] window={window_idx} lior={lior:.6f} R={r_mean:.6f} spd={spd:.6f}")
+
+
+def maybe_log_metrics(window_idx: int, metrics: WindowMetrics, cfg: TrainConfig, state: TelemetryState) -> None:
+    # Buffered logging; avoid per-step host syncs.
+    _log_metrics_buffered(window_idx, metrics, cfg, state)
+
+
+def _get_tokenizer_dict(tokenizer: Any) -> Optional[dict]:
+    """Extract tokenizer state for checkpoint."""
+    if tokenizer is None:
+        return None
+    return {
+        'vocab_size': getattr(tokenizer, 'vocab_size', None),
+        'vocab': getattr(tokenizer, 'vocab', None),
+        'inverse_vocab': getattr(tokenizer, 'inverse_vocab', None),
+    }
 
 
 def maybe_checkpoint(*args: Any, **kwargs: Any) -> None:
@@ -1721,6 +2350,7 @@ def maybe_checkpoint(*args: Any, **kwargs: Any) -> None:
     memory = kwargs.get("memory", None)
     rotor_state = kwargs.get("rotor_state", None)
     epoch_idx = kwargs.get("epoch_idx", 0)
+    tokenizer = kwargs.get("tokenizer", None)
 
     if cfg is None or window_idx is None:
         return
@@ -1731,7 +2361,31 @@ def maybe_checkpoint(*args: Any, **kwargs: Any) -> None:
 
     os.makedirs(cfg.run_dir, exist_ok=True)
     ckpt_path = os.path.join(cfg.run_dir, f"{cfg.run_name}_window{window_idx}.pt")
+
+    # Build inference-compatible config
+    inference_config = {
+        'd_model': getattr(model, 'd_model', 256),
+        'n_layers': getattr(model, 'n_layers', cfg.coord_dim_n),
+        'n_heads': getattr(model, 'n_heads', 4),
+        'n_attention_layers': getattr(model, 'n_attention_layers', 2),
+        'field_dim': 16,  # Hardcoded in GeometricStack
+        'vocab_size': model.lm_head.out_features if hasattr(model, 'lm_head') and model.lm_head is not None else 32000,
+        'max_seq_len': 512,
+        'spatial_size': [8, 8],
+        'use_mamba': True,
+    }
+
     ckpt = {
+        # Inference-compatible keys (required by inference/inference.py)
+        "epoch": epoch_idx,
+        "global_step": window_idx,
+        "config": inference_config,
+        "model_state_dict": model.state_dict() if hasattr(model, "state_dict") else None,
+        "field_state_dict": _snapshot_any(field),
+        "input_embedding_state_dict": model.input_embedding.state_dict() if hasattr(model, 'input_embedding') and model.input_embedding is not None else None,
+        "lm_head_state_dict": model.lm_head.state_dict() if hasattr(model, 'lm_head') and model.lm_head is not None else None,
+        "tokenizer": _get_tokenizer_dict(tokenizer),
+        # trainer2-specific keys (for resume)
         "window_idx": window_idx,
         "epoch_idx": epoch_idx,
         "cfg": dataclasses.asdict(cfg),
@@ -1741,6 +2395,7 @@ def maybe_checkpoint(*args: Any, **kwargs: Any) -> None:
         "rotor_state": _snapshot_any(rotor_state),
     }
     torch.save(ckpt, ckpt_path)
+    print(f"[{_ts()}] checkpoint saved: {ckpt_path}")
 
 # ==============================================================================
 # SECTION 14: ENTRYPOINT, SMOKE TESTS, AND STRICT FAILURE SEMANTICS
@@ -2116,6 +2771,3 @@ Subheaders:
 - 12.2 training/__init__.py export
 - 12.3 Tests and smoke runs
 """
-
-# NOTE: This file is intentionally a detailed outline. Implementations will
-# replace sections above as code is added.

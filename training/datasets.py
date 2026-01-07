@@ -26,16 +26,16 @@ from typing import List, Dict, Optional, Tuple, Iterator, Sequence, Union
 import random
 
 # Optional dependencies for image/video
-try:
-    from PIL import Image
-    VISION_AVAILABLE = True
-except ImportError:
-    Image = None
-    VISION_AVAILABLE = False
+#try:
+ #   from PIL import Image
+  #  VISION_AVAILABLE = True
+#except ImportError:
+ #   Image = None
+  #  VISION_AVAILABLE = False
 
 # Import transforms - REQUIRED for image/video datasets
-if VISION_AVAILABLE:
-    import torchvision.transforms as transforms
+#if VISION_AVAILABLE:
+  #  import torchvision.transforms as transforms
 
 
 class TextDataset(Dataset):
@@ -304,173 +304,291 @@ class StreamingTextDataset(IterableDataset):
                 yield from self._stream_file(file_path)
 
 
+# ==============================================================================
+# STREAMING INFRASTRUCTURE (three orthogonal concerns)
+# ==============================================================================
+
+class StreamContext:
+    """Metadata for stream hooks - cheap, explicit, future-proof."""
+    __slots__ = ("file", "worker_id", "byte_start", "byte_end")
+
+    def __init__(self, *, file: Path, worker_id: int, byte_start: int, byte_end: int):
+        self.file = file
+        self.worker_id = worker_id
+        self.byte_start = byte_start
+        self.byte_end = byte_end
+
+
+class StreamHooks:
+    """
+    Observational hooks for streaming datasets.
+    Rules: hooks never return values, never mutate inputs, zero overhead when unused.
+    """
+    def on_line(self, *, text: str, ctx: StreamContext) -> None:
+        pass
+
+    def on_tokens(self, *, tokens: List[int], ctx: StreamContext) -> None:
+        pass
+
+    def on_example(self, *, example: Dict[str, torch.Tensor], ctx: StreamContext) -> None:
+        pass
+
+
+class NullStreamHooks(StreamHooks):
+    """No-op hooks for maximum performance."""
+    __slots__ = ()
+    pass
+
+
+class TokenBlockBuilder:
+    """Stateless text -> token block builder. Centralizes all tokenization logic."""
+
+    def __init__(self, tokenizer, *, max_length: int, min_seq_length: int):
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+        self.min_seq_length = min_seq_length
+
+    def extract_text(self, raw: str, *, suffix: str) -> Optional[str]:
+        """Extract text from raw line based on file type."""
+        if suffix == ".jsonl":
+            try:
+                obj = json.loads(raw)
+                return obj.get("text") or obj.get("content")
+            except Exception:
+                return None
+        return raw
+
+    def tokenize(self, text: str) -> List[int]:
+        """Tokenize text without truncation."""
+        return self.tokenizer.encode(text, max_length=None)
+
+    def yield_blocks(self, tokens: List[int]) -> Iterator[List[int]]:
+        """Yield fixed-length token blocks from a token list."""
+        buf = list(tokens)
+        while len(buf) >= self.max_length:
+            block = buf[:self.max_length]
+            buf = buf[self.max_length:]
+            if len(block) >= self.min_seq_length:
+                yield block
+        if len(buf) >= self.min_seq_length:
+            yield buf
+
+
+def iter_lines_in_byte_range(
+    file_path: Path,
+    *,
+    start: int,
+    end: int,
+    read_chunk_bytes: int
+) -> Iterator[str]:
+    """
+    Iterate lines in a byte range of a file.
+    Pure byte->line producer. No tokenization, no hooks, no policy.
+    """
+    if end <= start:
+        return
+
+    with open(file_path, "rb") as f:
+        f.seek(start)
+        buf = b""
+        read_bytes = 0
+        max_bytes = end - start
+
+        while read_bytes < max_bytes:
+            to_read = min(read_chunk_bytes, max_bytes - read_bytes)
+            chunk = f.read(to_read)
+            if not chunk:
+                break
+
+            read_bytes += len(chunk)
+            buf += chunk
+
+            parts = buf.split(b"\n")
+            buf = parts.pop() if parts else b""
+
+            for raw in parts:
+                if raw:
+                    yield raw.decode("utf-8", errors="ignore").strip()
+
+        if buf:
+            yield buf.decode("utf-8", errors="ignore").strip()
+
+
+# ==============================================================================
+# CHUNKED TEXT DATASET (best of both worlds)
+# ==============================================================================
+
 class ChunkedTextDataset(IterableDataset):
     """
-    Chunked text dataset - MEMORY-EFFICIENT for large datasets with BPTT support.
+    Global byte-range streaming dataset with hooks.
 
-    Loads 10k-token chunks on-demand instead of entire dataset.
-    Each worker holds only ~1-2MB of active data vs 100MB+ with TextDataset.
+    Properties:
+    - Byte-range parallelism preserved
+    - Streaming safety preserved
+    - Token logic centralized via TokenBlockBuilder
+    - Hooks are explicit, cheap, and future-safe
+    - Memory, SDM, logging, analytics attach cleanly
+    - No recursion, no snapshotting, no accidental coupling
 
-    Compatible with windowed BPTT: caches recent chunks for gradient flow.
-
-    Args:
-        data_path: Path to text file or directory
-        tokenizer: CognitiveTokenizer instance
-        max_length: Maximum sequence length (for individual sequences)
-        chunk_size: Number of tokens per chunk (default 10000)
-        bptt_window: Number of chunks to cache for BPTT (0=no caching, 50-100 recommended)
-        shuffle_buffer: Size of shuffle buffer (0 = no shuffle)
-        seed: Random seed for reproducibility
+    Its only job: "Turn bytes into sequences as fast as physics allows."
     """
 
     def __init__(
         self,
-        data_path: str,
+        data_path: Union[str, Sequence[str]],
         tokenizer,
+        *,
         max_length: int = 512,
-        chunk_size: int = 10000,
-        bptt_window: int = 50,
+        chunk_size: int = 10000,  # API compat, ignored
+        bptt_window: int = 50,    # API compat, ignored
+        min_seq_length: int = 4,  # Lowered from 128 to allow short sequences
         shuffle_buffer: int = 1000,
-        seed: int = 42
+        seed: int = 42,
+        read_chunk_bytes: int = 1024 * 1024,
+        hooks: Optional[StreamHooks] = None
     ):
-        self.data_path = None
-        self.tokenizer = tokenizer
+        self.builder = TokenBlockBuilder(
+            tokenizer,
+            max_length=max_length,
+            min_seq_length=min_seq_length
+        )
+        self.tokenizer = tokenizer  # Keep ref for _make_example
         self.max_length = max_length
-        self.chunk_size = chunk_size
-        self.bptt_window = bptt_window
+        self.hooks = hooks or NullStreamHooks()
         self.shuffle_buffer = shuffle_buffer
         self.seed = seed
+        self.read_chunk_bytes = read_chunk_bytes
 
-        # Collect file paths only (fast, no tokenization yet)
-        self.file_paths = []
-        if isinstance(data_path, (list, tuple)):
-            self.file_paths = [Path(p) for p in data_path]
-        else:
-            self.data_path = Path(data_path)
-            if self.data_path.is_file():
-                self.file_paths = [self.data_path]
-            elif self.data_path.is_dir():
-                self.file_paths = list(self.data_path.glob('**/*.txt'))
-                self.file_paths += list(self.data_path.glob('**/*.jsonl'))
-            else:
-                raise ValueError(f"Invalid data path: {data_path}")
+        self.file_info: List[Tuple[Path, int]] = []
+        paths = data_path if isinstance(data_path, (list, tuple)) else [data_path]
+        for p in paths:
+            p = Path(p)
+            if p.is_file():
+                self.file_info.append((p, p.stat().st_size))
+            elif p.is_dir():
+                for pat in ("**/*.txt", "**/*.jsonl", "**/*.csv"):
+                    for fp in p.glob(pat):
+                        self.file_info.append((fp, fp.stat().st_size))
 
-        # Estimate dataset size
-        total_bytes = sum(f.stat().st_size for f in self.file_paths)
-        total_mb = total_bytes / (1024 * 1024)
-        est_chunks = total_bytes // (chunk_size * 2)  # Rough estimate (2 bytes/token)
+        self.total_bytes = sum(size for _, size in self.file_info)
 
-        print(f"[ChunkedTextDataset] {len(self.file_paths)} files, {total_mb:.1f}MB total")
-        print(f"[ChunkedTextDataset] Estimated {est_chunks} chunks of {chunk_size} tokens")
-        print(f"[ChunkedTextDataset] BPTT window: {bptt_window} chunks ({'disabled' if bptt_window == 0 else f'~{bptt_window * chunk_size} tokens'})")
+        print(
+            f"[ChunkedTextDataset] {len(self.file_info)} files, "
+            f"{self.total_bytes / (1024**2):.1f} MB total"
+        )
 
     def __len__(self):
-        """
-        Estimate dataset length for DataLoader compatibility.
-
-        Note: This is an approximation since ChunkedTextDataset streams data.
-        Actual number of examples may vary based on tokenization.
-        """
-        # Estimate: total_bytes / (avg_tokens_per_example * bytes_per_token)
-        # avg_tokens_per_example ≈ max_length (with some overhead for short sequences)
-        # bytes_per_token ≈ 2 (rough average for English text)
-        total_bytes = sum(f.stat().st_size for f in self.file_paths)
-        est_examples = total_bytes // (self.max_length * 2)
-        return max(1, est_examples)  # At least 1 to avoid division by zero
+        return max(1, self.total_bytes // (self.max_length * 2))
 
     def _make_example(self, token_ids: List[int]) -> Dict[str, torch.Tensor]:
-        """Convert token IDs to training example with padding."""
+        """Convert token IDs to training example with proper masking."""
         seq_len = len(token_ids)
         if seq_len < self.max_length:
-            padding = [self.tokenizer.pad_token_id] * (self.max_length - seq_len)
-            token_ids = token_ids + padding
-            attention_mask = [1] * seq_len + [0] * (self.max_length - seq_len)
+            pad = [self.tokenizer.pad_token_id] * (self.max_length - seq_len)
+            mask = [1] * seq_len + [0] * (self.max_length - seq_len)
+            token_ids = token_ids + pad
         else:
             token_ids = token_ids[:self.max_length]
-            attention_mask = [1] * self.max_length
+            mask = [1] * self.max_length
+
+        # Labels: -100 for padding (ignored in loss)
+        labels = [tid if m else -100 for tid, m in zip(token_ids, mask)]
 
         return {
-            'input_ids': torch.tensor(token_ids, dtype=torch.long),
-            'labels': torch.tensor(token_ids, dtype=torch.long),
-            'attention_mask': torch.tensor(attention_mask, dtype=torch.long),
-            'modality': 'text',
-            'modality_id': torch.tensor(MODALITY_TEXT, dtype=torch.long)
+            "input_ids": torch.tensor(token_ids, dtype=torch.long),
+            "labels": torch.tensor(labels, dtype=torch.long),
+            "attention_mask": torch.tensor(mask, dtype=torch.long),
+            "modality": "text",
+            "modality_id": torch.tensor(MODALITY_TEXT, dtype=torch.long),
         }
 
-    def _load_and_chunk_file(self, file_path: Path):
-        """
-        Load file and yield chunks of ~chunk_size tokens.
-
-        This reads the entire file but immediately chunks and yields,
-        so only one chunk is in memory at a time.
-        """
-        try:
-            with open(file_path, 'rb') as f:
-                content = f.read()
-            text = content.decode('utf-8', errors='ignore')
-
-            # Tokenize entire file (unavoidable for proper token counting)
-            all_tokens = self.tokenizer.encode(text, max_length=None)  # No truncation
-
-            # Yield chunks
-            for i in range(0, len(all_tokens), self.chunk_size):
-                chunk_tokens = all_tokens[i:i + self.chunk_size]
-                if len(chunk_tokens) >= self.max_length:  # Skip tiny chunks
-                    yield chunk_tokens
-
-        except Exception as e:
-            print(f"[ChunkedTextDataset] Error reading {file_path}: {e}")
-
     def __iter__(self):
-        """Iterate through chunks, handling multiprocessing and BPTT caching."""
-        from collections import deque
-
+        """Stream with global byte-range partitioning and hooks."""
         worker_info = torch.utils.data.get_worker_info()
         if worker_info is None:
-            files = self.file_paths
-            worker_seed = self.seed
+            worker_id, num_workers = 0, 1
         else:
-            # Split files across workers
-            per_worker = len(self.file_paths) // worker_info.num_workers
-            start = worker_info.id * per_worker
-            end = start + per_worker if worker_info.id < worker_info.num_workers - 1 else len(self.file_paths)
-            files = self.file_paths[start:end]
-            worker_seed = self.seed + worker_info.id
+            worker_id, num_workers = worker_info.id, worker_info.num_workers
 
-        rng = random.Random(worker_seed)
-        files = list(files)
-        rng.shuffle(files)
+        if self.total_bytes == 0:
+            print("[ChunkedTextDataset] WARNING: total_bytes=0, no data to iterate")
+            return iter(())
 
-        # BPTT chunk cache (circular buffer)
-        chunk_cache = deque(maxlen=self.bptt_window if self.bptt_window > 0 else 1)
+        # Diagnostic counters
+        lines_read = 0
+        tokens_produced = 0
+        blocks_yielded = 0
 
-        # Shuffle buffer for randomization
+        bytes_per_worker = self.total_bytes // num_workers
+        global_start = worker_id * bytes_per_worker
+        global_end = self.total_bytes if worker_id == num_workers - 1 else (worker_id + 1) * bytes_per_worker
+
+        rng = random.Random(self.seed + worker_id)
         shuffle_buf = [] if self.shuffle_buffer > 0 else None
 
-        for file_path in files:
-            for chunk_tokens in self._load_and_chunk_file(file_path):
-                # Cache chunk for BPTT (old chunks auto-discard via deque maxlen)
-                chunk_cache.append(chunk_tokens)
+        cumulative = 0
+        for file_path, file_size in self.file_info:
+            file_start = cumulative
+            file_end = cumulative + file_size
+            cumulative = file_end
 
-                # Create sequences from chunk
-                for i in range(0, len(chunk_tokens), self.max_length):
-                    seq = chunk_tokens[i:i + self.max_length]
-                    if len(seq) >= 128:  # Minimum viable sequence
-                        example = self._make_example(seq)
+            if file_end <= global_start or file_start >= global_end:
+                continue
 
-                        if shuffle_buf is not None:
-                            shuffle_buf.append(example)
-                            if len(shuffle_buf) >= self.shuffle_buffer:
-                                rng.shuffle(shuffle_buf)
-                                yield from shuffle_buf
-                                shuffle_buf = []
-                        else:
-                            yield example
+            local_start = max(0, global_start - file_start)
+            local_end = min(file_size, global_end - file_start)
 
-        # Flush remaining shuffle buffer
+            ctx = StreamContext(
+                file=file_path,
+                worker_id=worker_id,
+                byte_start=local_start,
+                byte_end=local_end
+            )
+
+            for line in iter_lines_in_byte_range(
+                file_path,
+                start=local_start,
+                end=local_end,
+                read_chunk_bytes=self.read_chunk_bytes
+            ):
+                lines_read += 1
+                self.hooks.on_line(text=line, ctx=ctx)
+
+                text = self.builder.extract_text(line, suffix=file_path.suffix)
+                if not text:
+                    continue
+
+                tokens = self.builder.tokenize(text)
+                if not tokens:
+                    continue
+
+                tokens_produced += len(tokens)
+                self.hooks.on_tokens(tokens=tokens, ctx=ctx)
+
+                for block in self.builder.yield_blocks(tokens):
+                    blocks_yielded += 1
+                    example = self._make_example(block)
+                    self.hooks.on_example(example=example, ctx=ctx)
+
+                    if shuffle_buf is not None:
+                        shuffle_buf.append(example)
+                        if len(shuffle_buf) >= self.shuffle_buffer:
+                            rng.shuffle(shuffle_buf)
+                            yield from shuffle_buf
+                            shuffle_buf.clear()
+                    else:
+                        yield example
+
+                # Log progress periodically
+                if lines_read % 10000 == 0:
+                    print(f"[ChunkedTextDataset] worker {worker_id}: {lines_read} lines, {tokens_produced} tokens, {blocks_yielded} blocks")
+
         if shuffle_buf:
             rng.shuffle(shuffle_buf)
             yield from shuffle_buf
+
+        # Final diagnostic
+        print(f"[ChunkedTextDataset] worker {worker_id} done: {lines_read} lines, {tokens_produced} tokens, {blocks_yielded} blocks yielded")
 
 
 class ImageTextDataset(Dataset):

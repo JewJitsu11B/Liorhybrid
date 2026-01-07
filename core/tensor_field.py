@@ -414,9 +414,13 @@ class CognitiveTensorField:
 
         return state
 
-    def load_state_dict(self, state: dict) -> None:
+    def load_state_dict(self, state: dict, strict: bool = True) -> None:
         """
         Restore field state from checkpoint / inference load.
+
+        Args:
+            state: State dictionary from state_dict()
+            strict: If True, raise on missing keys (PyTorch-compatible signature)
         """
         from Liorhybrid.utils.pipeline_audit import audit_file_once
         audit_file_once("field_load_state_dict", __file__)

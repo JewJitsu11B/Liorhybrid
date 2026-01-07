@@ -20,6 +20,7 @@ from typing import Optional, Tuple, List
 
 from .geometric_products import geometric_score, geometric_score_from_phase, geometric_score_from_exponential
 from .field_extraction import FieldToKeyValue
+from .triality_coordinate_head import TrialityCoordinateHead, TrialityHeadConfig, TrialityCoords
 try:
     from Liorhybrid.training.execution_tracker import track_first_call
 except ModuleNotFoundError:
@@ -221,6 +222,62 @@ class PhaseExtractor(nn.Module):
         return A, theta
 
 
+class FieldContractor(nn.Module):
+    """
+    True tensor contraction: T_ij @ K_j -> V_i
+
+    Projects the field tensor to the key dimension and performs
+    Einstein contraction to transform values through the field geometry.
+
+    This replaces scalar field modulation with vector-valued field operations,
+    making the field an actual operator rather than just a gate.
+
+    Contraction: V_contracted[i] = sum_j T_proj[i,j] * K[j]
+    """
+
+    def __init__(self, field_dim: int, d_k: int):
+        super().__init__()
+        self.field_dim = field_dim
+        self.d_k = d_k
+
+        # Project field (D,D) -> (d_k, d_k) for contraction
+        # This learns how to map field geometry to attention space
+        self.field_proj = nn.Linear(field_dim * field_dim, d_k * d_k, bias=False)
+
+        # Initialize with small weights for stability
+        nn.init.normal_(self.field_proj.weight, std=0.01)
+
+    def forward(self, T_field: torch.Tensor, K: torch.Tensor) -> torch.Tensor:
+        """
+        Contract field with keys to produce field-transformed values.
+
+        Args:
+            T_field: Cognitive tensor field (N_x, N_y, D, D) - complex or real
+            K: Key tensor (batch, n_heads, seq_k, d_k)
+
+        Returns:
+            V_contracted: Field-transformed values (batch, n_heads, seq_k, d_k)
+        """
+        # Spatial average of field
+        T_avg = T_field.mean(dim=(0, 1))  # (D, D)
+
+        # Handle complex field
+        if T_avg.is_complex():
+            T_avg = T_avg.abs()  # Use magnitude for contraction
+
+        # Flatten and project to (d_k, d_k)
+        T_flat = T_avg.reshape(-1)  # (D*D,)
+        T_proj = self.field_proj(T_flat).view(self.d_k, self.d_k)  # (d_k, d_k)
+
+        # True contraction: V_i = T_ij K_j
+        # K: (batch, n_heads, seq_k, d_k)
+        # T_proj: (d_k, d_k)
+        # Output: (batch, n_heads, seq_k, d_k)
+        V_contracted = torch.einsum('ij,bhsj->bhsi', T_proj, K)
+
+        return V_contracted
+
+
 class GeometricAttention(nn.Module):
     """
     Geometric attention layer replacing standard scaled dot-product attention.
@@ -233,12 +290,17 @@ class GeometricAttention(nn.Module):
     Geometric attention:
         scores = geometric_score(Q, K, T_field)  # wedge + tensor + spinor
         weights = softmax(scores / temperature)
-        output = weights @ V
+        V_contracted = field_contract(T_field, K)  # True tensor contraction
+        output = weights @ V + alpha * V_contracted  # Field shapes values
 
     The geometric score captures:
     - Wedge: Antisymmetric "repulsion" or "new information span"
     - Tensor: Full correlation structure (no projection loss)
     - Spinor: Rotational features from field topology
+
+    The field contraction adds:
+    - T_ij @ K_j: Field directly transforms values (vector-valued operation)
+    - This makes field geometry produce motion, not just gating
     """
 
     def __init__(
@@ -248,42 +310,37 @@ class GeometricAttention(nn.Module):
         dropout: float = 0.1,
         geometric_weights: tuple = (1.0, 1.0, 1.0, 1.0),  # (wedge, tensor, spinor, hodge)
         temperature_scale: float = 1.0,
-        use_exponential_form: bool = True  # Option 3: triality exponential
+        use_exponential_form: bool = True,  # Option 3: triality exponential
+        q_lowrank_r: Optional[int] = None,
+        field_dim: int = 16,  # Field tensor dimension D (T_field is D x D)
+        use_field_contraction: bool = True,  # Enable true tensor contraction
     ):
-        """
-        Initialize geometric attention.
-
-        Args:
-            d_model: Model dimension (4×32D after holomorphic contraction)
-            n_heads: Number of attention heads (fixed at 4 independent operators)
-            dropout: Dropout rate
-            geometric_weights: (w_wedge, w_tensor, w_spinor, w_hodge) combination
-            temperature_scale: Scaling for softmax temperature
-            use_exponential_form: If True, use Option 3 ExponentialPhaseExtractor
-                                  If False, use legacy PhaseExtractor (sqrt/atan2)
-
-        Note: The 4 heads correspond to 4 independent 32D spaces, NOT a unified 128D space.
-        Each 32D = 4 geometric ops × 8 octonions.
-
-        The 4 operators complete the information generation cycle:
-        - Wedge (∧): rank-1 → rank-2 antisymmetric
-        - Tensor (⊗): rank-1 → rank-2 full correlation
-        - Spinor: operations within rank-2 causal space
-        - Hodge (⋆): rank-2 → rank-1 conservation/contraction
-        """
         super().__init__()
 
         self.d_model = d_model
         self.n_heads = n_heads
-        self.d_k = d_model // n_heads  # 32D = 4 ops × 8 octonions
+        self.d_k = d_model // n_heads  # 32D = 4 ops x 8 octonions
         self.use_exponential_form = use_exponential_form
+        self.q_lowrank_r = int(q_lowrank_r) if q_lowrank_r is not None else None
+        self.use_field_contraction = use_field_contraction
 
         assert d_model % n_heads == 0, "d_model must be divisible by n_heads"
         assert n_heads % 4 == 0, "n_heads must be a multiple of 4 (Wedge/Tensor/Spinor/Hodge blocks)"
 
-
         # Query projection (from input tokens)
-        self.W_q = nn.Linear(d_model, d_model)
+        if self.q_lowrank_r is None:
+            self.W_q = nn.Linear(d_model, d_model)
+            self.W_q_u = None
+            self.W_q_v = None
+        else:
+            r = int(self.q_lowrank_r)
+            if r < 1 or r > d_model:
+                raise ValueError(f"q_lowrank_r must be in [1, d_model], got {r} (d_model={d_model})")
+
+            # Factorized: (D -> r) then (r -> D)
+            self.W_q = None
+            self.W_q_u = nn.Linear(d_model, r, bias=False)
+            self.W_q_v = nn.Linear(r, d_model, bias=True)
 
         # Output projection
         self.W_o = nn.Linear(d_model, d_model)
@@ -306,65 +363,139 @@ class GeometricAttention(nn.Module):
         else:
             self.phase_extractor = PhaseExtractor(d_k=self.d_k)
 
-    def get_generators_for_regularization(
-        self,
-        Q: torch.Tensor,
-        K: torch.Tensor
-    ) -> Optional[tuple]:
-        """
-        Extract raw A, B, Θ generators for band regularization.
+        # Field contraction: T_ij @ K_j -> V (true tensor operation)
+        if use_field_contraction:
+            self.field_contractor = FieldContractor(field_dim=field_dim, d_k=self.d_k)
+            # Learnable mixing coefficient for field-contracted vs attention-weighted values
+            # Start small (0.1) so attention dominates initially, field contribution grows with training
+            self.field_alpha = nn.Parameter(torch.tensor(0.1, dtype=torch.float32))
+        else:
+            self.field_contractor = None
+            self.field_alpha = None
 
-        Only available when use_exponential_form=True.
+    def _project_q(self, Q_input: torch.Tensor) -> torch.Tensor:
+        if self.W_q is not None:
+            return self.W_q(Q_input)
+        if self.W_q_u is None or self.W_q_v is None:
+            raise RuntimeError("Invalid Q projection state: low-rank modules missing.")
+        return self.W_q_v(self.W_q_u(Q_input))
+
+    def probe_neighbors(
+        self,
+        Q: torch.Tensor,                    # (batch, seq_len, d_model)
+        neighbor_embeddings: torch.Tensor,  # (batch, 64, d_model)
+        metric: Optional[torch.Tensor] = None,  # (batch, d_model) diagonal metric
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Option 6: Probe neighbors using metric-weighted similarity.
+
+        NO MATMUL - explicit probing of 64 neighbors.
+        Complexity: O(N × 64 × d') instead of O(N²)
 
         Args:
-            Q: Query tensor (batch, n_heads, seq_len, d_k)
-            K: Key tensor (batch, n_heads, seq_len, d_k)
+            Q: Query tensor from encoder (batch, seq_len, d_model)
+            neighbor_embeddings: 64 role-typed neighbors (batch, 64, d_model)
+                - [:, 0:32, :]: nearest neighbors (similarity grounding)
+                - [:, 32:48, :]: attractors (reinforcing evidence)
+                - [:, 48:64, :]: repulsors (contrastive evidence)
+            metric: Optional diagonal metric for scaling (batch, d_model)
 
         Returns:
-            (A_Q, B_Q, Theta_Q, A_K, B_K, Theta_K) or None if legacy mode
+            output: (batch, seq_len, d_model)
+            weights: (batch, seq_len, 64) - probe weights per neighbor
         """
-        if not self.use_exponential_form:
-            return None
+        batch_size, seq_len, d_model = Q.shape
+        n_neighbors = neighbor_embeddings.shape[1]  # 64
 
-        A_Q, B_Q, Theta_Q = self.phase_extractor.get_generators(Q)
-        A_K, B_K, Theta_K = self.phase_extractor.get_generators(K)
-        return A_Q, B_Q, Theta_Q, A_K, B_K, Theta_K
+        # Project Q for probing (d_model -> d_model, same space as neighbors)
+        Q_proj = self._project_q(Q)  # (batch, seq_len, d_model)
+
+        # Apply metric scaling if provided (diagonal metric)
+        if metric is not None:
+            # metric: (batch, d_model) -> (batch, 1, d_model)
+            Q_scaled = Q_proj * metric.unsqueeze(1)
+        else:
+            Q_scaled = Q_proj
+
+        # Compute similarity: Q_scaled @ neighbor_embeddings.T
+        # (batch, seq_len, d_model) @ (batch, d_model, 64) -> (batch, seq_len, 64)
+        similarity = torch.bmm(Q_scaled, neighbor_embeddings.transpose(1, 2))
+
+        # Scale by sqrt(d_model) for stability
+        similarity = similarity / (d_model ** 0.5)
+
+        # Apply role-typed weighting
+        # Nearest (0-31): weight = 1.0 (similarity grounding)
+        # Attractors (32-47): weight = 1.5 (boosted positive - reinforcing evidence)
+        # Repulsors (48-63): weight = -0.5 (negative - contrastive evidence)
+        role_weights = torch.ones(n_neighbors, device=Q.device, dtype=Q.dtype)
+        role_weights[32:48] = 1.5   # Attractors boosted
+        role_weights[48:64] = -0.5  # Repulsors contrastive
+
+        # Apply role weights: (batch, seq_len, 64) * (64,)
+        similarity = similarity * role_weights.unsqueeze(0).unsqueeze(0)
+
+        # Born gate: |ψ|² normalization (NO SOFTMAX COLLAPSE)
+        # This preserves evidence structure better than softmax
+        weights = similarity.pow(2)
+        weights = weights / (weights.sum(dim=-1, keepdim=True) + 1e-8)
+
+        # Weighted combination of neighbor embeddings
+        # (batch, seq_len, 64) @ (batch, 64, d_model) -> (batch, seq_len, d_model)
+        output = torch.bmm(weights, neighbor_embeddings)
+
+        # Final output projection
+        output = self.W_o(output)
+
+        return output, weights
 
     @track_first_call
     def forward(
         self,
         Q_input: torch.Tensor,
-        K: torch.Tensor,
-        V: torch.Tensor,
-        T_field: torch.Tensor,
-        mask: Optional[torch.Tensor] = None
+        K: torch.Tensor = None,
+        V: torch.Tensor = None,
+        T_field: torch.Tensor = None,
+        mask: Optional[torch.Tensor] = None,
+        neighbor_embeddings: Optional[torch.Tensor] = None,  # Option 6
+        metric: Optional[torch.Tensor] = None,  # Option 6: diagonal metric
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Forward pass of geometric attention.
+        Forward pass supporting both legacy K/V and Option 6 neighbor probing.
 
-        Args:
-            Q_input: Query input (batch, seq_len_q, d_model)
-            K: Keys from field (batch, seq_len_k, d_model)
-            V: Values from field (batch, seq_len_k, d_model)
-            T_field: Cognitive tensor field (N_x, N_y, D, D) complex
-            mask: Optional attention mask (batch, seq_len_q, seq_len_k)
+        Option 6 (preferred): Pass neighbor_embeddings instead of K/V.
+            - Uses probe_neighbors() for O(N × 64 × d') complexity
+            - NO dense matmul, NO softmax collapse
+            - Born gate |ψ|² normalization
 
-        Returns:
-            output: Attention output (batch, seq_len_q, d_model)
-            attention_weights: (batch, n_heads, seq_len_q, seq_len_k)
+        Legacy: Pass K, V for standard geometric attention.
+            - O(N²) complexity via Q @ K.T matmul
+            - Softmax normalization
         """
+        # Route to Option 6 if neighbor_embeddings provided
+        if neighbor_embeddings is not None:
+            return self.probe_neighbors(
+                Q=Q_input,
+                neighbor_embeddings=neighbor_embeddings,
+                metric=metric
+            )
+
+        # Legacy path: K/V matmul attention
+        if K is None or V is None:
+            raise ValueError("Must provide either neighbor_embeddings (Option 6) or K and V (legacy)")
+
         batch_size = Q_input.shape[0]
         seq_len_q = Q_input.shape[1]
         seq_len_k = K.shape[1]
 
         # Ensure dtype consistency for FP16 training
-        target_dtype = self.W_q.weight.dtype
+        target_dtype = self.W_o.weight.dtype
         Q_input = Q_input.to(target_dtype)
         K = K.to(target_dtype)
         V = V.to(target_dtype)
 
         # Project queries
-        Q = self.W_q(Q_input)  # (batch, seq_len_q, d_model)
+        Q = self._project_q(Q_input)  # (batch, seq_len_q, d_model)
 
         # Split into heads
         Q = Q.view(batch_size, seq_len_q, self.n_heads, self.d_k).transpose(1, 2)
@@ -405,12 +536,23 @@ class GeometricAttention(nn.Module):
         attention_scores = attention_scores / self.temperature
 
         # Apply mask if provided
+        # NOTE: mask may have different seq_len than K when using multi-head architecture
+        # (e.g., language/coordinate heads with different faces). Slice to match K.
         if mask is not None:
+            seq_len_k = attention_scores.shape[-1]  # Actual K sequence length
+
             if mask.dim() == 2:
+                # Slice mask to match K sequence length if different
+                if mask.shape[1] != seq_len_k:
+                    mask = mask[:, :seq_len_k]
                 mask_expanded = mask[:, None, None, :]          # (B,1,1,seq_k)
             elif mask.dim() == 3:
+                if mask.shape[2] != seq_len_k:
+                    mask = mask[:, :, :seq_len_k]
                 mask_expanded = mask[:, None, :, :]             # (B,1,seq_q,seq_k)
             elif mask.dim() == 4:
+                if mask.shape[3] != seq_len_k:
+                    mask = mask[:, :, :, :seq_len_k]
                 mask_expanded = mask                            # (B,H,seq_q,seq_k) or (B,1,seq_q,seq_k)
             else:
                 raise ValueError(f"Unsupported attention mask shape: {mask.shape}")
@@ -427,6 +569,18 @@ class GeometricAttention(nn.Module):
         # (batch, n_heads, seq_len_q, seq_len_k) @ (batch, n_heads, seq_len_k, d_k)
         # -> (batch, n_heads, seq_len_q, d_k)
         output = torch.matmul(attention_weights, V)
+
+        # TRUE TENSOR CONTRACTION: T_ij @ K_j -> V_contracted
+        # This makes the field a vector-valued operator, not just a scalar gate.
+        # The field geometry directly shapes the value vectors.
+        if self.field_contractor is not None:
+            # Contract field with keys to get field-transformed values
+            V_contracted = self.field_contractor(T_field, K)  # (batch, n_heads, seq_k, d_k)
+            # Apply same attention weights to contracted values
+            contracted_output = torch.matmul(attention_weights, V_contracted)
+            # Mix: attention-weighted values + alpha * field-contracted values
+            # alpha is learnable, starts small (0.1) so attention dominates initially
+            output = output + self.field_alpha * contracted_output
 
         # Concatenate heads
         output = output.transpose(1, 2).contiguous()

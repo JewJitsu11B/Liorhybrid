@@ -4,18 +4,19 @@ Geometric Attention Inference Module
 Implements the cognitive interface to the T_ij tensor field.
 
 Architecture (Full Stack):
-1. Geometric Mamba Encoder (O(N) base processing)
-   - CI8 state space with Trinor/Wedge/Spinor operators
-   - Non-associative dynamics for causal structure
+1. CausalField Encoder (O(N log N) parallel via FFT)
+   - BiQuaternion state space
+   - Causal structure through convolution
 2. SBERT Pooling (O(N) aggregation)
-3. DPR K/V Generation (statistical optimization)
+3. Composite K Structure (future: 9-field address)
 4. Geometric Attention (field-contracted products)
    - Wedge: Causal divergence
    - Tensor: Signal strength
    - Spinor: Rotational alignment
+   - Hodge: Dual space
 
 This module bridges the physics-based field evolution with
-modern transformer-based inference at O(N) complexity.
+modern transformer-based inference at O(N log N) complexity.
 """
 
 from .geometric_products import (
@@ -34,17 +35,6 @@ from .geometric_attention import (
     GeometricTransformer
 )
 
-from .geometric_mamba import (
-    ComplexOctonion,
-    TrinorOperator,
-    WedgeProjection,
-    SpinorProjection,
-    GeometricMambaLayer,
-    GeometricMambaEncoder,
-    field_to_ci8,
-    ci8_to_field
-)
-
 from .geometric_stack import (
     SBERTPooling,
     GeometricStack,
@@ -52,9 +42,25 @@ from .geometric_stack import (
     demonstrate_geometric_operators
 )
 
-from .dpr_encoder import (
-    DPRKeyValueGenerator,
-    DPRIntegrationConfig
+from .composite_k import (
+    CompositeK,
+    CompositeKFields,
+    OutputSplitter,
+    ThawSchedule,
+    LocalMetricComputer,
+    ChristoffelComputer,
+    KNNModule,
+    BCHEncoder,
+    create_composite_k_system
+)
+
+from .constitutive_state import (
+    MaterialProperties,
+    BivectorDecomposition,
+    StagedConcept,
+    ConstitutiveState,
+    ConstitutiveLayer,
+    ConstitutiveStack
 )
 
 __all__ = [
@@ -68,21 +74,26 @@ __all__ = [
     # Legacy geometric attention (O(N²))
     'GeometricAttention',
     'GeometricTransformer',
-    # Geometric Mamba (O(N))
-    'ComplexOctonion',
-    'TrinorOperator',
-    'WedgeProjection',
-    'SpinorProjection',
-    'GeometricMambaLayer',
-    'GeometricMambaEncoder',
-    'field_to_ci8',
-    'ci8_to_field',
     # Full geometric stack
     'SBERTPooling',
     'GeometricStack',
     'GeometricTransformerWithMamba',
     'demonstrate_geometric_operators',
-    # DPR integration
-    'DPRKeyValueGenerator',
-    'DPRIntegrationConfig'
+    # Composite K structure
+    'CompositeK',
+    'CompositeKFields',
+    'OutputSplitter',
+    'ThawSchedule',
+    'LocalMetricComputer',
+    'ChristoffelComputer',
+    'KNNModule',
+    'BCHEncoder',
+    'create_composite_k_system',
+    # Constitutive cognitive state (non-Markovian)
+    'MaterialProperties',
+    'BivectorDecomposition',
+    'StagedConcept',
+    'ConstitutiveState',
+    'ConstitutiveLayer',
+    'ConstitutiveStack',
 ]

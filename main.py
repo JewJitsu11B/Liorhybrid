@@ -37,7 +37,6 @@ from Liorhybrid.training import (
     open_file_dialog,
     open_multiple_files_dialog,
     UniversalFileReader,
-
 )
 
 
@@ -70,7 +69,6 @@ def run_preflight_checklist_or_die(model, field, tokenizer, config):
     """
     Preflight checklist gate to ensure:
     - all required trainables exist before optimizer
-    - DPR K/V seeding is initialized outside forward
     - everything lives on the target device
     """
     from Liorhybrid.utils.pipeline_audit import audit_file_once
@@ -99,19 +97,6 @@ def run_preflight_checklist_or_die(model, field, tokenizer, config):
     if tokenizer is not None:
         if not hasattr(model, "input_embedding") or model.input_embedding is None:
             raise RuntimeError("Preflight failed: model.input_embedding is missing (must exist before optimizer).")
-
-    # DPR K/V seeding boundary
-    if bool(config.get("use_dpr", False)) and hasattr(model, "geometric_stack") and hasattr(model.geometric_stack, "initialize_kv_from_field"):
-        print("   ▶ Preflight: initializing DPR-seeded K/V (outside forward)...")
-        model.geometric_stack.initialize_kv_from_field(field.T)
-
-        gs = model.geometric_stack
-        if getattr(gs, "dpr_trainable_seeds", False):
-            if gs.K_learned is None or gs.V_learned is None:
-                raise RuntimeError("Preflight failed: DPR trainable seeds not initialized (K_learned/V_learned).")
-        else:
-            if getattr(gs, "K_delta", None) is None or getattr(gs, "V_delta", None) is None:
-                raise RuntimeError("Preflight failed: DPR deltas not initialized (K_delta/V_delta).")
 
 
 def interactive_menu():
@@ -176,61 +161,45 @@ def config_cost_calculator_menu():
         print("\n" + "=" * 70)
         print("  CONFIG COST CALCULATOR")
         print("=" * 70)
-        print("Choose architecture:")
-        print("  1) Standard Transformer (O(N^2))")
-        print("  2) Causal Field / Geometric Mamba (recommended)")
-        arch = input("\n▶ Choice [1-2] (or 'q' to return): ").strip().lower()
-        if arch in ("q", "quit", "exit"):
-            return
-
-        use_causal_field = (arch == "2")
+        print("\nPARAM IMPACT GUIDE:")
+        print("  d_model:    MAJOR - 256=~5M, 512=~20M, 1024=~80M total params")
+        print("  n_layers:   MAJOR - BiQuatCausal blocks, linear scaling")
+        print("  vocab_size: MAJOR - embedding=V*d, LM_head=d*V+V")
+        print("  n_attn:     MODERATE - GeometricAttention layers")
+        print("  max_seq:    MEMORY - positional embed, activations")
+        print("  batch_size: MEMORY - linear GPU memory scaling")
+        print("  spatial:    MEMORY - field grid, 16^2 complex per point")
+        print()
 
         def _ask_int(prompt: str, default: int) -> int:
             raw = input(f"{prompt} [{default}]: ").strip()
             return int(raw) if raw else int(default)
 
-        def _ask_bool(prompt: str, default: bool) -> bool:
-            raw = input(f"{prompt} [{'Y' if default else 'N'}/{'n' if default else 'y'}]: ").strip().lower()
-            if not raw:
-                return default
-            return raw in ("y", "yes", "1", "true")
+        d_model = _ask_int("d_model", 256)
+        n_layers = _ask_int("n_layers (BiQuatCausal blocks)", 4)
+        n_attention_layers = _ask_int("n_attention_layers (GeomAttn)", 2)
+        vocab_size = _ask_int("vocab_size", 32000)
+        max_seq_len = _ask_int("max_seq_len", 512)
+        batch_size = _ask_int("batch_size", 64)
+        spatial_x = _ask_int("spatial_size x", 8)
+        spatial_y = _ask_int("spatial_size y", 8)
 
-        d_model = _ask_int("▶ d_model", 256)
-        n_layers = _ask_int("▶ n_layers", 4)
-        n_attention_layers = _ask_int("▶ n_attention_layers", 2 if use_causal_field else 2)
-        n_heads = _ask_int("▶ n_heads", 4)
-        vocab_size = _ask_int("▶ vocab_size", 32000)
-        max_seq_len = _ask_int("▶ max_seq_len", 512)
-        batch_size = _ask_int("▶ batch_size", 16)
-        field_dim = _ask_int("▶ field_dim (tensor_dim)", 16)
-        spatial_x = _ask_int("▶ spatial_size x", 8)
-        spatial_y = _ask_int("▶ spatial_size y", 8)
-
-        dtype = input("▶ param dtype [fp32/fp16/bf16] [fp32]: ").strip() or "fp32"
-        optimizer = input("▶ optimizer [biquat/lior/lior_manifold/adamw] [biquat]: ").strip() or "biquat"
-
-        use_dpr = _ask_bool("▶ use_dpr (K/V seeding)", use_causal_field)
-        dpr_use_pretrained = _ask_bool("▶ dpr_use_pretrained (HF encoders)", False)
-        dpr_trainable_seeds = _ask_bool("▶ dpr_trainable_seeds (else ΔK/ΔV)", False)
-        include_dpr_encoder_params = _ask_bool("▶ include_dpr_encoder_params in counts", False)
+        dtype = input("param dtype [fp32/fp16/bf16] (fp32): ").strip() or "fp32"
+        optimizer = input("optimizer [biquat/adamw] (biquat): ").strip() or "biquat"
 
         cfg = {
-            "use_causal_field": use_causal_field,
+            "use_causal_field": True,
             "d_model": d_model,
             "n_layers": n_layers,
             "n_attention_layers": n_attention_layers,
-            "n_heads": n_heads,
+            "n_heads": 4,           # FIXED - use_attention=False in BiQuatCausalBlock
             "vocab_size": vocab_size,
             "max_seq_len": max_seq_len,
             "batch_size": batch_size,
-            "field_dim": field_dim,
+            "field_dim": 16,        # FIXED - d_field hardcoded in GeometricStack
             "spatial_size": (spatial_x, spatial_y),
             "dtype": dtype,
             "optimizer": optimizer,
-            "use_dpr": use_dpr,
-            "dpr_use_pretrained": dpr_use_pretrained,
-            "dpr_trainable_seeds": dpr_trainable_seeds,
-            "include_dpr_encoder_params": include_dpr_encoder_params,
         }
 
         print_estimate(cfg)
@@ -376,24 +345,75 @@ def configure_geometric_training():
     if mode_choice == '2':
         config.update(get_custom_config())
     else:
-        # Defaults
+        # Interactive quick config with param impact guide
+        print("\n" + "=" * 70)
+        print("  MODEL CONFIGURATION")
+        print("=" * 70)
+        print("\nPARAM IMPACT GUIDE (from actual model code):")
+        print("  d_model:    MAJOR - 256=~5M, 512=~20M, 1024=~80M total params")
+        print("              Each layer adds ~12*d^2 params (FFN=8/3*d + projections)")
+        print("  n_layers:   MAJOR - BiQuatCausal blocks, linear scaling")
+        print("  vocab_size: MAJOR - embedding=V*d, LM_head=d*V+V")
+        print("  n_attn:     MODERATE - GeometricAttention O(N^2) layers")
+        print("  max_seq:    MEMORY - positional embed T*d, activations O(B*T*d)")
+        print("  batch_size: MEMORY/THROUGHPUT - linear GPU memory scaling")
+        print("  spatial:    MEMORY - field grid, 16^2 complex per grid point")
+        print()
+
+        # Only REAL configurable params
+        try:
+            d_model = int(input("d_model [256/512/1024] (256): ").strip() or "256")
+            n_layers = int(input("n_layers [2/4/8] (4): ").strip() or "4")
+            n_attention_layers = int(input("n_attention_layers [1/2/4] (2): ").strip() or "2")
+            vocab_size = int(input("vocab_size [8000/16000/32000] (32000): ").strip() or "32000")
+            max_seq_len = int(input("max_seq_len [256/512/1024] (512): ").strip() or "512")
+            batch_size = int(input("batch_size [16/32/64/128] (64): ").strip() or "64")
+            spatial_x = int(input("spatial_size X [4/8/16] (8): ").strip() or "8")
+            spatial_y = int(input("spatial_size Y [4/8/16] (8): ").strip() or "8")
+            max_epochs = int(input("max_epochs [5/10/20] (5): ").strip() or "5")
+            lr = float(input("learning_rate [0.0001/0.0003/0.001] (0.0001): ").strip() or "0.0001")
+            dropout = float(input("dropout [0.0/0.1/0.2] (0.0): ").strip() or "0.0")
+        except ValueError:
+            print("Invalid input, using defaults")
+            d_model, n_layers, n_attention_layers = 256, 4, 2
+            vocab_size, max_seq_len, batch_size = 32000, 512, 64
+            spatial_x, spatial_y = 8, 8
+            max_epochs, lr, dropout = 5, 0.0001, 0.0
+
         config.update({
-            'field_dim': 16,  # Minimum 16 for sufficient DOF (Paper Implementation Note 1)
-            'spatial_size': [8, 8],
-            'd_model': 256,
+            'd_model': d_model,
+            'n_layers': n_layers,
+            'n_mamba_layers': n_layers,  # For backwards compatibility
+            'n_attention_layers': n_attention_layers,
+            'vocab_size': vocab_size,
+            'max_seq_len': max_seq_len,
+            'batch_size': batch_size,
+            'spatial_size': [spatial_x, spatial_y],
+            'max_epochs': max_epochs,
+            'lr': lr,
+            'dropout': dropout,
+            # FIXED VALUES (not user configurable - hardcoded in model)
             'n_heads': 4,
-            'n_layers': 4,
-            'n_mamba_layers': 4,  # For backwards compatibility
-            'n_attention_layers': 2,  # CausalField blocks include attention
-            'batch_size': 128,
-            'max_epochs': 5,
-            'max_seq_len': 512,
-            'lr': 0.0001,
+            'field_dim': 16,
             'adaptive_field': True,
             'output_dir': './checkpoints/geometric',
-            'use_dpr': False,  # Disable DPR overhead
-            'log_interval': 10
+            'log_interval': 10,
         })
+
+        # Show estimated cost
+        try:
+            from Liorhybrid.utils.cost_estimator import estimate_cost, format_bytes
+            est = estimate_cost(config)
+            print("\n" + "-" * 40)
+            print("ESTIMATED COST:")
+            print(f"  Total params:     {est.total_params:,}")
+            print(f"  Memory required:  {format_bytes(est.total_bytes_est)}")
+            print("-" * 40)
+            proceed = input("\nProceed with training? [Y/n]: ").strip().lower()
+            if proceed == 'n':
+                return None
+        except Exception as e:
+            print(f"Cost estimation failed: {e}")
 
     return config
 
@@ -513,25 +533,75 @@ def configure_full_training():
 
         config['data_path'] = data_path
 
-    # Model configuration - manual input
-    print("\n┌─ MODEL CONFIGURATION ────────────────────────────────────────┐")
-    try:
-        d_model = int(input("▶ Model dimension [256]: ").strip() or "256")
-        n_layers = int(input("▶ CausalField layers [4]: ").strip() or "4")
-        n_attention_layers = int(input("▶ Attention layers [2]: ").strip() or "2")
-        n_heads = int(input("▶ Attention heads [4]: ").strip() or "4")
-        batch_size = int(input("▶ Batch size [64]: ").strip() or "64")
-    except ValueError:
-        print("Invalid input, using defaults")
-        d_model, n_layers, n_attention_layers, n_heads, batch_size = 256, 4, 2, 4, 64
+    # Defaults
+    d_model, n_layers, n_attention_layers = 256, 4, 2
+    vocab_size, max_seq_len, batch_size = 32000, 512, 64
+    field_dim, spatial_x, spatial_y = 16, 8, 8
+    lr, dropout = 0.0003, 0.0
+
+    # Configuration subpaths
+    print("\n" + "=" * 70)
+    print("  CONFIGURATION OPTIONS")
+    print("=" * 70)
+    print("\n  1. Training/Performance (safe)")
+    print("  2. Physics (changes model, won't break)")
+    print("  3. Architecture (WARNING: can break if wrong)")
+    print("  4. Skip - use all defaults")
+
+    choice = input("\nSelect [1-4]: ").strip()
+
+    if choice == '1':
+        # Training/Perf - safe params
+        print("\n-- Training/Performance --")
+        try:
+            batch_size = int(input("batch_size (64): ").strip() or "64")
+            max_seq_len = int(input("max_seq_len (512): ").strip() or "512")
+            lr = float(input("learning_rate (0.0003): ").strip() or "0.0003")
+            dropout = float(input("dropout (0.0): ").strip() or "0.0")
+        except ValueError:
+            print("Invalid, using defaults")
+
+    elif choice == '2':
+        # Physics - significant but safe
+        print("\n-- Physics Parameters --")
+        try:
+            d_model = int(input("d_model (256): ").strip() or "256")
+            n_layers = int(input("n_layers (4): ").strip() or "4")
+            n_attention_layers = int(input("n_attention_layers (2): ").strip() or "2")
+            field_dim = int(input("field_dim (16): ").strip() or "16")
+            spatial_x = int(input("spatial_size X (8): ").strip() or "8")
+            spatial_y = int(input("spatial_size Y (8): ").strip() or "8")
+        except ValueError:
+            print("Invalid, using defaults")
+
+    elif choice == '3':
+        # Breaking params - needs warning
+        print("\n" + "!" * 50)
+        print("  WARNING: These params can break training if wrong!")
+        print("  - vocab_size must match tokenizer")
+        print("  - Mismatched sizes cause shape errors")
+        print("!" * 50)
+        confirm = input("\nContinue? [y/N]: ").strip().lower()
+        if confirm == 'y':
+            try:
+                vocab_size = int(input("vocab_size (32000): ").strip() or "32000")
+                d_model = int(input("d_model (256): ").strip() or "256")
+                n_layers = int(input("n_layers (4): ").strip() or "4")
+            except ValueError:
+                print("Invalid, using defaults")
 
     config.update({
         'd_model': d_model,
         'n_layers': n_layers,
         'n_mamba_layers': n_layers,
         'n_attention_layers': n_attention_layers,
-        'n_heads': n_heads,
-        'batch_size': batch_size
+        'vocab_size': vocab_size,
+        'max_seq_len': max_seq_len,
+        'batch_size': batch_size,
+        'field_dim': field_dim,
+        'spatial_size': [spatial_x, spatial_y],
+        'lr': lr,
+        'dropout': dropout,
     })
 
     # Architecture choice
@@ -556,18 +626,19 @@ def configure_full_training():
     diagnose_input = input("▶ Enable NaN diagnostics? [y/N]: ").strip().lower()
     diagnose_nan = (diagnose_input == 'y')
 
+    # Step progress logging (within each window)
+    step_progress_input = input("▶ Log progress every N steps within window (0=off) [50]: ").strip()
+    step_progress_every = int(step_progress_input) if step_progress_input else 50
+
     # Training
     config.update({
-        'field_dim': 16,
-        'spatial_size': [8, 8],
         'max_epochs': max_epochs,
-        'lr': 0.0003,
         'adaptive_field': True,
         'output_dir': './checkpoints/full',
-        'use_dpr': True,
-        'log_interval': 10,  # Log every 10 steps
+        'log_interval': 1,  # Log every step
         'timing_debug': timing_debug,
-        'diagnose_nan': diagnose_nan
+        'diagnose_nan': diagnose_nan,
+        'step_progress_every': step_progress_every
     })
 
     return config
@@ -656,36 +727,47 @@ def configure_resume_training():
 
 def start_inference_mode():
     """Launch inference/chat mode."""
-    from inference.inference import InferenceEngine, load_checkpoint_with_gui
+    from Liorhybrid.inference.inference import InferenceEngine, load_checkpoint_with_gui
 
-    print("\n┌─ INFERENCE MODE ─────────────────────────────────────────────┐")
-    print("│  Select checkpoint to load for inference                     │")
-    print("└──────────────────────────────────────────────────────────────┘")
-
-    print("\n  [1] Browse with GUI")
+    print("")
+    print("INFERENCE MODE")
+    print("=" * 70)
+    print("Select checkpoint to load for inference")
+    print("")
+    print("  [1] Browse with GUI")
     print("  [2] Enter path manually")
 
-    choice = input("\n▶ Choice [1-2]: ").strip()
+    while True:
+        choice = input("\nChoice [1-2]: ").strip()
+        if choice in ("1", "2"):
+            break
+        print("Invalid choice. Please try again.")
 
-    if choice == '1':
+    if choice == "1":
         checkpoint_path = load_checkpoint_with_gui()
         if not checkpoint_path:
-            print("\n✗ No checkpoint selected.")
+            print("")
+            print("No checkpoint selected.")
             return
     else:
-        checkpoint_path = input("\n▶ Checkpoint path: ").strip()
+        checkpoint_path = input("\nCheckpoint path: ").strip()
 
-    # Validate path
-    if not Path(checkpoint_path).exists():
-        print(f"\n✗ Checkpoint not found: {checkpoint_path}")
+    if not checkpoint_path:
+        print("")
+        print("No checkpoint path provided.")
         return
 
-    # Initialize inference engine
+    if not Path(checkpoint_path).exists():
+        print("")
+        print(f"Checkpoint not found: {checkpoint_path}")
+        return
+
     try:
         engine = InferenceEngine(checkpoint_path)
         engine.chat()
     except Exception as e:
-        print(f"\n✗ Failed to load checkpoint: {e}")
+        print("")
+        print(f"Failed to load checkpoint: {e}")
         import traceback
         traceback.print_exc()
 
@@ -815,7 +897,7 @@ def evaluate_checkpoint_menu():
 
     try:
         # Load checkpoint
-        checkpoint = torch.load(checkpoint_path, map_location='cuda' if torch.cuda.is_available() else 'cpu')
+        checkpoint = torch.load(checkpoint_path, map_location='cuda' if torch.cuda.is_available() else 'cpu', weights_only=False)
         config = checkpoint.get('config', {})
 
         print(f"   Step: {checkpoint.get('global_step', 'N/A')}")
@@ -884,7 +966,8 @@ def evaluate_checkpoint_menu():
             d_model=d_model,
             n_mamba_layers=n_layers,
             n_attention_layers=n_attention_layers,
-            vocab_size=config.get('vocab_size', 32000)
+            vocab_size=config.get('vocab_size', 32000),
+            max_seq_len=config.get('max_seq_len', 4096)
         )
 
         # Load model weights
@@ -1192,6 +1275,111 @@ def calculate_optimal_batch_size(d_model, seq_len, gpu_vram_gb=24):
     return recommended_batch
 
 
+def configure_trainer2_params(config):
+    """
+    Configure trainer2-specific parameters BEFORE model/dataset creation.
+    This allows these params to influence parameter count and model architecture.
+
+    Returns updated config dict with trainer2 params set.
+    """
+    print("\n" + "=" * 70)
+    print("  TRAINER2 CONFIGURATION")
+    print("  (Configure BEFORE model creation to influence parameter count)")
+    print("=" * 70)
+
+    # -------------------------------------------------------------------------
+    # SECTION A: SCALING (safe, affects memory/compute)
+    # -------------------------------------------------------------------------
+    print("\n[A] SCALING (safe - affects memory/compute)")
+    print("-" * 50)
+
+    config['tbptt_window_steps'] = int(input(f"  tbptt_window_steps [64]: ").strip() or config.get('tbptt_window_steps', 64))
+    config['trainer2_sdm_capacity'] = int(input(f"  sdm_capacity [2048]: ").strip() or config.get('trainer2_sdm_capacity', 2048))
+    config['lr'] = float(input(f"  learning_rate [1e-4]: ").strip() or config.get('lr', 1e-4))
+    config['retrieval_beta'] = float(input(f"  retrieval_beta [5.0]: ").strip() or config.get('retrieval_beta', 5.0))
+
+    # -------------------------------------------------------------------------
+    # SECTION B: PHYSICS (safe, changes dynamics)
+    # -------------------------------------------------------------------------
+    print("\n[B] PHYSICS (safe - changes dynamics)")
+    print("-" * 50)
+    print("  frame_mode: rotor | derived | learned_lowrank")
+    config['frame_mode'] = input(f"  frame_mode [rotor]: ").strip() or config.get('frame_mode', 'rotor')
+    print("  R_source: constitutive | curvature")
+    config['R_source'] = input(f"  R_source [constitutive]: ").strip() or config.get('R_source', 'constitutive')
+    print("  rotor_mode: stateful | derived | off")
+    config['rotor_mode'] = input(f"  rotor_mode [stateful]: ").strip() or config.get('rotor_mode', 'stateful')
+    config['beta_nudge'] = float(input(f"  beta_nudge [1e-3]: ").strip() or config.get('beta_nudge', 1e-3))
+
+    # -------------------------------------------------------------------------
+    # SECTION C: CORE ARCHITECTURE (main param count drivers)
+    # -------------------------------------------------------------------------
+    print("\n[C] CORE ARCHITECTURE (main param count drivers)")
+    print("-" * 50)
+    print("  RTX 4090 max: d=1024, L=12, V=50k, T=4096, B=32")
+    print()
+
+    # d_model: representation capacity
+    print("  d_model: embedding dimension")
+    print("    256=fast/small | 512=balanced | 1024=high capacity")
+    print("    Params: ~O(d^2), Memory: ~O(d), Quality: +expressiveness")
+    config['d_model'] = int(input(f"  d_model [512]: ").strip() or config.get('d_model', 512))
+
+    # n_layers: depth / abstraction levels
+    print("\n  n_layers: Mamba/field evolution depth")
+    print("    4=shallow | 8=medium | 12+=deep abstraction")
+    print("    Params: ~O(L*d^2), Memory: ~O(L), Quality: +hierarchical features")
+    config['n_layers'] = int(input(f"  n_layers [4]: ").strip() or config.get('n_layers', 4))
+    config['n_mamba_layers'] = config['n_layers']
+
+    # n_attention_layers: geometric attention depth
+    print("\n  n_attention_layers: geometric attention layers")
+    print("    2=light | 4=moderate | 8=heavy cross-position mixing")
+    print("    Params: ~O(A*d^2), Memory: ~O(A*seq^2), Quality: +long-range deps")
+    config['n_attention_layers'] = int(input(f"  n_attention_layers [2]: ").strip() or config.get('n_attention_layers', 2))
+
+    # n_heads: parallel attention patterns
+    print("\n  n_heads: attention heads (parallel patterns)")
+    print("    4=focused | 8=balanced | 16=diverse perspectives")
+    print("    Params: ~O(1), Memory: ~O(H), Quality: +multi-view attention")
+    config['n_heads'] = int(input(f"  n_heads [8]: ").strip() or config.get('n_heads', 8))
+
+    # vocab_size: token vocabulary
+    print("\n  vocab_size: tokenizer vocabulary size")
+    print("    16k=small/fast | 32k=GPT-2 | 50k=large coverage")
+    print("    Params: ~O(V*d), Memory: ~O(V*d), Quality: +rare word handling")
+    config['vocab_size'] = int(input(f"  vocab_size [32000]: ").strip() or config.get('vocab_size', 32000))
+
+    # max_seq_len: context window
+    print("\n  max_seq_len: maximum sequence length (context window)")
+    print("    1024=short | 2048=medium | 4096=long context")
+    print("    Params: ~O(1), Memory: ~O(seq^2 in attn), Quality: +long docs")
+    config['max_seq_len'] = int(input(f"  max_seq_len [2048]: ").strip() or config.get('max_seq_len', 2048))
+
+    # batch_size: throughput vs memory
+    print("\n  batch_size: samples per update")
+    print("    16=low mem | 32=balanced | 64+=high throughput")
+    print("    Params: O(1), Memory: ~O(B*seq*d), Quality: +gradient stability")
+    config['batch_size'] = int(input(f"  batch_size [32]: ").strip() or config.get('batch_size', 32))
+
+    # -------------------------------------------------------------------------
+    # SECTION D: TRAINER2 GEOMETRY
+    # -------------------------------------------------------------------------
+    print("\n[D] TRAINER2 GEOMETRY")
+    print("-" * 50)
+
+    config['coord_dim_n'] = int(input(f"  coord_dim_n [8]: ").strip() or config.get('coord_dim_n', 8))
+
+    if config.get('frame_mode') == 'learned_lowrank':
+        config['lowrank_r'] = int(input(f"  lowrank_r [4]: ").strip() or config.get('lowrank_r', 4))
+
+    if config.get('rotor_mode') != 'off':
+        config['rotor_k'] = int(input(f"  rotor_k [6]: ").strip() or config.get('rotor_k', 6))
+
+    print("=" * 70)
+    return config
+
+
 def start_training(config):
     """Initialize and start training with given config."""
 
@@ -1211,7 +1399,6 @@ def start_training(config):
     config.setdefault('max_epochs', 10)
     config.setdefault('lr', 0.0003)
     config.setdefault('adaptive_field', True)
-    config.setdefault('use_dpr', True)
     config.setdefault('use_causal_field', True)  # True = Causal Field default
     config.setdefault('trainer_backend', 'trainer2')
     config.setdefault('trainer2_confirm', False)
@@ -1230,8 +1417,6 @@ def start_training(config):
     config.setdefault('save_interval', 1000)
     config.setdefault('data_path', './data/train.txt')  # Default data path
     config.setdefault('data_type', 'text')  # Default data type
-    config.setdefault('dpr_use_pretrained', True)
-    config.setdefault('dpr_trainable_seeds', False)
     # Force CUDA device - fail if not available
     if torch.cuda.is_available():
         config.setdefault('device', 'cuda')
@@ -1255,7 +1440,7 @@ def start_training(config):
     config.setdefault('device', 'cuda')
     # num_workers: Maximum parallelism on GPU, 0 on CPU (Windows compatibility)
     import os
-    default_workers = 0 if not torch.cuda.is_available() else min(os.cpu_count(), 16)
+    default_workers = 0 if not torch.cuda.is_available() else min(os.cpu_count(), 20)
     config.setdefault('num_workers', default_workers)
     config.setdefault('seed', 42)
     config.setdefault('val_data_path', None)
@@ -1263,6 +1448,13 @@ def start_training(config):
 
     # Seed
     torch.manual_seed(config['seed'])
+
+    # =========================================================================
+    # TRAINER2 PARAMS - Configure BEFORE model/dataset creation
+    # This allows params like coord_dim_n, rotor_k to influence parameter count
+    # =========================================================================
+    if config.get('trainer_backend') == 'trainer2':
+        config = configure_trainer2_params(config)
 
     print(f"\n▶ Mode: {config['mode']}")
     print(f"▶ Device: {config['device']}")
@@ -1275,7 +1467,7 @@ def start_training(config):
         print(f"▶ Resuming from: {checkpoint_path}")
 
         # Load checkpoint to get saved config
-        checkpoint = torch.load(checkpoint_path, map_location='cpu')
+        checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
         saved_config = checkpoint.get('config', {})
 
         # Provide defaults for all required config keys
@@ -1291,7 +1483,6 @@ def start_training(config):
             'max_epochs': 10,
             'lr': 0.0003,
             'adaptive_field': True,
-            'use_dpr': True,
             'use_causal_field': False,
             'log_interval': 10,
             'output_dir': './checkpoints/full',
@@ -1336,9 +1527,7 @@ def start_training(config):
             n_attention_layers=n_attention_layers,
             n_heads=config['n_heads'],
             field_dim=config['field_dim'],
-            use_dpr=config.get('use_dpr', True),
-            dpr_use_pretrained=config.get('dpr_use_pretrained', True),
-            dpr_trainable_seeds=config.get('dpr_trainable_seeds', False),
+            max_seq_len=config['max_seq_len'],
             use_positional_encoding=True,
             use_temporal_encoding=True
         )
@@ -1562,14 +1751,59 @@ def start_training(config):
             )
 
         # DataLoader with optimized settings for GPU-bound training
-        train_loader = DataLoader(
+        _base_loader = DataLoader(
             train_dataset,
             batch_size=config['batch_size'],
-            shuffle=True if not use_chunked else None,  # Chunked handles shuffle internally
+            shuffle=False if use_chunked else True,  # IterableDataset requires shuffle=False
             num_workers=config.get('num_workers', 0),
             pin_memory=True,
-            prefetch_factor=8,  # Increased prefetch for better GPU utilization
-            persistent_workers=False if use_chunked else True  # Chunked doesn't need persistence
+            prefetch_factor=config.get('prefetch_factor', 2),  # Lower default, adaptive wrapper handles throughput
+            persistent_workers=False if use_chunked else (config.get('num_workers', 0) > 0)
+        )
+
+        # Adaptive wrapper: monitors GPU memory and throttles when under pressure
+        class AdaptiveDataLoader:
+            """Wraps DataLoader with dynamic memory-aware throttling."""
+            def __init__(self, loader, mem_threshold_pct=0.85, cooldown_sec=0.5):
+                self._loader = loader
+                self._mem_threshold = mem_threshold_pct
+                self._cooldown = cooldown_sec
+                self._throttle_count = 0
+                # Forward common attributes
+                self.batch_size = loader.batch_size
+                self.num_workers = loader.num_workers
+                self.dataset = loader.dataset
+
+            def __iter__(self):
+                for batch in self._loader:
+                    # Check GPU memory pressure before yielding
+                    if torch.cuda.is_available():
+                        reserved = torch.cuda.memory_reserved() / 1024**3
+                        total = torch.cuda.get_device_properties(0).total_memory / 1024**3
+                        usage_pct = reserved / total if total > 0 else 0
+
+                        if usage_pct > self._mem_threshold:
+                            # Memory pressure: cleanup and wait
+                            self._throttle_count += 1
+                            if self._throttle_count % 10 == 1:  # Log every 10th throttle
+                                print(f"[AdaptiveDataLoader] Memory {usage_pct*100:.1f}% > {self._mem_threshold*100:.0f}% threshold, throttling...")
+                            torch.cuda.empty_cache()
+                            import time
+                            time.sleep(self._cooldown)
+
+                    yield batch
+
+            def __len__(self):
+                return len(self._loader)
+
+            @property
+            def throttle_stats(self):
+                return {'throttle_count': self._throttle_count}
+
+        train_loader = AdaptiveDataLoader(
+            _base_loader,
+            mem_threshold_pct=config.get('mem_threshold_pct', 0.85),
+            cooldown_sec=config.get('throttle_cooldown_sec', 0.5)
         )
 
         val_loader = DataLoader(
@@ -1578,8 +1812,8 @@ def start_training(config):
             shuffle=False,
             num_workers=config.get('num_workers', 0),
             pin_memory=True,
-            prefetch_factor=4,
-            persistent_workers=True
+            prefetch_factor=config.get('prefetch_factor', 2),
+            persistent_workers=config.get('num_workers', 0) > 0
         ) if val_dataset else None
 
         if not use_chunked:
@@ -1596,13 +1830,16 @@ def start_training(config):
     if tokenizer is not None:
         if not hasattr(model, 'input_embedding') or model.input_embedding is None:
             from Liorhybrid.training.embeddings import MultimodalEmbedding
+            # Use tokenizer's vocab_size, not config default (fixes index out of bounds)
+            actual_vocab_size = getattr(tokenizer, 'vocab_size', config.get('vocab_size', 32000))
+            print(f"[main] Creating embedding with vocab_size={actual_vocab_size}")
             model.input_embedding = MultimodalEmbedding(
-                vocab_size=config.get('vocab_size', 32000),
+                vocab_size=actual_vocab_size,
                 d_model=config['d_model'],
                 max_seq_len=config.get('max_seq_len', 512)
             ).to(config['device'])
 
-    # Preflight checklist gate (initializes DPR K/V outside forward if enabled)
+    # Preflight checklist gate
     run_preflight_checklist_or_die(model, field, tokenizer, config)
 
     if config.get('trainer_backend') != 'trainer2':
@@ -1684,10 +1921,12 @@ def start_training(config):
     print(f"\n3. Trainer2 wired (manual updates, no autograd)")
     print(f"   ✓ Output directory: {output_dir}")
 
+    # Config params were already collected via configure_trainer2_params() before model creation
+    # Just confirm before starting
     if config.get("trainer2_confirm", False):
-        confirm = input("\n▶ Start trainer2? [Y/n]: ").strip().lower()
+        confirm = input("\n  Start trainer2? [Y/n]: ").strip().lower()
         if confirm not in ("", "y", "yes"):
-            print("\n✗ Training cancelled.")
+            print("\n  Training cancelled.")
             return
 
     print("\n" + "=" * 70)
@@ -1702,142 +1941,8 @@ def start_training(config):
         hooks=hooks,
         rotor_state=rotor_state,
         val_loader=val_loader,
+        tokenizer=tokenizer,
     )
-    return
-
-    if config['mode'] == 'geometric':
-        # Only geometric weights
-        params = [p for p in model.parameters() if p.requires_grad]
-        if field.config.adaptive_learning:
-            params.extend([field.alpha, field.nu, field.tau])
-        print(f"   ✓ Geometric mode: {len(params)} parameter groups")
-    else:
-        # All trainable parameters (excludes frozen DPR encoders)
-        params = [p for p in model.parameters() if p.requires_grad]
-        if field.config.adaptive_learning:
-            params.extend([field.alpha, field.nu, field.tau])
-        print(f"   ✓ Full mode: {len(params)} trainable parameter groups")
-
-    # Select optimizer based on config
-    optimizer_type = config.get('optimizer', 'biquat')
-
-    if optimizer_type == 'lior':
-        from Liorhybrid.training.lior_optimizer import LIoROptimizer
-        optimizer = LIoROptimizer(
-            params,
-            lr=config['lr'],
-            kappa_scale=config.get('kappa_scale', 1.0),
-            min_resilience=config.get('min_resilience', 0.1),
-            max_resilience=config.get('max_resilience', 10.0)
-        )
-        print(f"   ✓ Using LIoROptimizer (curvature-aware, O(N), zero state)")
-    elif optimizer_type == 'lior_manifold':
-        from Liorhybrid.training.lior_optimizer import LIoRManifoldOptimizer
-        from Liorhybrid.models.manifold import CognitiveManifold
-        # Create manifold for R(x) computation
-        manifold = CognitiveManifold(d_coord=config.get('field_dim', 16)).to(config['device'])
-        optimizer = LIoRManifoldOptimizer(
-            params,
-            manifold=manifold,
-            lr=config['lr'],
-            use_causal_memory=config.get('use_causal_memory', False),
-            memory_decay=config.get('memory_decay', 0.9),
-            kappa_scale=config.get('kappa_scale', 1.0)
-        )
-        print(f"   ✓ Using LIoRManifoldOptimizer (true R(x) from manifold)")
-    else:
-        from Liorhybrid.training.biquat_optimizer import BiquatOptimizer
-        optimizer = BiquatOptimizer(
-            params,
-            lr=config['lr'],
-            theta_clip=config.get('theta_clip', 8.0)
-        )
-        print(f"   ✓ Using BiquatOptimizer (pure SGD)")
-
-    # Create output dir
-    output_dir = Path(config['output_dir'])
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Trainer config
-    trainer_config = {
-        'training_mode': config['mode'],
-        'max_epochs': config['max_epochs'],
-        'grad_accum_steps': config['grad_accum_steps'],
-        'use_amp': config['device'] == 'cuda',  # FP16 enabled with FP16-safe epsilons
-        'clip_grad_norm': 1.0,
-        'log_interval': 50,
-        'eval_interval': 250,
-        'save_interval': config['save_interval'],
-        'output_dir': str(output_dir),
-        'evolve_field_during_training': config.get('evolve_field', True),
-        'vocab_size': config.get('vocab_size', 32000),
-        'max_seq_len': config.get('max_seq_len', 512),
-        'd_model': config['d_model'],
-        'field_dim': config['field_dim'],
-        'timing_debug': config.get('timing_debug', False)
-    }
-
-    # Initialize trainer
-    trainer = CognitiveTrainer(
-        model=model,
-        field=field,
-        train_loader=train_loader,
-        val_loader=val_loader,
-        optimizer=optimizer,
-        lr_scheduler=None,
-        device=config['device'],
-        config=trainer_config,
-        tokenizer=tokenizer,  # For inference from checkpoint
-        split_info=split_info  # For recreating val set from checkpoint
-    )
-
-    print(f"   ✓ Output directory: {output_dir}")
-
-    # Load checkpoint if resuming
-    if 'resume_from' in config:
-        print(f"\n3. Loading checkpoint...")
-        trainer.load_checkpoint(config['resume_from'])
-        print(f"   ✓ Resumed from epoch {trainer.epoch}, step {trainer.global_step}")
-
-    # Confirm start
-    print("\n" + "=" * 70)
-    print("  READY TO TRAIN")
-    print("=" * 70)
-    print(f"\n  Epochs: {config['max_epochs']}")
-    print(f"  Batch size: {config['batch_size']}")
-    print(f"  Learning rate: {config['lr']}")
-    print(f"  Field evolution: {config.get('evolve_field', True)}")
-
-    # BPTT window toggle (if not already set)
-    if 'bptt_window' not in config:
-        print("\n┌─ MEMORY GRADIENT FLOW (BPTT) ───────────────────────────────┐")
-        print("│  How far should gradients flow through memory?               │")
-        print("│  [0] Detached (no BPTT, fastest, current default)            │")
-        print("│  [1] 50-step window (moderate memory, ~2x memory usage)      │")
-        print("│  [2] 100-step window (longer memory, ~4x memory usage)       │")
-        print("│  [3] Fully attached (full BPTT, may OOM!)                    │")
-        print("└──────────────────────────────────────────────────────────────┘")
-        bptt_choice = input("▶ Choice [0-3, default=0]: ").strip() or "0"
-        bptt_window_map = {'0': 0, '1': 50, '2': 100, '3': -1}
-        config['bptt_window'] = bptt_window_map.get(bptt_choice, 0)
-        if config['bptt_window'] > 0:
-            print(f"✓ Using {config['bptt_window']}-step BPTT window")
-        elif config['bptt_window'] == -1:
-            print("✓ Using fully attached BPTT (WARNING: high memory!)")
-        else:
-            print("✓ Using detached memory (no BPTT)")
-
-    confirm = input("\n▶ Start training? [Y/n]: ").strip().lower()
-
-    if confirm in ['', 'y', 'yes']:
-        print("\n" + "=" * 70)
-        print("  TRAINING STARTED")
-        print("=" * 70)
-        trainer.train()
-        print("\n✓ Training complete!")
-        print(f"✓ Checkpoints saved to: {output_dir}")
-    else:
-        print("\n✗ Training cancelled.")
 
 
 def parse_args():

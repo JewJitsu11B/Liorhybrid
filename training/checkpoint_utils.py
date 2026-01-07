@@ -27,7 +27,7 @@ def inspect_checkpoint(checkpoint_path: str) -> Dict:
     Returns:
         Dictionary with checkpoint metadata and statistics
     """
-    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
 
     # Extract model config (prefer new model_config, fallback to config)
     model_config = checkpoint.get('model_config', {})
@@ -275,7 +275,7 @@ def get_split_info(checkpoint_path: str) -> Optional[Dict]:
     Returns:
         Dict with split info or None if not present
     """
-    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
     return checkpoint.get('split_info', None)
 
 
@@ -387,7 +387,7 @@ def run_validation_from_checkpoint(
     import torch.nn.functional as F
 
     # Load checkpoint
-    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
     config = checkpoint.get('config', {})
 
     # Recreate splits
