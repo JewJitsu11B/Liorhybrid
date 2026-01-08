@@ -252,6 +252,11 @@ class CognitiveTensorField:
             - With Bayesian/memory terms, energy is not conserved (non-unitary)
 
         Paper Section 6.1: Conservation Laws
+
+        Note: Current implementation uses explicit loops for clarity and numerical
+        stability. For large grids, this could be optimized using vectorized operations
+        (e.g., torch.einsum) but at the cost of code readability. Benchmark before
+        optimizing if performance is critical.
         """
         # Compute Hamiltonian operator applied to current field
         H_T = hamiltonian_evolution(

@@ -9,6 +9,7 @@ Paper References:
 """
 
 import torch
+import numpy as np
 from typing import List
 
 
@@ -193,7 +194,6 @@ def compute_correlation_length(T: torch.Tensor, max_distance: int = None) -> flo
     # Taking log: log C(r) = log C0 - r/ξ
     # Linear fit: log C ~ -r/ξ
 
-    import numpy as np
     distances_np = np.array(distances, dtype=np.float32)
     correlations_np = np.array(correlations, dtype=np.float32)
 
