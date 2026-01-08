@@ -1,4 +1,4 @@
-## Note, this is wildly out of date comosred to the repo files. will update soon.
+## Note, this is wildly out of date compared to the repo files. will update soon.
 
 # Bayesian Cognitive Field
 
@@ -245,4 +245,5 @@ For complete mathematical derivations, see:
 ## Contact
 
 For questions, issues, or contributions, please [open an issue](repository-issues-url).
+
 
