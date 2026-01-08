@@ -80,7 +80,7 @@ def hamiltonian_evolution(
     Returns:
         H[T] of same shape
 
-    TODO: Implement non-trivial potential landscapes
+    Note: For common potential landscapes, use create_potential() helper.
     """
     # Kinetic term: -(ℏ²/2m)∇²T
     lap_T = spatial_laplacian(T, dx=1.0)
@@ -93,3 +93,98 @@ def hamiltonian_evolution(
         potential = 0.0
 
     return kinetic + potential
+
+
+def create_potential(
+    spatial_size: tuple,
+    tensor_dim: int,
+    potential_type: str = "harmonic",
+    strength: float = 1.0,
+    center: tuple = None,
+    device: str = 'cpu',
+    dtype: torch.dtype = torch.complex64
+) -> torch.Tensor:
+    """
+    Create common potential landscapes V(x,y) for the Hamiltonian.
+
+    Args:
+        spatial_size: (N_x, N_y) grid dimensions
+        tensor_dim: D (tensor dimension at each point)
+        potential_type: Type of potential:
+            - "harmonic": V(x,y) = ½k(x² + y²) (oscillator)
+            - "gaussian_well": V(x,y) = -A exp(-(x² + y²)/2σ²)
+            - "gaussian_barrier": V(x,y) = +A exp(-(x² + y²)/2σ²)
+            - "constant": V(x,y) = constant (shift energy baseline)
+            - "zero": V(x,y) = 0 (free field)
+        strength: Potential strength parameter (k for harmonic, A for Gaussian)
+        center: (x0, y0) center point (default: grid center)
+        device: torch device
+        dtype: tensor dtype
+
+    Returns:
+        Potential tensor V of shape (N_x, N_y, D, D)
+
+    Physical Interpretation:
+        - Harmonic: Confines field to center (attractive)
+        - Gaussian well: Local attractive region
+        - Gaussian barrier: Local repulsive region
+        - Constant: Energy offset (no force)
+
+    Example:
+        >>> V = create_potential((28, 28), 16, "harmonic", strength=0.1)
+        >>> H_T = hamiltonian_evolution(T, V=V)
+    """
+    N_x, N_y = spatial_size
+    D = tensor_dim
+
+    # Default center to grid center
+    if center is None:
+        center = (N_x / 2.0, N_y / 2.0)
+
+    x0, y0 = center
+
+    # Create spatial coordinate grids
+    x = torch.arange(N_x, dtype=torch.float32, device=device)
+    y = torch.arange(N_y, dtype=torch.float32, device=device)
+    X, Y = torch.meshgrid(x, y, indexing='ij')
+
+    # Compute potential at each spatial point
+    if potential_type == "harmonic":
+        # V(x,y) = ½k((x-x0)² + (y-y0)²)
+        r_squared = (X - x0)**2 + (Y - y0)**2
+        V_spatial = 0.5 * strength * r_squared
+
+    elif potential_type == "gaussian_well":
+        # V(x,y) = -A exp(-r²/2σ²), σ = N/4 for reasonable width
+        sigma = min(N_x, N_y) / 4.0
+        r_squared = (X - x0)**2 + (Y - y0)**2
+        V_spatial = -strength * torch.exp(-r_squared / (2 * sigma**2))
+
+    elif potential_type == "gaussian_barrier":
+        # V(x,y) = +A exp(-r²/2σ²)
+        sigma = min(N_x, N_y) / 4.0
+        r_squared = (X - x0)**2 + (Y - y0)**2
+        V_spatial = strength * torch.exp(-r_squared / (2 * sigma**2))
+
+    elif potential_type == "constant":
+        # V(x,y) = constant
+        V_spatial = strength * torch.ones((N_x, N_y), device=device)
+
+    elif potential_type == "zero":
+        # V(x,y) = 0
+        V_spatial = torch.zeros((N_x, N_y), device=device)
+
+    else:
+        raise ValueError(
+            f"Unknown potential_type '{potential_type}'. "
+            f"Choose from: harmonic, gaussian_well, gaussian_barrier, constant, zero"
+        )
+
+    # Expand to full tensor shape (N_x, N_y, D, D)
+    # Potential acts as V·I on the D×D tensor at each point
+    V = torch.zeros((N_x, N_y, D, D), dtype=dtype, device=device)
+
+    for i in range(D):
+        V[:, :, i, i] = V_spatial  # Diagonal elements
+
+    return V
