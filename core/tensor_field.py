@@ -233,6 +233,111 @@ class CognitiveTensorField:
         """
         return torch.sum(torch.abs(self.T)**2).item()
 
+    def compute_energy(self) -> float:
+        """
+        Compute total Hamiltonian energy of the field.
+
+        Energy definition:
+            E = Re[⟨T|H|T⟩] = Re[Σ_xy Tr(T†(x,y) H[T](x,y))]
+
+        where H[T] is the Hamiltonian evolution operator.
+
+        Returns:
+            Scalar energy value (real number)
+
+        Physical Interpretation:
+            - Positive kinetic energy from field gradients (∇²T term)
+            - Potential energy from V·T term (if V present)
+            - Total energy should be conserved in pure Hamiltonian evolution
+            - With Bayesian/memory terms, energy is not conserved (non-unitary)
+
+        Paper Section 6.1: Conservation Laws
+
+        Implementation: Vectorized using einsum for efficiency
+        """
+        # Compute Hamiltonian operator applied to current field
+        H_T = hamiltonian_evolution(
+            self.T,
+            hbar_cog=self.config.hbar_cog,
+            m_cog=self.config.m_cog
+        )
+
+        # Vectorized computation: E = Re[Σ_xy Tr(T†(x,y) @ H_T(x,y))]
+        # Use einsum to compute all traces in parallel
+        # T†: conjugate transpose over last two dimensions
+        # T_conj @ H_T: element-wise then trace
+        
+        # Shape: (N_x, N_y, D, D)
+        T_dag = self.T.conj()  # Conjugate (T†)
+        
+        # Compute T†(x,y) @ H(x,y) for all (x,y) using einsum
+        # 'xyij,xyjk->xyik' means: for each (x,y), matmul the (i,j) and (j,k) matrices
+        T_dag_H = torch.einsum('xyij,xyjk->xyik', T_dag, H_T)
+        
+        # Take trace over last two dimensions: Tr(T†H) for each (x,y)
+        # Diagonal elements: T_dag_H[x,y,i,i] summed over i
+        traces = torch.einsum('xyii->xy', T_dag_H)  # (N_x, N_y)
+        
+        # Sum over all spatial points and take real part
+        energy = torch.real(traces.sum()).item()
+
+        return energy
+
+    def compute_unitarity_deviation(self) -> float:
+        """
+        Measure deviation from unitary evolution.
+
+        For unitary evolution, the operator U satisfies U†U = I.
+        The Bayesian recursive and memory terms break unitarity,
+        making the evolution non-unitary (dissipative).
+
+        This function computes a measure of how much the field
+        deviates from unitary behavior by checking if the norm
+        of spatial density matrix deviates from identity.
+
+        Measure:
+            δ_unitarity = |⟨T|T⟩ - 1| / 1
+
+        where ⟨T|T⟩ = Σ_xy Tr(T†(x,y) T(x,y)) / (N_x * N_y * D)
+
+        Returns:
+            Deviation from unitarity (0 = unitary, >0 = non-unitary)
+
+        Physical Interpretation:
+            - δ ≈ 0: Nearly unitary (pure Hamiltonian evolution)
+            - δ > 0: Non-unitary (Bayesian updates dominating)
+            - Large δ: Strong dissipation from memory/Bayesian terms
+
+        Paper Section 6.1: Modified Unitarity
+
+        Implementation: Vectorized using einsum for efficiency
+        """
+        N_x, N_y, D, _ = self.T.shape
+
+        # Vectorized computation: Tr(T†T) for all (x,y) simultaneously
+        T_dag = self.T.conj()  # (N_x, N_y, D, D)
+        
+        # Compute T†(x,y) @ T(x,y) for all (x,y)
+        T_dag_T = torch.einsum('xyij,xyjk->xyik', T_dag, self.T)
+        
+        # Take traces: Tr(T†T) for each (x,y)
+        traces = torch.einsum('xyii->xy', T_dag_T)  # (N_x, N_y)
+        
+        # Sum all traces and take real part
+        total_trace = torch.real(traces.sum()).item()
+
+        # Average over spatial points and tensor dimension
+        avg_trace = total_trace / (N_x * N_y * D)
+
+        # Deviation from unity (perfect unitarity would give avg_trace = 1)
+        # Normalize current norm
+        current_norm_sq = self.get_norm_squared()
+        expected_norm_sq = N_x * N_y * D * D  # For normalized field
+
+        deviation = abs(current_norm_sq / expected_norm_sq - 1.0)
+
+        return deviation
+
     def compute_entropy(self) -> torch.Tensor:
         """
         Compute variable-order entropy functional H^(ν(x))[Ψ].

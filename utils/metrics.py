@@ -9,6 +9,7 @@ Paper References:
 """
 
 import torch
+import numpy as np
 from typing import List
 
 
@@ -53,8 +54,45 @@ def compute_entropy(T: torch.Tensor, epsilon: float = 1e-12) -> float:
     Physical interpretation:
         Measures uncertainty/spread in the field configuration.
         Lower entropy = more localized/decided state.
+        Higher entropy = more distributed/uncertain state.
+
+    Implementation: Vectorized for efficiency - computes all spatial
+    points in parallel using batch eigenvalue decomposition.
     """
-    raise NotImplementedError("Entropy computation not yet implemented.")
+    N_x, N_y, D, _ = T.shape
+
+    # Reshape to batch all spatial points: (N_x*N_y, D, D)
+    T_batch = T.reshape(N_x * N_y, D, D)
+
+    # Construct density matrices: ρ = T†T for all points
+    T_dag = T_batch.conj()  # (N_x*N_y, D, D)
+    rho_batch = torch.bmm(T_dag.transpose(-2, -1), T_batch)  # (N_x*N_y, D, D)
+
+    # Compute traces for normalization
+    traces = torch.diagonal(rho_batch, dim1=-2, dim2=-1).sum(dim=-1)  # (N_x*N_y,)
+    traces_real = traces.real
+
+    # Normalize: ρ = ρ / Tr(ρ), only for non-zero traces
+    valid_mask = traces_real > epsilon
+    rho_normalized = rho_batch.clone()
+    rho_normalized[valid_mask] = rho_batch[valid_mask] / traces_real[valid_mask].unsqueeze(-1).unsqueeze(-1)
+
+    # Compute eigenvalues in batch (Hermitian eigenvalue solver)
+    # Only process valid (non-zero trace) density matrices
+    if valid_mask.sum() == 0:
+        return 0.0
+
+    eigenvalues = torch.linalg.eigvalsh(rho_normalized[valid_mask])  # (n_valid, D)
+    eigenvalues_real = eigenvalues.real.clamp(min=epsilon)  # Ensure positive
+
+    # von Neumann entropy: S = -Σ λ log λ for each point
+    entropies = -torch.sum(eigenvalues_real * torch.log(eigenvalues_real), dim=-1)  # (n_valid,)
+
+    # Average entropy per spatial point
+    total_entropy = entropies.sum().item()
+    avg_entropy = total_entropy / (N_x * N_y)
+
+    return avg_entropy
 
 
 def compute_local_correlation(
@@ -96,7 +134,7 @@ def compute_local_correlation(
     return correlation.item()
 
 
-def compute_correlation_length(T: torch.Tensor) -> float:
+def compute_correlation_length(T: torch.Tensor, max_distance: int = None) -> float:
     """
     Estimate correlation length of the field.
 
@@ -104,15 +142,86 @@ def compute_correlation_length(T: torch.Tensor) -> float:
 
     Args:
         T: Tensor field (N_x, N_y, D, D)
+        max_distance: Maximum distance to sample (default: min(N_x, N_y) / 4)
 
     Returns:
         Correlation length ξ in grid units
 
     Method:
-        Sample correlations C(r) at various distances r,
-        fit to exponential decay C(r) ~ exp(-r/ξ)
+        Sample correlations C(r) at various distances r from center point,
+        fit to exponential decay C(r) ~ exp(-r/ξ), extract ξ.
+
+    Physical Interpretation:
+        - Large ξ: Long-range correlations (field is spatially coherent)
+        - Small ξ: Short-range correlations (field is localized)
+        - ξ ≈ 1: Nearest-neighbor correlations only
     """
-    raise NotImplementedError("Correlation length not yet implemented.")
+    N_x, N_y, D, _ = T.shape
+
+    # Use center point as reference
+    x0, y0 = N_x // 2, N_y // 2
+
+    if max_distance is None:
+        max_distance = min(N_x, N_y) // 4
+
+    # Sample correlations at various distances
+    distances = []
+    correlations = []
+
+    for r in range(1, max_distance + 1):
+        # Sample points at distance r from center (in 4 cardinal directions)
+        test_points = [
+            (x0 + r, y0) if x0 + r < N_x else None,
+            (x0 - r, y0) if x0 - r >= 0 else None,
+            (x0, y0 + r) if y0 + r < N_y else None,
+            (x0, y0 - r) if y0 - r >= 0 else None,
+        ]
+
+        # Compute average correlation at this distance
+        correlations_at_r = []
+        for point in test_points:
+            if point is not None:
+                corr = compute_local_correlation(T, (x0, y0), point)
+                correlations_at_r.append(abs(corr))  # Use magnitude
+
+        if correlations_at_r:
+            avg_corr = sum(correlations_at_r) / len(correlations_at_r)
+            distances.append(r)
+            correlations.append(avg_corr)
+
+    if len(distances) < 3:
+        # Not enough points to fit
+        return 1.0  # Default to nearest-neighbor
+
+    # Fit exponential decay: C(r) = C0 * exp(-r/ξ)
+    # Taking log: log C(r) = log C0 - r/ξ
+    # Linear fit: log C ~ -r/ξ
+
+    distances_np = np.array(distances, dtype=np.float32)
+    correlations_np = np.array(correlations, dtype=np.float32)
+
+    # Filter out near-zero correlations
+    valid = correlations_np > 1e-6
+    if valid.sum() < 2:
+        return 1.0
+
+    distances_np = distances_np[valid]
+    correlations_np = correlations_np[valid]
+
+    log_corr = np.log(correlations_np + 1e-10)
+
+    # Linear regression: log_corr = a + b * distances
+    # where b = -1/ξ
+    coeffs = np.polyfit(distances_np, log_corr, deg=1)
+    slope = coeffs[0]  # This is -1/ξ
+
+    if slope < -1e-6:  # Negative slope (decay)
+        xi = -1.0 / slope
+    else:
+        # No decay or positive slope (unusual), return max distance
+        xi = float(max_distance)
+
+    return xi
 
 
 def compute_effective_dimension(eigenvalues: torch.Tensor) -> float:
