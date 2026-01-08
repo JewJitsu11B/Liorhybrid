@@ -56,37 +56,40 @@ def compute_entropy(T: torch.Tensor, epsilon: float = 1e-12) -> float:
         Lower entropy = more localized/decided state.
         Higher entropy = more distributed/uncertain state.
 
-    Implementation:
-        For each spatial point, we compute the density matrix ρ = T†T,
-        normalize it, compute eigenvalues, and sum -λ log λ contributions.
+    Implementation: Vectorized for efficiency - computes all spatial
+    points in parallel using batch eigenvalue decomposition.
     """
     N_x, N_y, D, _ = T.shape
-    total_entropy = 0.0
 
-    for x in range(N_x):
-        for y in range(N_y):
-            T_xy = T[x, y, :, :]  # (D, D) tensor at point (x,y)
+    # Reshape to batch all spatial points: (N_x*N_y, D, D)
+    T_batch = T.reshape(N_x * N_y, D, D)
 
-            # Construct density matrix: ρ = T†T
-            rho = T_xy.conj().T @ T_xy  # (D, D)
+    # Construct density matrices: ρ = T†T for all points
+    T_dag = T_batch.conj()  # (N_x*N_y, D, D)
+    rho_batch = torch.bmm(T_dag.transpose(-2, -1), T_batch)  # (N_x*N_y, D, D)
 
-            # Normalize: ρ = ρ / Tr(ρ)
-            trace_rho = torch.trace(rho).real
-            if trace_rho > epsilon:
-                rho = rho / trace_rho
-            else:
-                # Zero or negligible trace, skip this point
-                continue
+    # Compute traces for normalization
+    traces = torch.diagonal(rho_batch, dim1=-2, dim2=-1).sum(dim=-1)  # (N_x*N_y,)
+    traces_real = traces.real
 
-            # Compute eigenvalues (they should be real and non-negative for ρ = T†T)
-            eigenvalues = torch.linalg.eigvalsh(rho)  # Hermitian eigenvalue solver
-            eigenvalues = eigenvalues.real.clamp(min=epsilon)  # Ensure positive
+    # Normalize: ρ = ρ / Tr(ρ), only for non-zero traces
+    valid_mask = traces_real > epsilon
+    rho_normalized = rho_batch.clone()
+    rho_normalized[valid_mask] = rho_batch[valid_mask] / traces_real[valid_mask].unsqueeze(-1).unsqueeze(-1)
 
-            # von Neumann entropy: S = -Σ λ log λ
-            entropy_xy = -torch.sum(eigenvalues * torch.log(eigenvalues))
-            total_entropy += entropy_xy.item()
+    # Compute eigenvalues in batch (Hermitian eigenvalue solver)
+    # Only process valid (non-zero trace) density matrices
+    if valid_mask.sum() == 0:
+        return 0.0
+
+    eigenvalues = torch.linalg.eigvalsh(rho_normalized[valid_mask])  # (n_valid, D)
+    eigenvalues_real = eigenvalues.real.clamp(min=epsilon)  # Ensure positive
+
+    # von Neumann entropy: S = -Σ λ log λ for each point
+    entropies = -torch.sum(eigenvalues_real * torch.log(eigenvalues_real), dim=-1)  # (n_valid,)
 
     # Average entropy per spatial point
+    total_entropy = entropies.sum().item()
     avg_entropy = total_entropy / (N_x * N_y)
 
     return avg_entropy

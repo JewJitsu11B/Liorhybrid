@@ -253,10 +253,7 @@ class CognitiveTensorField:
 
         Paper Section 6.1: Conservation Laws
 
-        Note: Current implementation uses explicit loops for clarity and numerical
-        stability. For large grids, this could be optimized using vectorized operations
-        (e.g., torch.einsum) but at the cost of code readability. Benchmark before
-        optimizing if performance is critical.
+        Implementation: Vectorized using einsum for efficiency
         """
         # Compute Hamiltonian operator applied to current field
         H_T = hamiltonian_evolution(
@@ -265,20 +262,24 @@ class CognitiveTensorField:
             m_cog=self.config.m_cog
         )
 
-        # Compute energy as Re[⟨T|H|T⟩] = Re[Σ Tr(T† H_T)]
-        # For each spatial point (x,y), compute Tr(T†(x,y) @ H_T(x,y))
-        energy = 0.0
-        N_x, N_y, D, _ = self.T.shape
-
-        for x in range(N_x):
-            for y in range(N_y):
-                T_xy = self.T[x, y, :, :]  # (D, D) tensor at point (x,y)
-                H_xy = H_T[x, y, :, :]     # (D, D) Hamiltonian at point (x,y)
-
-                # Compute trace of T†(x,y) @ H_T(x,y)
-                # For complex matrices: ⟨A|B⟩ = Tr(A† B)
-                trace_val = torch.trace(T_xy.conj().T @ H_xy)
-                energy += torch.real(trace_val).item()
+        # Vectorized computation: E = Re[Σ_xy Tr(T†(x,y) @ H_T(x,y))]
+        # Use einsum to compute all traces in parallel
+        # T†: conjugate transpose over last two dimensions
+        # T_conj @ H_T: element-wise then trace
+        
+        # Shape: (N_x, N_y, D, D)
+        T_dag = self.T.conj()  # Conjugate (T†)
+        
+        # Compute T†(x,y) @ H(x,y) for all (x,y) using einsum
+        # 'xyij,xyjk->xyik' means: for each (x,y), matmul the (i,j) and (j,k) matrices
+        T_dag_H = torch.einsum('xyij,xyjk->xyik', T_dag, H_T)
+        
+        # Take trace over last two dimensions: Tr(T†H) for each (x,y)
+        # Diagonal elements: T_dag_H[x,y,i,i] summed over i
+        traces = torch.einsum('xyii->xy', T_dag_H)  # (N_x, N_y)
+        
+        # Sum over all spatial points and take real part
+        energy = torch.real(traces.sum()).item()
 
         return energy
 
@@ -308,16 +309,22 @@ class CognitiveTensorField:
             - Large δ: Strong dissipation from memory/Bayesian terms
 
         Paper Section 6.1: Modified Unitarity
+
+        Implementation: Vectorized using einsum for efficiency
         """
         N_x, N_y, D, _ = self.T.shape
 
-        # Compute average trace of T†T per spatial point
-        total_trace = 0.0
-        for x in range(N_x):
-            for y in range(N_y):
-                T_xy = self.T[x, y, :, :]
-                trace_val = torch.trace(T_xy.conj().T @ T_xy)
-                total_trace += torch.real(trace_val).item()
+        # Vectorized computation: Tr(T†T) for all (x,y) simultaneously
+        T_dag = self.T.conj()  # (N_x, N_y, D, D)
+        
+        # Compute T†(x,y) @ T(x,y) for all (x,y)
+        T_dag_T = torch.einsum('xyij,xyjk->xyik', T_dag, self.T)
+        
+        # Take traces: Tr(T†T) for each (x,y)
+        traces = torch.einsum('xyii->xy', T_dag_T)  # (N_x, N_y)
+        
+        # Sum all traces and take real part
+        total_trace = torch.real(traces.sum()).item()
 
         # Average over spatial points and tensor dimension
         avg_trace = total_trace / (N_x * N_y * D)
