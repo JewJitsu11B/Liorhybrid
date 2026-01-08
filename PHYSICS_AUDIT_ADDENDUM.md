@@ -45,8 +45,85 @@ Rank reduction via SVD is **only beneficial if the field has low effective rank*
 2. Computational cost of SVD exceeds savings from compression
 3. Field changes rapidly (analysis becomes stale)
 4. We're only using exact computations (no approximation)
+5. **Addressing forces symmetries** (see below - THIS IS KEY)
 
 **In this codebase:** Spectral analysis is **optional** - only needed if deploying rank reduction optimizations.
+
+### Addressing-Forced Symmetries Make Spectral Analysis Redundant
+
+**IMPORTANT:** LIoRHybrid uses an addressing scheme that **algebraically enforces low-rank structure**, making empirical spectral analysis redundant.
+
+**The Addressing Architecture (from core/tensor_field.py):**
+
+```python
+# Architecture:
+# - Addressing: Route-hashable with coordinates, parent path
+# - Geometric data: Local metric tensor, Christoffel symbols  
+# - Products: Tensor, wedge, spinor products with entity metrics
+# - Neighbor structure: 32 NN, 16 min-heap, 16 max-heap
+# - Error correction: 4x8 BCH ECC for addressing
+```
+
+**CI8 (Complex Octonion) Structure (from inference/geometric_mamba.py):**
+
+- Hidden state: **h_t is CI8-valued** (16D: 8 real + 8 imaginary)
+- Basis: {1, e1, e2, e3, e4, e5, e6, e7} × {real, imag}
+- Properties: Non-associative, alternative, normed
+- Invariants: Spinor product h ⊙ h̄ extracts **8 real invariants**
+
+**Why This Makes Spectral Analysis Redundant:**
+
+**1. Octonion Algebra Enforces Structure:**
+- 8 basis elements → **effective rank ≤ 8**
+- Multiplication table is **algebraically fixed** (not data-dependent)
+- Spinor product: 16D → 8D (rotational invariants)
+- No need to measure - **rank bounded by algebra**
+
+**2. BCH Error Correction Imposes Symmetries:**
+- **4x8 BCH code:** 4 information bits → 8 code bits
+- Generator polynomial creates linear constraints
+- Syndrome matrix enforces specific relationships
+- **Information rank = 4** (bounded by code)
+
+**3. Neighbor Structure Pre-Specifies Connectivity:**
+- 32 NN (16 min-heap + 16 max-heap)
+- **Sparse connectivity** → low correlation rank
+- Route-hashable paths → hierarchical structure
+- Symmetry from heap ordering
+
+**4. Geometric Invariants are Intrinsically Low-D:**
+- Phase-amplitude separation reduces redundancy
+- Wedge (antisymmetric) → lower rank than full tensor
+- Spinor (rotational invariants) → compressed representation
+
+**Implication for Compression:**
+
+```python
+# DON'T need empirical SVD:
+U, Σ, V† = svd(field)  # Expensive, measures what's already known
+
+# DO use algebraic structure:
+invariants = spinor_product(h, h_conj)  # 16D → 8D (algebraic)
+info_bits = bch_decode(invariants)       # 8D → 4D (code structure)
+```
+
+**Effective Ranks:**
+- Full CI8 space: 16D
+- Octonion structure: ≤ 8D (real invariants)
+- BCH information: ≤ 4D (code dimension)
+- **No spectral measurement needed** - use algebra directly!
+
+**When Spectral Analysis Still Helps:**
+
+Even with algebraic bounds, spectral analysis can:
+- **Validate** empirical rank matches theoretical bound
+- **Detect errors** when rank exceeds algebraic limit
+- **Debug** noise or implementation issues
+- **Choose** between multiple compression strategies
+
+**Bottom Line:**
+
+The CI8 addressing + BCH ECC scheme makes the system **algebraically low-rank by construction**, not **empirically low-rank by happenstance**. Spectral analysis measures what the algebra already guarantees.
 
 ## Part 2: Physics in trainer2.py
 
