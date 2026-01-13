@@ -157,7 +157,6 @@ class TrainingConfig:
 
         Optimization:
             use_amp: Use automatic mixed precision
-            use_dpr: Use DPR encoders
             patience: Early stopping patience (epochs)
 
         Logging:
@@ -203,7 +202,6 @@ class TrainingConfig:
 
     # === Optimization ===
     use_amp: bool = True
-    use_dpr: bool = True
     patience: int = 3
 
     # === Logging & Checkpoints ===
@@ -280,7 +278,6 @@ class TrainingConfig:
             'spatial_size': list(self.spatial_size),
             'adaptive_field': self.adaptive_field,
             'use_amp': self.use_amp,
-            'use_dpr': self.use_dpr,
             'patience': self.patience,
             'log_interval': self.log_interval,
             'eval_interval': self.eval_interval,
@@ -360,7 +357,6 @@ TRAINING_GEOMETRIC = TrainingConfig(
     max_epochs=5,
     learning_rate=1e-4,
     max_seq_len=1024,  # Longer sequences to show O(N) benefit
-    use_dpr=False,
     log_interval=10,
     output_dir='./checkpoints/geometric'
 )
@@ -379,7 +375,6 @@ TRAINING_TEST = TrainingConfig(
     vocab_size=256,
     field_dim=16,  # Keep >= 16 for DOF requirements
     spatial_size=(8, 8),
-    use_dpr=False,
     output_dir='./checkpoints/test'
 )
 

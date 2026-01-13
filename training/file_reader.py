@@ -469,3 +469,33 @@ def demo_file_reader():
 
 if __name__ == "__main__":
     demo_file_reader()
+
+
+# =============================================================================
+# DOCX READER (no lxml dependency - uses stdlib zipfile + xml.etree)
+# =============================================================================
+
+def read_docx_simple(file_path: str) -> str:
+    """
+    Read text from a DOCX file using only stdlib (no python-docx/lxml needed).
+    
+    DOCX files are ZIP archives containing XML. This extracts the main document text.
+    """
+    import zipfile
+    import xml.etree.ElementTree as ET
+    
+    WORD_NAMESPACE = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+    
+    with zipfile.ZipFile(file_path, 'r') as docx:
+        # Main document content is in word/document.xml
+        xml_content = docx.read('word/document.xml')
+        tree = ET.fromstring(xml_content)
+        
+        # Extract all text from <w:t> elements
+        paragraphs = []
+        for paragraph in tree.iter(f'{WORD_NAMESPACE}p'):
+            texts = [node.text for node in paragraph.iter(f'{WORD_NAMESPACE}t') if node.text]
+            if texts:
+                paragraphs.append(''.join(texts))
+        
+        return '\n'.join(paragraphs)

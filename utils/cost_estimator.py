@@ -23,8 +23,7 @@ Parameter drivers (dominant terms):
 - Modality embedding:     3·d
 - LM head:                d·V + V
 - Core stack (proxy):     O(L·d²)
-- DPR K/V deltas:         2·n_tokens·(d/2)  where n_tokens = 1 (pretrained) or N (field-direct)
-- Field-direct DPR proj:  O((2·D²)·(d/2)) if enabled (complex→(re,im))
+- Trainer2 geometry:      O(n² + k·n + r·n) where n=coord_dim_n, k=rotor_k, r=lowrank_r
 
 Memory drivers (rough):
 - Params:                 total_params · bytes_per_param
@@ -36,6 +35,12 @@ Memory drivers (rough):
 Compute drivers (rough):
 - Dense attention:        O(B·T²·d)  (when using quadratic attention)
 - Mamba/structured ops:   treated here as O(B·T·d²·L) proxy for sizing
+
+FUTURE: Multi-domain coarse/fine embedding system
+- Each domain (coding, math, legal, ethics) has coarse + fine granularity slots
+- K = [domain_1_coarse | domain_1_fine | domain_2_coarse | ...]
+- Parameters: n_domains × 2 × dim_per_slot (e.g., 4 domains × 2 × 64 = 512)
+- See training/embeddings.py for implementation scaffold
 """
 
 from __future__ import annotations
@@ -89,14 +94,6 @@ def _field_bytes(spatial_size: Tuple[int, int], field_dim: int, field_dtype: str
     return elems * _bytes_per_complex(field_dtype)
 
 
-def _dpr_kv_tokens(config: Dict) -> int:
-    spatial = tuple(config.get("spatial_size", (8, 8)))
-    n_x, n_y = int(spatial[0]), int(spatial[1])
-    if bool(config.get("dpr_use_pretrained", True)):
-        return 1
-    return n_x * n_y
-
-
 def estimate_cost(config: Dict) -> CostEstimate:
     """
     Roughly estimate params, memory, and FLOPs for a given config.
@@ -119,8 +116,6 @@ def estimate_cost(config: Dict) -> CostEstimate:
     bytes_per = _bytes_per_param(dtype)
 
     use_causal_field = bool(config.get("use_causal_field", False))
-    use_dpr = bool(config.get("use_dpr", False))
-    dpr_trainable_seeds = bool(config.get("dpr_trainable_seeds", False))
 
     # --- Embedding + LM head (exact) ---
     # MultimodalEmbedding (text part dominates for LM): token_emb + pos_emb + modality_emb
@@ -137,35 +132,19 @@ def estimate_cost(config: Dict) -> CostEstimate:
     core_per_layer = 12 * d_model * d_model  # coarse proxy
     core_params = core_per_layer * (n_layers + n_attention_layers)
 
-    total_params = token_emb + pos_emb + modality_emb + lm_head + core_params
+    # --- Trainer2 geometry params ---
+    coord_dim_n = int(config.get("coord_dim_n", 8))
+    rotor_k = int(config.get("rotor_k", 6))
+    lowrank_r = int(config.get("lowrank_r", 4))
+    # Geometry adds: metric tensor O(n²), rotor state O(k), lowrank O(r*n)
+    geometry_params = coord_dim_n * coord_dim_n + rotor_k * 2 + lowrank_r * coord_dim_n
 
-    # --- DPR-related params (exact-ish for our added K/V adaptation) ---
-    d_model_half = d_model // 2
-    dpr_extra_params = 0
-    if use_dpr and use_causal_field:
-        n_tokens = _dpr_kv_tokens(config)
+    total_params = token_emb + pos_emb + modality_emb + lm_head + core_params + geometry_params
 
-        if dpr_trainable_seeds:
-            dpr_extra_params += 2 * n_tokens * d_model_half
-        else:
-            # ΔK + ΔV are trainable
-            dpr_extra_params += 2 * n_tokens * d_model_half
+    # TODO: Multi-domain coarse/fine embedding params
+    # When implemented, add: n_domains × 2 × dim_per_slot for embedding tables
 
-        # Field-direct DPR projection (created lazily in DPRKeyValueGenerator when use_pretrained=False)
-        if not bool(config.get("dpr_use_pretrained", True)):
-            input_dim = (field_dim * field_dim) * 2  # complex -> real+imag
-            dpr_extra_params += (input_dim * d_model_half) + d_model_half
-
-        # Pretrained DPR encoders are huge; include as optional estimate only.
-        if bool(config.get("include_dpr_encoder_params", False)) and bool(config.get("dpr_use_pretrained", True)):
-            # Very rough: BERT-base class encoder ~110M params each ×2
-            dpr_extra_params += 220_000_000
-            # projections in DPRKeyValueGenerator: 768->d_model_half twice (+bias)
-            dpr_extra_params += 2 * (768 * d_model_half + d_model_half)
-
-    total_params += dpr_extra_params
-
-    # Trainable params estimate: assume core + embeddings + lm_head + dpr deltas are trainable.
+    # Trainable params estimate
     trainable_params = total_params
 
     # --- Memory ---

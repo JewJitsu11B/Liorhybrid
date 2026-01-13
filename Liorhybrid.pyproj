@@ -1,0 +1,126 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{40cf80df-e884-4f88-bcee-a7c2bab6f69f}</ProjectGuid>
+    <ProjectHome />
+    <StartupFile>main.py</StartupFile>
+    <SearchPath>..\</SearchPath>
+    <WorkingDirectory>.</WorkingDirectory>
+    <OutputPath>.</OutputPath>
+    <ProjectTypeGuids>{888888a0-9f3d-457c-b088-3a5042f75d52}</ProjectTypeGuids>
+    <LaunchProvider>Standard Python launcher</LaunchProvider>
+    <InterpreterId>Global|VisualStudio|liorpyhybrid</InterpreterId>
+    <TestFramework>Pytest</TestFramework>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'" />
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'" />
+  <PropertyGroup>
+    <VisualStudioVersion Condition=" '$(VisualStudioVersion)' == '' ">10.0</VisualStudioVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Content Include="CONTRIBUTING.md" />
+    <Content Include="data\extracted_text_corpus.txt" />
+    <Content Include="data\temp_merged.txt" />
+    <Content Include="data\TinyStories-train.txt" />
+    <Content Include="data\wikitext2_train.txt" />
+    <Content Include="docs\refactor-plan.md" />
+    <Content Include="requirements.txt" />
+    <Content Include="requirements_313t.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="core\config.py" />
+    <Compile Include="core\tensor_field.py" />
+    <Compile Include="core\__init__.py" />
+    <Compile Include="demo_geometric_mamba.py" />
+    <Compile Include="deprecated_modules\octonionic_causal_field.py" />
+    <Compile Include="examples\geometric_inference.py" />
+    <Compile Include="examples\mnist_clustering.py" />
+    <Compile Include="examples\simple_evolution.py" />
+    <Compile Include="inference\dpr_encoder.py" />
+    <Compile Include="inference\field_extraction.py" />
+    <Compile Include="inference\geometric_attention.py" />
+    <Compile Include="inference\geometric_mamba.py" />
+    <Compile Include="inference\geometric_products.py" />
+    <Compile Include="inference\geometric_stack.py" />
+    <Compile Include="inference\inference.py" />
+    <Compile Include="inference\triality_coordinate_head.py" />
+    <Compile Include="inference\__init__.py" />
+    <Compile Include="kernels\bayesian.py" />
+    <Compile Include="kernels\fractional_memory.py" />
+    <Compile Include="kernels\gradients.py" />
+    <Compile Include="kernels\hamiltonian.py" />
+    <Compile Include="kernels\__init__.py" />
+    <Compile Include="main.py" />
+    <Compile Include="models\activations.py" />
+    <Compile Include="models\biquaternion.py" />
+    <Compile Include="models\causal_field.py" />
+    <Compile Include="models\complex_metric.py" />
+    <Compile Include="models\language_head.py" />
+    <Compile Include="models\lior_kernel.py" />
+    <Compile Include="models\manifold.py" />
+    <Compile Include="models\rank_reduction.py" />
+    <Compile Include="models\__init__.py" />
+    <Compile Include="operators\collapse.py" />
+    <Compile Include="operators\__init__.py" />
+    <Compile Include="setup.py" />
+    <Compile Include="tests\test_adaptive.py" />
+    <Compile Include="tests\test_algebras.py" />
+    <Compile Include="tests\test_bayesian.py" />
+    <Compile Include="tests\test_conservation.py" />
+    <Compile Include="tests\test_exponential_form.py" />
+    <Compile Include="tests\test_geometric_attention.py" />
+    <Compile Include="tests\test_geometric_products.py" />
+    <Compile Include="tests\test_integration.py" />
+    <Compile Include="tests\test_memory.py" />
+    <Compile Include="tests\__init__.py" />
+    <Compile Include="test_torch_compile.py" />
+    <Compile Include="test_training.py" />
+    <Compile Include="training\biquat_optimizer.py" />
+    <Compile Include="training\checkpoint_utils.py" />
+    <Compile Include="training\datasets.py" />
+    <Compile Include="training\embeddings.py" />
+    <Compile Include="training\execution_tracker.py" />
+    <Compile Include="training\file_reader.py" />
+    <Compile Include="training\gpu_cleanup.py" />
+    <Compile Include="training\import_trace_matplotlib.py" />
+    <Compile Include="training\lior_optimizer.py" />
+    <Compile Include="training\lior_trainer.py" />
+    <Compile Include="training\losses.py" />
+    <Compile Include="training\metrics.py" />
+    <Compile Include="training\New folder\lior_optimizer.py" />
+    <Compile Include="training\stability.py" />
+    <Compile Include="training\tokenizer.py" />
+    <Compile Include="training\trainer.py" />
+    <Compile Include="training\trainer2.py" />
+    <Compile Include="training\__init__.py" />
+    <Compile Include="utils\cost_estimator.py" />
+    <Compile Include="utils\cpu_tasks.py" />
+    <Compile Include="utils\metrics.py" />
+    <Compile Include="utils\pipeline_audit.py" />
+    <Compile Include="utils\visualization.py" />
+    <Compile Include="utils\__init__.py" />
+    <Compile Include="validate_structure.py" />
+    <Compile Include="__init__.py" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="core" />
+    <Folder Include="data" />
+    <Folder Include="deprecated_modules" />
+    <Folder Include="docs\" />
+    <Folder Include="examples" />
+    <Folder Include="inference" />
+    <Folder Include="kernels" />
+    <Folder Include="models" />
+    <Folder Include="operators" />
+    <Folder Include="tests" />
+    <Folder Include="training" />
+    <Folder Include="training\New folder" />
+    <Folder Include="utils" />
+  </ItemGroup>
+  <ItemGroup>
+    <InterpreterReference Include="Global|VisualStudio|liorpyhybrid" />
+  </ItemGroup>
+  <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
+</Project>

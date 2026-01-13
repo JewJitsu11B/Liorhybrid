@@ -1,0 +1,68 @@
+﻿# Refactor Plan: Capture-Friendly Trainer2 & Geometric Attention
+
+## Goals
+- Keep live metrics without breaking cudagraph/inductor capture.
+- Enforce memory query/update separation: no model calls inside memory, no self-insertion, single commit point after free/nudge.
+- Ensure masked pooling and fixed shapes for retrieval (capture-safe, no padding leakage).
+- Make logging/device sync discipline explicit.
+- Clarify geometry modes (diag rot / block rot / low-rank) and their cost/benefit.
+- Prepare for `torch.compile` and/or explicit `torch.cuda.CUDAGraph`.
+
+## Decisions (locked)
+- **No model calls in memory**: memory exposes `query(batch_size)` and `update(q_coord, q_state)`. Model forward happens exactly once per phase.
+- **No updates between free and nudge**: commit once per window (field + memory). Free/nudged runs are read-only.
+- **Masked pooling required**: always pool q_coord/q_state with attention_mask; treat mask as all-ones if none provided.
+- **Static shapes for capture**: fixed `B`, `T`, `coord_dim_n`, `capacity`; memory returns capacity-sized banks + `valid_mask`.
+- **Logging**: accumulate metrics on GPU; host-print only at coarse intervals via async copy; no `cuda.synchronize()` in hot path.
+
+## TODO (implementation checklist)
+- [ ] **Logging refactor (trainer2)**
+  - [ ] Remove hot-path `torch.cuda.synchronize()` and `.item()` in `maybe_log_metrics`.
+  - [ ] Add device-side metric ring buffer (e.g., store `lior_mean`, `R_mean`, `spd_mean` for last N windows).
+  - [ ] Add async host-flush every N windows (configurable), using side stream + `non_blocking=True` copy.
+  - [ ] Keep debug mode that can force syncs, but default path must be sync-free.
+
+- [ ] **Memory API enforcement**
+  - [ ] Ensure trainer uses `memory.query(batch_size)` before retrieval; uses `memory.update(q_coord, q_state)` only after commit.
+  - [ ] Remove/avoid any model invocation inside memory.
+  - [ ] Guarantee `static_shapes=True` path returns capacity-sized `mem_coord/mem_state` + `valid_mask` (mask-based invalidation, no shape change).
+
+- [ ] **Masked pooling**
+  - [ ] In `build_retrieval_batch`, always pool `q_coord/q_state` with `attention_mask`; if mask missing, use all-ones of fixed shape.
+  - [ ] Ensure pooled tensors keep fixed shape/dtype/device (no Python branching on mask rank).
+
+- [ ] **Free/Nudge isolation**
+  - [ ] Restructure so field/memory are read-only during free/nudge; no snapshot clone of `field.T` in hot path.
+  - [ ] Apply updates once at commit point; if rollback needed, snapshot only lightweight metadata (ptr/filled), not full tensors.
+
+- [ ] **Static shape guarantees**
+  - [ ] Upstream: pad/truncate sequences to fixed `T` before trainer2.
+  - [ ] Always pass a fixed-shaped attention mask (even if all ones).
+  - [ ] Avoid any slicing based on `filled`; use `valid_mask` instead.
+
+- [ ] **Geometry modes (doc + config sanity)**
+  - [ ] Document costs: diag (O(D)), block rot (O(D * layers)), low-rank (O(D*r)); warn dense (O(D^2)) is capture-hostile.
+  - [ ] Keep retrieval metric diagonal in rotated/structured frame for capture-friendliness.
+
+- [ ] **Compile/CUDAGraph path**
+  - [ ] After the above, add optional `torch.compile(mode="reduce-overhead")` around the step function.
+  - [ ] If graph breaks remain, add explicit `torch.cuda.CUDAGraph` capture with static input pools.
+  - [ ] Warmup K steps to stabilize allocator before capture.
+
+## Notes on live metrics (cheap & capture-friendly)
+- Accumulate metrics on GPU: `ema = ema + (x - ema) * alpha` or store per-window into a small CUDA tensor buffer.
+- Every N windows (e.g., 500/1000), copy a small metrics tensor to CPU using a side stream and `non_blocking=True`; synchronize that stream only for printing.
+- Do not call `.item()`/`.cpu()` in the captured step; only in the periodic flush.
+- Checkpointing should stay outside capture or at very low frequency (will sync).
+
+## Risk log / watchpoints
+- Any data-dependent Python branching in `build_retrieval_batch` (mask rank, presence of memory) will break capture; standardize shapes and always-return branches.
+- Growing `filled` dimension changes shape unless masked; use `valid_mask` to avoid recompile.
+- Field snapshots/clones in hot path kill bandwidth and capture; prefer deferred commit.
+
+## Next actions (suggested order)
+1) Patch logging hot path to remove syncs/items; add GPU metric buffer + periodic async flush.
+2) Enforce memory query/update split in trainer2; fix masked pooling and static mask shape.
+3) Remove field.clone snapshot in free/nudge; adopt commit-only updates with lightweight metadata snapshot if needed.
+4) Standardize shapes (pad/truncate, static_masks, static_shapes=True for SDM).
+5) Try `torch.compile`; if unstable, add explicit CUDAGraph capture around the step.

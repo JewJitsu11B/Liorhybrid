@@ -1,0 +1,1020 @@
+﻿"""
+Bayesian Cognitive Field - Interactive Training Interface
+
+Run without arguments for interactive mode:
+    python main.py
+
+Or use command line arguments for automation.
+"""
+
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+import argparse
+import yaml
+import sys
+from pathlib import Path
+
+# Allow running as a script from inside the repo.
+if __package__ is None or __package__ == "":
+    repo_root = Path(__file__).resolve().parent
+    parent_dir = repo_root.parent
+    if str(parent_dir) not in sys.path:
+        sys.path.insert(0, str(parent_dir))
+
+from Liorhybrid.core import CognitiveTensorField, FieldConfig
+from Liorhybrid.inference import (
+    GeometricTransformer,
+    GeometricTransformerWithMamba
+)
+from Liorhybrid.training import (
+    CognitiveTokenizer,
+    TextDataset,
+    ChunkedTextDataset,
+    ImageTextDataset,
+    VideoTextDataset,
+    CognitiveTrainer,
+    open_file_dialog,
+    open_multiple_files_dialog,
+    UniversalFileReader,
+)
+
+
+def count_parameters(model):
+    """
+    Count model parameters.
+
+    Args:
+        model: PyTorch model
+
+    Returns:
+        Tuple of (total, trainable, frozen)
+    """
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    frozen_params = total_params - trainable_params
+    return total_params, trainable_params, frozen_params
+
+
+def print_parameter_summary(model, prefix=""):
+    """Print formatted parameter summary."""
+    total, trainable, frozen = count_parameters(model)
+    print(f"{prefix}Total parameters: {total:,}")
+    print(f"{prefix}Trainable: {trainable:,}")
+    if frozen > 0:
+        print(f"{prefix}Frozen: {frozen:,}")
+
+
+def run_preflight_checklist_or_die(model, field, tokenizer, config):
+    """
+    Preflight checklist gate to ensure:
+    - all required trainables exist before optimizer
+    - DPR K/V seeding is initialized outside forward
+    - everything lives on the target device
+    """
+    from Liorhybrid.utils.pipeline_audit import audit_file_once
+    audit_file_once("preflight", __file__)
+
+    target_device = torch.device(config.get("device", "cuda" if torch.cuda.is_available() else "cpu"))
+
+    # Model/device invariants
+    param_devices = {p.device for p in model.parameters()}
+    if len(param_devices) != 1:
+        raise RuntimeError(f"Model parameters must be on a single device, found: {sorted({str(d) for d in param_devices})}")
+
+    param_device = next(iter(param_devices))
+    if param_device.type != target_device.type:
+        raise RuntimeError(f"Model parameters must be on {target_device}, found: {sorted({str(d) for d in param_devices})}")
+
+    # Allow "cuda" (no index) to match any specific CUDA device like "cuda:0".
+    if target_device.type == "cuda" and target_device.index is None:
+        pass
+    elif param_device != target_device:
+        raise RuntimeError(f"Model parameters must be on {target_device}, found: {sorted({str(d) for d in param_devices})}")
+
+    if not hasattr(model, "lm_head") or model.lm_head is None:
+        raise RuntimeError("Preflight failed: model.lm_head is missing (must exist before optimizer).")
+
+    if tokenizer is not None:
+        if not hasattr(model, "input_embedding") or model.input_embedding is None:
+            raise RuntimeError("Preflight failed: model.input_embedding is missing (must exist before optimizer).")
+
+    # DPR K/V seeding boundary
+    if bool(config.get("use_dpr", False)) and hasattr(model, "geometric_stack") and hasattr(model.geometric_stack, "initialize_kv_from_field"):
+        print("   ▶ Preflight: initializing DPR-seeded K/V (outside forward)...")
+        model.geometric_stack.initialize_kv_from_field(field.T)
+
+        gs = model.geometric_stack
+        if getattr(gs, "dpr_trainable_seeds", False):
+            if gs.K_learned is None or gs.V_learned is None:
+                raise RuntimeError("Preflight failed: DPR trainable seeds not initialized (K_learned/V_learned).")
+        else:
+            if getattr(gs, "K_delta", None) is None or getattr(gs, "V_delta", None) is None:
+                raise RuntimeError("Preflight failed: DPR deltas not initialized (K_delta/V_delta).")
+
+
+def interactive_menu():
+    """Interactive menu for training configuration."""
+
+    print("=" * 70)
+    print("  BAYESIAN COGNITIVE FIELD - Training System")
+    print("  Advanced Physics-Based Multimodal AI")
+    print("=" * 70)
+
+    # Main menu
+    print("┌─ MAIN MENU ─────────────────────────────────────────────────┐")
+    print("│                                                             │")
+    print("│  1. Quick Start (Geometric Training - Recommended)          │")
+    print("│  2. Full Training (Train Everything End-to-End)             │")
+    print("│  3. Resume from Checkpoint                                  │")
+    print("│  4. Generate Sample Dataset                                 │")
+    print("│  5. Inference/Chat Mode                                     │")
+    print("│  6. Inspect Checkpoint                                      │")
+    print("│  7. Evaluate Checkpoint (Run Validation)                    │")
+    print("│  8. Config Cost Calculator                                  │")
+    print("│  9. Exit                                                    │")
+    print("│                                                             │")
+    print("└─────────────────────────────────────────────────────────────┘")
+
+    choice = input("\n▶ Select option [1-9]: ").strip()
+
+    if choice == '1':
+        return configure_geometric_training()
+    elif choice == '2':
+        return configure_full_training()
+    elif choice == '3':
+        return configure_resume_training()
+    elif choice == '4':
+        generate_sample_data()
+        return interactive_menu()
+    elif choice == '5':
+        start_inference_mode()
+        return interactive_menu()
+    elif choice == '6':
+        inspect_checkpoint_menu()
+        return interactive_menu()
+    elif choice == '7':
+        evaluate_checkpoint_menu()
+        return interactive_menu()
+    elif choice == '8':
+        config_cost_calculator_menu()
+        return interactive_menu()
+    elif choice == '9':
+        print("\nExiting. Goodbye!")
+        return None  # Return None instead of sys.exit to allow clean exit
+    else:
+        print("\n✗ Invalid choice. Please try again.")
+        return interactive_menu()
+
+
+def config_cost_calculator_menu():
+    """Interactive one-shot config cost calculator (params/memory/compute)."""
+    from Liorhybrid.utils.cost_estimator import print_estimate
+
+    while True:
+        print("\n" + "=" * 70)
+        print("  CONFIG COST CALCULATOR")
+        print("=" * 70)
+        print("Choose architecture:")
+        print("  1) Standard Transformer (O(N^2))")
+        print("  2) Causal Field / Geometric Mamba (recommended)")
+        arch = input("\n▶ Choice [1-2] (or 'q' to return): ").strip().lower()
+        if arch in ("q", "quit", "exit"):
+            return
+
+        use_causal_field = (arch == "2")
+
+        def _ask_int(prompt: str, default: int) -> int:
+            raw = input(f"{prompt} [{default}]: ").strip()
+            return int(raw) if raw else int(default)
+
+        def _ask_bool(prompt: str, default: bool) -> bool:
+            raw = input(f"{prompt} [{'Y' if default else 'N'}/{'n' if default else 'y'}]: ").strip().lower()
+            if not raw:
+                return default
+            return raw in ("y", "yes", "1", "true")
+
+        d_model = _ask_int("▶ d_model", 256)
+        n_layers = _ask_int("▶ n_layers", 4)
+        n_attention_layers = _ask_int("▶ n_attention_layers", 2 if use_causal_field else 2)
+        n_heads = _ask_int("▶ n_heads", 4)
+        vocab_size = _ask_int("▶ vocab_size", 32000)
+        max_seq_len = _ask_int("▶ max_seq_len", 512)
+        batch_size = _ask_int("▶ batch_size", 16)
+        field_dim = _ask_int("▶ field_dim (tensor_dim)", 16)
+        spatial_x = _ask_int("▶ spatial_size x", 8)
+        spatial_y = _ask_int("▶ spatial_size y", 8)
+
+        dtype = input("▶ param dtype [fp32/fp16/bf16] [fp32]: ").strip() or "fp32"
+        optimizer = input("▶ optimizer [biquat/lior/lior_manifold/adamw] [biquat]: ").strip() or "biquat"
+
+        use_dpr = _ask_bool("▶ use_dpr (K/V seeding)", use_causal_field)
+        dpr_use_pretrained = _ask_bool("▶ dpr_use_pretrained (HF encoders)", False)
+        dpr_trainable_seeds = _ask_bool("▶ dpr_trainable_seeds (else ΔK/ΔV)", False)
+        include_dpr_encoder_params = _ask_bool("▶ include_dpr_encoder_params in counts", False)
+
+        cfg = {
+            "use_causal_field": use_causal_field,
+            "d_model": d_model,
+            "n_layers": n_layers,
+            "n_attention_layers": n_attention_layers,
+            "n_heads": n_heads,
+            "vocab_size": vocab_size,
+            "max_seq_len": max_seq_len,
+            "batch_size": batch_size,
+            "field_dim": field_dim,
+            "spatial_size": (spatial_x, spatial_y),
+            "dtype": dtype,
+            "optimizer": optimizer,
+            "use_dpr": use_dpr,
+            "dpr_use_pretrained": dpr_use_pretrained,
+            "dpr_trainable_seeds": dpr_trainable_seeds,
+            "include_dpr_encoder_params": include_dpr_encoder_params,
+        }
+
+        print_estimate(cfg)
+
+        print("\n  1) Another calculation")
+        print("  2) Return to main menu")
+        nxt = input("\n▶ Choice [1-2]: ").strip()
+        if nxt != "1":
+            return
+
+
+def configure_geometric_training():
+    """Configure geometric-only training."""
+    print("\n" + "=" * 70)
+    print("  GEOMETRIC TRAINING MODE")
+    print("  (Trains: Geometric weights + Field parameters)")
+    print("  (Freezes: Embeddings)")
+    print("=" * 70)
+
+    config = {'mode': 'geometric'}
+
+    # Data path
+    print("┌─ DATASET ────────────────────────────────────────────────────┐")
+    print("│  Select your training data                                   │")
+    print("│  [1] Single file (browse)                                    │")
+    print("│  [2] Multiple files (add to dataset)                         │")
+    print("│  [3] MNIST (standard benchmark)                              │")
+    print("│  [4] Generate sample text data                               │")
+    print("└──────────────────────────────────────────────────────────────┘")
+
+    choice = input("\n▶ Choice [1-4]: ").strip()
+
+    if choice == '2':
+        # Multi-file upload - offer GUI or manual
+        print("\n▶ How would you like to add files?")
+        print("  [1] GUI multi-select (fast, one directory)")
+        print("  [2] Add files manually (flexible, paste paths)")
+
+        multi_choice = input("\n▶ Choice [1-2]: ").strip()
+
+        data_paths = []
+
+        if multi_choice == '1':
+            # GUI multi-select
+            selected = open_multiple_files_dialog("Select Training Data Files")
+            if selected:
+                data_paths.extend(selected)
+                print(f"\nSelected {len(selected)} files")
+
+                # Option to add more from another directory
+                while True:
+                    add_more = input("\n▶ Add more files from another directory? [y/N]: ").strip().lower()
+                    if add_more == 'y':
+                        more_files = open_multiple_files_dialog("Select Additional Training Data Files")
+                        if more_files:
+                            data_paths.extend(more_files)
+                            print(f"✓ Added {len(more_files)} more files (total: {len(data_paths)})")
+                        else:
+                            print("✗ No files selected")
+                    else:
+                        break
+
+        else:
+            # Manual adding (original functionality)
+            print("\n▶ Add multiple files to your dataset")
+            while True:
+                print(f"\n   Current files: {len(data_paths)}")
+                print("   [1] Browse for file")
+                print("   [2] Enter path manually")
+                print("   [3] Done adding files")
+
+                file_choice = input("\n▶ Choice [1-3]: ").strip()
+
+                if file_choice == '3':
+                    break
+                elif file_choice == '1':
+                    file_path = open_file_dialog(f"Select Training Data File #{len(data_paths)+1}")
+                    if file_path and Path(file_path).exists():
+                        data_paths.append(file_path)
+                        print(f"✓ Added: {file_path}")
+                elif file_choice == '2':
+                    file_path = input("▶ File path: ").strip()
+                    if file_path and Path(file_path).exists():
+                        data_paths.append(file_path)
+                        print(f"✓ Added: {file_path}")
+                    else:
+                        print(f"✗ File not found: {file_path}")
+
+        if not data_paths:
+            print("\n✗ No files selected. Using sample data instead.")
+            data_path = generate_sample_data()
+            config['data_path'] = data_path
+        else:
+            print(f"\n✓ Total files: {len(data_paths)}")
+            for path in data_paths:
+                print(f"  - {Path(path).name}")
+            config['data_paths'] = data_paths
+
+        config['data_type'] = 'text'
+
+    elif choice == '3':
+        # MNIST dataset
+        config['data_type'] = 'mnist'
+        config['data_path'] = './data/mnist'
+        print("✓ Using MNIST dataset")
+
+    elif choice == '4':
+        data_path = generate_sample_data()
+        config['data_path'] = data_path
+        config['data_type'] = 'text'
+
+    else:
+        # Single file
+        print("\n▶ Opening file picker...")
+        data_path = open_file_dialog("Select Training Data")
+
+        if not data_path:
+            print("✗ No file selected. Using sample data instead.")
+            data_path = generate_sample_data()
+        else:
+            print(f"✓ Selected: {data_path}")
+
+        config['data_path'] = data_path
+        config['data_type'] = 'text'
+
+    # Architecture choice
+    print("┌─ ARCHITECTURE ───────────────────────────────────────────────┐")
+    print("│  1. Standard Transformer (O(N^2) attention)                  │")
+    print("│  2. Causal Field (O(N log N) parallel) - RECOMMENDED         │")
+    print("└──────────────────────────────────────────────────────────────┘")
+
+    arch_choice = input("▶ Select architecture [1-2]: ").strip()
+    config['use_causal_field'] = (arch_choice == '2')
+
+    # Quick or custom settings
+    print("┌─ CONFIGURATION ──────────────────────────────────────────────┐")
+    print("│  1. Quick (Use defaults - good for testing)                  │")
+    print("│  2. Custom (Configure model size & training)                 │")
+    print("└──────────────────────────────────────────────────────────────┘")
+
+    mode_choice = input("▶ Select [1-2]: ").strip()
+
+    if mode_choice == '2':
+        config.update(get_custom_config())
+    else:
+        # Defaults
+        config.update({
+            'field_dim': 16,  # Minimum 16 for sufficient DOF (Paper Implementation Note 1)
+            'spatial_size': [8, 8],
+            'd_model': 256,
+            'n_heads': 4,
+            'n_layers': 4,
+            'n_mamba_layers': 4,  # For backwards compatibility
+            'n_attention_layers': 2,  # CausalField blocks include attention
+            'batch_size': 128,
+            'max_epochs': 5,
+            'max_seq_len': 512,
+            'lr': 0.0001,
+            'adaptive_field': True,
+            'output_dir': './checkpoints/geometric',
+            'use_dpr': False,  # Disable DPR overhead
+            'log_interval': 10
+        })
+
+    return config
+
+
+def configure_full_training():
+    """Configure full end-to-end training."""
+    print("\n" + "=" * 70)
+    print("  FULL TRAINING MODE")
+    print("  (Trains: Everything - Embeddings + Geometric + Transformer)")
+    print("=" * 70)
+
+    config = {'mode': 'full'}
+
+    # Data type
+    print("┌─ DATA TYPE ──────────────────────────────────────────────────┐")
+    print("│  1. Text only                                                 │")
+    print("│  2. Image + Text (multimodal)                                │")
+    print("│  3. Video + Text (multimodal)                                │")
+    print("└──────────────────────────────────────────────────────────────┘")
+
+    data_type_choice = input("\n▶ Select data type [1-3]: ").strip()
+
+    data_type_map = {'1': 'text', '2': 'image-text', '3': 'video-text'}
+    config['data_type'] = data_type_map.get(data_type_choice, 'text')
+
+    # Data path
+    print("\n┌─ DATASET ────────────────────────────────────────────────────┐")
+    print("│  Select your training data                                   │")
+    print("│  Supports: PDF, DOCX, TXT, MD, PY, CPP, JSON, CSV, etc.      │")
+    print("│  [1] Single file (browse)                                    │")
+    print("│  [2] Multiple files (add to dataset)                         │")
+    print("│  [3] Generate sample data                                    │")
+    print("└──────────────────────────────────────────────────────────────┘")
+
+    choice = input("\n▶ Choice [1-3]: ").strip()
+
+    if choice == '2':
+        # Multi-file upload - offer GUI or manual
+        print("\n▶ How would you like to add files?")
+        print("  [1] GUI multi-select (fast, one directory)")
+        print("  [2] Add files manually (flexible, paste paths)")
+
+        multi_choice = input("\n▶ Choice [1-2]: ").strip()
+
+        data_paths = []
+
+        if multi_choice == '1':
+            # GUI multi-select
+            selected = open_multiple_files_dialog("Select Training Data Files")
+            if selected:
+                data_paths.extend(selected)
+                print(f"\nSelected {len(selected)} files")
+
+                # Option to add more from another directory
+                while True:
+                    add_more = input("\n▶ Add more files from another directory? [y/N]: ").strip().lower()
+                    if add_more == 'y':
+                        more_files = open_multiple_files_dialog("Select Additional Training Data Files")
+                        if more_files:
+                            data_paths.extend(more_files)
+                            print(f"✓ Added {len(more_files)} more files (total: {len(data_paths)})")
+                        else:
+                            print("✗ No files selected")
+                    else:
+                        break
+
+        else:
+            # Manual adding
+            print("\n▶ Add multiple files to your dataset")
+            while True:
+                print(f"\n   Current files: {len(data_paths)}")
+                print("   [1] Browse for file")
+                print("   [2] Enter path manually")
+                print("   [3] Done adding files")
+
+                file_choice = input("\n▶ Choice [1-3]: ").strip()
+
+                if file_choice == '3':
+                    break
+                elif file_choice == '1':
+                    file_path = open_file_dialog(f"Select Training Data File #{len(data_paths)+1}")
+                    if file_path and Path(file_path).exists():
+                        data_paths.append(file_path)
+                        print(f"✓ Added: {file_path}")
+                elif file_choice == '2':
+                    file_path = input("▶ File path: ").strip()
+                    if file_path and Path(file_path).exists():
+                        data_paths.append(file_path)
+                        print(f"✓ Added: {file_path}")
+                    else:
+                        print(f"✗ File not found: {file_path}")
+
+        if not data_paths:
+            print("\n✗ No files selected. Using sample data instead.")
+            data_path = generate_sample_data()
+            config['data_path'] = data_path
+        else:
+            print(f"\n✓ Total files: {len(data_paths)}")
+            for path in data_paths:
+                print(f"  - {Path(path).name}")
+            config['data_paths'] = data_paths
+
+    elif choice == '3':
+        data_path = generate_sample_data()
+        config['data_path'] = data_path
+
+    else:
+        # Single file
+        print("\n▶ Opening file picker...")
+        data_path = open_file_dialog("Select Training Data")
+
+        if not data_path:
+            print("✗ No file selected. Using sample data instead.")
+            data_path = generate_sample_data()
+        else:
+            print(f"✓ Selected: {data_path}")
+
+        config['data_path'] = data_path
+
+    # Model configuration - manual input
+    print("\n┌─ MODEL CONFIGURATION ────────────────────────────────────────┐")
+    try:
+        d_model = int(input("▶ Model dimension [256]: ").strip() or "256")
+        n_layers = int(input("▶ CausalField layers [4]: ").strip() or "4")
+        n_attention_layers = int(input("▶ Attention layers [2]: ").strip() or "2")
+        n_heads = int(input("▶ Attention heads [4]: ").strip() or "4")
+        batch_size = int(input("▶ Batch size [64]: ").strip() or "64")
+    except ValueError:
+        print("Invalid input, using defaults")
+        d_model, n_layers, n_attention_layers, n_heads, batch_size = 256, 4, 2, 4, 64
+
+    config.update({
+        'd_model': d_model,
+        'n_layers': n_layers,
+        'n_mamba_layers': n_layers,
+        'n_attention_layers': n_attention_layers,
+        'n_heads': n_heads,
+        'batch_size': batch_size
+    })
+
+    # Architecture choice
+    print("\n┌─ ARCHITECTURE ───────────────────────────────────────────────┐")
+    print("│  1. Standard Transformer (O(N^2) attention)                  │")
+    print("│  2. Causal Field (O(N log N) parallel) - RECOMMENDED         │")
+    print("└──────────────────────────────────────────────────────────────┘")
+
+    arch_choice = input("\n▶ Select architecture [1-2]: ").strip()
+    config['use_causal_field'] = (arch_choice == '2')
+
+    # Training epochs override
+    default_epochs = 10
+    epochs_input = input(f"\n▶ Max epochs [{default_epochs}]: ").strip()
+    max_epochs = int(epochs_input) if epochs_input else default_epochs
+
+    # Timing debug toggle
+    timing_input = input("\n▶ Enable timing debug? [y/N]: ").strip().lower()
+    timing_debug = (timing_input == 'y')
+
+    # NaN diagnostic toggle
+    diagnose_input = input("▶ Enable NaN diagnostics? [y/N]: ").strip().lower()
+    diagnose_nan = (diagnose_input == 'y')
+
+    # Training
+    config.update({
+        'field_dim': 16,
+        'spatial_size': [8, 8],
+        'max_epochs': max_epochs,
+        'lr': 0.0003,
+        'adaptive_field': True,
+        'output_dir': './checkpoints/full',
+        'use_dpr': True,
+        'log_interval': 10,  # Log every 10 steps
+        'timing_debug': timing_debug,
+        'diagnose_nan': diagnose_nan
+    })
+
+    return config
+
+
+def configure_resume_training():
+    """Configure resuming from checkpoint."""
+    print("\n┌─ RESUME TRAINING ────────────────────────────────────────────┐")
+    print("│  Select checkpoint to resume from                            │")
+    print("└──────────────────────────────────────────────────────────────┘")
+
+    print("\n  [1] Browse with GUI")
+    print("  [2] Enter path manually")
+    print("  [3] Use latest checkpoint (./checkpoints/best_model.pt)")
+
+    choice = input("\n▶ Choice [1-3]: ").strip()
+
+    if choice == '1':
+        print("\n▶ Opening file picker...")
+        checkpoint_path = open_file_dialog("Select Checkpoint (.pt)")
+        if not checkpoint_path:
+            print("\n✗ No checkpoint selected.")
+            return interactive_menu()
+    elif choice == '3':
+        checkpoint_path = './checkpoints/best_model.pt'
+        if not Path(checkpoint_path).exists():
+            print(f"\n✗ Checkpoint not found: {checkpoint_path}")
+            print("   Train a model first to create a checkpoint.")
+            return interactive_menu()
+    else:
+        checkpoint_path = input("\n▶ Checkpoint path: ").strip()
+
+    if not Path(checkpoint_path).exists():
+        print(f"\n✗ Checkpoint not found: {checkpoint_path}")
+        return interactive_menu()
+
+    print(f"✓ Selected checkpoint: {checkpoint_path}")
+
+    # Ask for training data
+    print("\n▶ Select training data:")
+    print("  [1] Single file (browse)")
+    print("  [2] Multiple files (add to dataset)")
+    print("  [3] Use sample data")
+    print("  [4] Use default (./data/train.txt)")
+
+    data_choice = input("\n▶ Choice [1-4]: ").strip()
+
+    data_paths = []
+
+    if data_choice == '1':
+        print("\n▶ Opening file picker...")
+        data_path = open_file_dialog("Select Training Data")
+        if not data_path:
+            print("✗ No file selected. Using default.")
+            data_paths = ['./data/train.txt']
+        else:
+            print(f"✓ Selected: {data_path}")
+            data_paths = [data_path]
+
+    elif data_choice == '2':
+        # Multi-file upload with GUI
+        print("\n▶ Select multiple training files (hold Ctrl/Cmd to select multiple)")
+        selected_paths = open_multiple_files_dialog("Select Training Data Files")
+
+        if not selected_paths:
+            print("\n✗ No files selected. Using default.")
+            data_paths = ['./data/train.txt']
+        else:
+            data_paths = list(selected_paths)
+            print(f"\n✓ Selected {len(data_paths)} files:")
+            for path in data_paths:
+                print(f"  - {Path(path).name}")
+
+    elif data_choice == '3':
+        data_paths = [generate_sample_data()]
+    else:
+        data_paths = ['./data/train.txt']
+
+    # If multiple files, we'll merge them later
+    # For now, pass the list of paths
+    if len(data_paths) == 1:
+        return {'resume': checkpoint_path, 'mode': 'full', 'data_path': data_paths[0]}
+    else:
+        return {'resume': checkpoint_path, 'mode': 'full', 'data_paths': data_paths}
+
+
+def start_inference_mode():
+    """Launch inference/chat mode."""
+    from Liorhybrid.inference.inference import InferenceEngine, load_checkpoint_with_gui
+
+    print("")
+    print("INFERENCE MODE")
+    print("=" * 70)
+    print("Select checkpoint to load for inference")
+    print("")
+    print("  [1] Browse with GUI")
+    print("  [2] Enter path manually")
+
+    while True:
+        choice = input("\nChoice [1-2]: ").strip()
+        if choice in ("1", "2"):
+            break
+        print("Invalid choice. Please try again.")
+
+    if choice == "1":
+        checkpoint_path = load_checkpoint_with_gui()
+        if not checkpoint_path:
+            print("")
+            print("No checkpoint selected.")
+            return
+    else:
+        checkpoint_path = input("\nCheckpoint path: ").strip()
+
+    if not checkpoint_path:
+        print("")
+        print("No checkpoint path provided.")
+        return
+
+    if not Path(checkpoint_path).exists():
+        print("")
+        print(f"Checkpoint not found: {checkpoint_path}")
+        return
+
+    try:
+        engine = InferenceEngine(checkpoint_path)
+        engine.chat()
+    except Exception as e:
+        print("")
+        print(f"Failed to load checkpoint: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+def evaluate_checkpoint_menu():
+    """Evaluate a checkpoint on validation data."""
+    import math
+    from Liorhybrid.training import open_file_dialog
+
+    print("\n┌─ EVALUATE CHECKPOINT ────────────────────────────────────────┐")
+    print("│  Run validation on a saved checkpoint                        │")
+    print("└──────────────────────────────────────────────────────────────┘")
+
+    # Select checkpoint
+    print("\n  [1] Browse for checkpoint")
+    print("  [2] Enter path manually")
+    print("  [3] Use latest (./checkpoints/full/)")
+
+    choice = input("\n▶ Choice [1-3]: ").strip()
+
+    if choice == '1':
+        checkpoint_path = open_file_dialog("Select Checkpoint (.pt)")
+        if not checkpoint_path:
+            print("\n✗ No checkpoint selected.")
+            return
+    elif choice == '3':
+        # Find latest checkpoint in default dir
+        checkpoint_dir = Path('./checkpoints/full')
+        if checkpoint_dir.exists():
+            checkpoints = list(checkpoint_dir.glob('*.pt'))
+            if checkpoints:
+                checkpoint_path = str(max(checkpoints, key=lambda p: p.stat().st_mtime))
+                print(f"✓ Found: {checkpoint_path}")
+            else:
+                print("\n✗ No checkpoints found in ./checkpoints/full/")
+                return
+        else:
+            print("\n✗ Directory ./checkpoints/full/ does not exist")
+            return
+    else:
+        checkpoint_path = input("\n▶ Checkpoint path: ").strip()
+
+    if not Path(checkpoint_path).exists():
+        print(f"\n✗ Checkpoint not found: {checkpoint_path}")
+        return
+
+    # Select validation data
+    print("\n" + "="*70)
+    print("VALIDATION DATA")
+    print("="*70)
+
+    print("\n  [1] Single file (browse with GUI)")
+    print("  [2] Multiple files (add to dataset)")
+    print("  [3] Enter path manually")
+
+    data_choice = input("\nChoice [1-3]: ").strip()
+
+    data_paths = []
+
+    if data_choice == '2':
+        # Multiple files mode
+        print("\nHow would you like to add files?")
+        print("  [1] GUI multi-select (Ctrl/Shift to select multiple)")
+        print("  [2] Add files manually (flexible, paste paths)")
+
+        multi_choice = input("\nChoice [1-2]: ").strip()
+
+        if multi_choice == '1':
+            selected = open_multiple_files_dialog("Select Validation Data Files")
+            if selected:
+                data_paths.extend(selected)
+                print(f"\nSelected {len(selected)} file(s)")
+            else:
+                print("\nNo files selected.")
+                return
+        else:
+            # Manual mode with loop
+            while True:
+                print("\nAdd a file:")
+                print("  [1] Browse with GUI")
+                print("  [2] Paste file path")
+                print("  [3] Done adding files")
+
+                file_choice = input("\nChoice [1-3]: ").strip()
+
+                if file_choice == '1':
+                    file_path = open_file_dialog("Select Validation Data File")
+                    if file_path:
+                        data_paths.append(file_path)
+                        print(f"   Added: {Path(file_path).name}")
+                elif file_choice == '2':
+                    file_path = input("\nFile path: ").strip()
+                    if Path(file_path).exists():
+                        data_paths.append(file_path)
+                        print(f"   Added: {Path(file_path).name}")
+                    else:
+                        print(f"   File not found: {file_path}")
+                else:
+                    break
+
+                if not data_paths:
+                    print("\nNo files added.")
+                    return
+
+    elif data_choice == '1':
+        # Single file with GUI
+        data_path = open_file_dialog("Select Validation Data")
+        if not data_path:
+            print("\nNo data file selected.")
+            return
+        data_paths = [data_path]
+
+    else:
+        # Manual path entry
+        data_path = input("\nValidation data path: ").strip()
+        if not Path(data_path).exists():
+            print(f"\nData file not found: {data_path}")
+            return
+        data_paths = [data_path]
+
+    print(f"\nCheckpoint: {checkpoint_path}")
+    if len(data_paths) == 1:
+        print(f"Validation data: {data_paths[0]}")
+    else:
+        print(f"Validation data: {len(data_paths)} files")
+    print("\nLoading checkpoint and running evaluation...")
+
+    try:
+        # Load checkpoint
+        checkpoint = torch.load(checkpoint_path, map_location='cuda' if torch.cuda.is_available() else 'cpu')
+        config = checkpoint.get('config', {})
+
+        print(f"   Step: {checkpoint.get('global_step', 'N/A')}")
+        print(f"   Train losses recorded: {len(checkpoint.get('train_losses', []))}")
+
+        # Create tokenizer from checkpoint
+        if 'tokenizer' in checkpoint:
+            tokenizer = CognitiveTokenizer(vocab_size=checkpoint['tokenizer']['vocab_size'])
+            tokenizer.vocab = checkpoint['tokenizer']['vocab']
+            tokenizer.inverse_vocab = checkpoint['tokenizer']['inverse_vocab']
+        else:
+            print("   Warning: No tokenizer in checkpoint, creating new one")
+            tokenizer = CognitiveTokenizer(vocab_size=config.get('vocab_size', 32000))
+
+        # Load and tokenize validation data
+        from Liorhybrid.training import UniversalFileReader
+        reader = UniversalFileReader()
+
+        # Handle multiple files
+        if len(data_paths) > 1:
+            print(f"   Loading {len(data_paths)} validation files...")
+            merged_content = []
+
+            for i, data_path in enumerate(data_paths, 1):
+                if not Path(data_path).exists():
+                    print(f"   Warning: File {i} not found: {data_path}")
+                    continue
+
+                print(f"   Loading file {i}/{len(data_paths)}: {Path(data_path).name}")
+
+                try:
+                    content = reader.read_file(data_path)
+                    merged_content.append(content)
+                    print(f"   Loaded {len(content)} characters")
+                except Exception as e:
+                    print(f"   Error reading file: {e}")
+
+            val_text = '\n\n'.join(merged_content)
+            print(f"   Merged {len(merged_content)} files -> {len(val_text)} characters")
+        else:
+            val_text = reader.read_file(data_paths[0])
+
+        # Create validation dataset
+        val_dataset = TextDataset(
+            texts=[val_text],
+            tokenizer=tokenizer,
+            max_length=config.get('max_seq_len', 512),
+            stride=config.get('max_seq_len', 512) // 2
+        )
+
+        val_loader = DataLoader(
+            val_dataset,
+            batch_size=config.get('batch_size', 32),
+            shuffle=False,
+            num_workers=0
+        )
+
+        print(f"   Validation samples: {len(val_dataset)}")
+
+        # Recreate model
+        d_model = config.get('d_model', 256)
+        n_layers = config.get('n_layers', 4)
+        n_attention_layers = config.get('n_attention_layers', 2)
+
+        model = GeometricTransformerWithMamba(
+            d_model=d_model,
+            n_mamba_layers=n_layers,
+            n_attention_layers=n_attention_layers,
+            vocab_size=config.get('vocab_size', 32000)
+        )
+
+        # Load model weights
+        model.load_state_dict(checkpoint['model_state_dict'])
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        model = model.to(device)
+        model.eval()
+
+        # Create field
+        field_config = FieldConfig(
+            tensor_dim=config.get('field_dim', 16),
+            spatial_size=tuple(config.get('spatial_size', [8, 8]))
+        )
+        field = CognitiveTensorField(field_config)
+        if 'field_state' in checkpoint:
+            field.T = checkpoint['field_state']['T'].to(device)
+
+        # Create LM head if needed
+        if 'lm_head_state_dict' in checkpoint:
+            lm_head = nn.Linear(d_model, config.get('vocab_size', 32000)).to(device)
+            lm_head.load_state_dict(checkpoint['lm_head_state_dict'])
+        else:
+            lm_head = nn.Linear(d_model, config.get('vocab_size', 32000)).to(device)
+
+        # Create embedding
+        from Liorhybrid.training.embeddings import MultimodalEmbedding
+        input_embedding = MultimodalEmbedding(
+            vocab_size=config.get('vocab_size', 32000),
+            d_model=d_model,
+            max_seq_len=config.get('max_seq_len', 512)
+        ).to(device)
+
+        if 'input_embedding_state_dict' in checkpoint:
+            input_embedding.load_state_dict(checkpoint['input_embedding_state_dict'])
+
+        # Run evaluation
+        print("\n" + "="*60)
+        print("  RUNNING VALIDATION")
+        print("="*60)
+
+        val_losses = []
+        from tqdm import tqdm
+
+        with torch.no_grad():
+            for batch in tqdm(val_loader, desc="Evaluating"):
+                batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v
+                        for k, v in batch.items()}
+
+                # Forward pass
+                Q_input = input_embedding(batch['input_ids'], modality='text')
+                output, _ = model(Q_input, field.T, time=field.t)
+                logits = lm_head(output)
+
+                # Compute loss
+                shift_logits = logits[..., :-1, :].contiguous()
+                shift_labels = batch['input_ids'][..., 1:].contiguous()
+
+                loss = torch.nn.functional.cross_entropy(
+                    shift_logits.view(-1, shift_logits.size(-1)),
+                    shift_labels.view(-1),
+                    ignore_index=0
+                )
+                val_losses.append(loss.item())
+
+        # Print results
+        avg_loss = sum(val_losses) / len(val_losses) if val_losses else 0
+        perplexity = math.exp(min(avg_loss, 20))
+
+        print("\n" + "="*60)
+        print("  EVALUATION RESULTS")
+        print("="*60)
+        print(f"  Validation Loss:       {avg_loss:.4f}")
+        print(f"  Validation Perplexity: {perplexity:.2f}")
+        print(f"  Samples evaluated:     {len(val_losses) * config.get('batch_size', 32)}")
+        print("="*60)
+
+    except Exception as e:
+        print(f"\n✗ Evaluation failed: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+def inspect_checkpoint_menu():
+    """Inspect checkpoint statistics."""
+    from Liorhybrid.training.checkpoint_utils import (
+        print_checkpoint_summary,
+        compare_checkpoints,
+        find_best_checkpoint
+    )
+    from Liorhybrid.inference.inference import load_checkpoint_with_gui
+
+    print("\n┌─ CHECKPOINT INSPECTION ──────────────────────────────────────┐")
+    print("│  1. Inspect single checkpoint                                │")
+    print("│  2. Compare multiple checkpoints                             │")
+    print("│  3. Find best checkpoint in directory                        │")
+    print("└──────────────────────────────────────────────────────────────┘")
+
+    choice = input("\n▶ Choice [1-3]: ").strip()
+
+    if choice == '1':
+        # Single checkpoint inspection
+        print("\n  [1] Browse with GUI")
+        print("  [2] Enter path manually")
+        method = input("\n▶ Choice [1-2]: ").strip()
+
+        if method == '1':
+            checkpoint_path = load_checkpoint_with_gui()
+            if not checkpoint_path:
+                print("\n✗ No checkpoint selected.")
+                return
+        else:
+            checkpoint_path = input("\n▶ Checkpoint path: ").strip()
+
+        if not Path(checkpoint_path).exists():
+            print(f"\n✗ Checkpoint not found: {checkpoint_path}")
+            return
+
+        print_checkpoint_summary(checkpoint_path)
+
+    elif choice == '2':
+        # Compare multiple checkpoints
+        print("\nEnter checkpoint paths (comma-separated):")
+        paths_input = input("▶ Paths: "
