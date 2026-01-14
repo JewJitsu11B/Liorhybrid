@@ -275,32 +275,37 @@ class CognitiveManifold(nn.Module):
         g = self.lior_metric(x)
         g_inv = torch.linalg.inv(g)
 
-        # Compute metric derivatives
+        # Compute metric derivatives more efficiently
         dg = torch.zeros(*shape, d, d, d, device=device)
-
+        
+        # Create perturbation tensor to avoid repeated cloning
+        perturbations = torch.eye(d, device=device) * eps
+        
         for rho in range(d):
-            x_plus = x.clone()
-            x_plus[..., rho] += eps
+            # Perturb along rho direction
+            x_plus = x + perturbations[rho]
             g_plus = self.lior_metric(x_plus)
-
-            x_minus = x.clone()
-            x_minus[..., rho] -= eps
+            
+            x_minus = x - perturbations[rho]
             g_minus = self.lior_metric(x_minus)
+            
+            # Store as dg[..., mu, nu, rho] = ∂_rho g_μν
+            dg[..., :, :, rho] = (g_plus - g_minus) / (2 * eps)
 
-            dg[..., rho, :, :] = (g_plus - g_minus) / (2 * eps)
-
-        # Christoffel symbols
-        Gamma = torch.zeros(*shape, d, d, d, device=device)
-
-        for lam in range(d):
-            for mu in range(d):
-                for nu in range(d):
-                    for rho in range(d):
-                        Gamma[..., lam, mu, nu] += 0.5 * g_inv[..., lam, rho] * (
-                            dg[..., mu, nu, rho] +
-                            dg[..., nu, mu, rho] -
-                            dg[..., rho, mu, nu]
-                        )
+        # Vectorized Christoffel symbol computation
+        # Γ^λ_μν = 0.5 * g^λρ * (∂_μ g_νρ + ∂_ν g_μρ - ∂_ρ g_μν)
+        # 
+        # dg storage: dg[..., i, j, k] = ∂_k g_ij (derivative wrt x^k of metric component g_ij)
+        # Original formula accesses: dg[μ,ν,ρ] + dg[ν,μ,ρ] - dg[ρ,μ,ν]
+        #
+        # Replicate this with tensor operations:
+        term1 = dg                                                  # [..., mu, nu, rho]
+        term2 = dg.transpose(-3, -2)                               # [..., nu, mu, rho]
+        term3 = dg.permute(*range(len(shape)), -1, -3, -2)        # [..., rho, mu, nu]
+        combo = term1 + term2 - term3
+        
+        # Contract with inverse metric: Γ^λ_μν = 0.5 * g^λρ * combo_μνρ
+        Gamma = 0.5 * torch.einsum('...lr,...mnr->...lmn', g_inv, combo)
 
         return Gamma
 

@@ -12,6 +12,7 @@ import torch
 import torch.nn.functional as F
 
 
+@torch.compile
 def spatial_laplacian(T: torch.Tensor, dx: float = 1.0) -> torch.Tensor:
     """
     Compute spatial Laplacian ∇²T via finite differences.
@@ -60,6 +61,7 @@ def spatial_laplacian(T: torch.Tensor, dx: float = 1.0) -> torch.Tensor:
     return laplacian
 
 
+@torch.compile
 def hamiltonian_evolution(
     T: torch.Tensor,
     hbar_cog: float = 0.1,

@@ -259,12 +259,13 @@ class LiorKernel(nn.Module):
         return torch.zeros(batch_size, d_model, device=device)
 
     def extra_repr(self) -> str:
-        w = self.weights.detach().cpu().numpy()
+        # Avoid CPU transfer - use tensor operations directly
+        w = self.weights.detach()
         return (
             f"p_eff={self.p_eff}, "
             f"delta={self.delta.item():.3f}, "
             f"rho={self.rho.item():.3f}, "
-            f"weights=[{w[0]:.2f}, {w[1]:.2f}, {w[2]:.2f}]"
+            f"weights=[{w[0].item():.2f}, {w[1].item():.2f}, {w[2].item():.2f}]"
         )
 
 
