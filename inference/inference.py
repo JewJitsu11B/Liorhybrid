@@ -101,9 +101,34 @@ class InferenceEngine:
         )
         self.field = CognitiveTensorField(field_config)
 
-        if 'field_state_dict' in checkpoint:
-            self.field.load_state_dict(checkpoint['field_state_dict'])
-            print("✓ Field state loaded")
+        field_state_dict = checkpoint.get('field_state_dict')
+        field_state_loaded = False
+        if field_state_dict is not None:
+            if isinstance(field_state_dict, (list, tuple)) and len(field_state_dict) == 2:
+                kind, data = field_state_dict
+                if kind == "state_dict" and isinstance(data, dict):
+                    field_state_dict = data
+                elif kind == "tensor" and torch.is_tensor(data):
+                    self.field.T = data.to(device)
+                    field_state_dict = None
+                    field_state_loaded = True
+                elif kind == "snapshot" and isinstance(data, dict):
+                    field_state_dict = data
+                else:
+                    field_state_dict = None
+            if isinstance(field_state_dict, dict):
+                try:
+                    self.field.load_state_dict(field_state_dict, strict=False)
+                    print("✓ Field state loaded")
+                    field_state_loaded = True
+                except Exception as e:
+                    print(f"WARNING: field_state_dict load failed ({e})")
+
+        if not field_state_loaded:
+            field_state = checkpoint.get('field_state')
+            if isinstance(field_state, dict) and 'T' in field_state:
+                self.field.T = field_state['T'].to(device)
+                print("✓ Field tensor loaded")
 
         # Model
         if bool(self.config.get('use_mamba', False)):

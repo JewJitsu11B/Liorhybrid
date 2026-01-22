@@ -30,6 +30,7 @@ import os
 import time
 import math
 import json
+import hashlib
 import dataclasses
 import inspect
 import datetime
@@ -46,6 +47,10 @@ from .geometric_diagnostics import PathBuffer, format_diagnostics
 def _ts() -> str:
     """Timestamp helper for log messages."""
     return datetime.datetime.now().strftime("%H:%M:%S")
+
+
+def _ts_utc() -> str:
+    return datetime.datetime.now(datetime.timezone.utc).isoformat()
 
 # NOTE: No einsum in Sections 1-2. Hot-path kernels will use precomputed
 # contractions and matmul later.
@@ -201,16 +206,33 @@ class TrainConfig:
     # 2.2 Training Loop (Manual Updates)
     tbptt_window_steps: int = 64
     beta_nudge: float = 1e-3      # Division by this occurs in updates
-    eta_update: float = 1e-4
+    eta_update: float = 1e-2      # Learning rate for manual updates (increased from 1e-4 for visible learning)
     nudge_every_windows: int = 1
     max_epochs: int = 1
     max_windows: int = 0
 
     # SPSA Fallback Toggles
-    enable_spsa_fallback: bool = False 
+    enable_spsa_fallback: bool = False
     spsa_sigma: float = 0.01
     spsa_lr: float = 0.01
     spsa_directions: int = 4
+
+    # 2.2b Symplectic Dynamics (Phase-Space Preserving Integration)
+    # When dynamics_mode="symplectic", field.T evolves via Stormer-Verlet integration
+    # preserving phase space volume (Liouville's theorem) to prevent memory rot.
+    dynamics_mode: str = "dissipative"      # "dissipative" | "symplectic"
+    symplectic_dt: float = 0.005            # Integration timestep
+    symplectic_m_cog: float = 1.0           # Effective mass (cognitive inertia)
+    symplectic_hbar_cog: float = 0.1        # Cognitive Planck constant (for Laplacian term)
+    symplectic_potential: str = "harmonic"  # "zero" | "harmonic" | "gaussian_well"
+    symplectic_stiffness: float = 0.01      # Spring constant k for restoring force -k(T - T_eq)
+
+    # 2.2c Nudge Signal Settings
+    # Controls how the "force of truth" is computed for contrastive learning.
+    # Nudge = k * (target_coord - current_coord) pulls system toward ground truth.
+    nudge_mode: str = "target_embedding"    # "off" | "target_embedding" | "template"
+    nudge_scale: float = 0.1                # k in F = k * (target - current)
+    nudge_use_shifted_target: bool = True   # Use shifted (next token) as target
 
     # 2.3 Performance Toggles
     # Backend / numerics toggles (applied once, not at import time)
@@ -230,6 +252,8 @@ class TrainConfig:
     save_every_windows: int = 100
     run_dir: str = "./runs"
     run_name: str = "experiment_01"
+    telemetry_jsonl: bool = True
+    telemetry_jsonl_filename: str = "telemetry.jsonl"
 
     # Timing and debugging
     timing_debug: bool = False
@@ -246,6 +270,9 @@ def validate_config(cfg: TrainConfig) -> None:
         "metric_mode": ["diag_rot"],
         "R_source": ["constitutive", "curvature"],
         "rotor_mode": ["off", "derived", "stateful"],
+        "dynamics_mode": ["dissipative", "symplectic"],
+        "symplectic_potential": ["zero", "harmonic", "gaussian_well"],
+        "nudge_mode": ["off", "target_embedding", "template"],
     }
 
     for field_name, options in valid_options.items():
@@ -301,6 +328,29 @@ def validate_config(cfg: TrainConfig) -> None:
             "Prefer structured/low-rank curvature, constitutive R, or reduce n."
         )
 
+    # Symplectic dynamics validation
+    if cfg.dynamics_mode == "symplectic":
+        if cfg.symplectic_dt <= 0:
+            raise ValueError("symplectic_dt must be > 0.")
+        if cfg.symplectic_m_cog <= 1e-6:
+            raise ValueError("symplectic_m_cog must be positive (non-zero inertia).")
+        if cfg.symplectic_stiffness < 0:
+            raise ValueError("symplectic_stiffness must be non-negative.")
+
+        # Physics Check: Stability condition for Harmonic Oscillator
+        # Stormer-Verlet stability requires: dt < 2 * sqrt(m / k)
+        if cfg.symplectic_potential == "harmonic" and cfg.symplectic_stiffness > 0:
+            limit = 2.0 * math.sqrt(cfg.symplectic_m_cog / cfg.symplectic_stiffness)
+            if cfg.symplectic_dt >= limit:
+                print(
+                    f"WARNING: symplectic_dt ({cfg.symplectic_dt}) exceeds stability limit "
+                    f"({limit:.4f}) for current mass/stiffness. Integration may diverge."
+                )
+
+    # Nudge signal validation
+    if cfg.nudge_scale < 0:
+        raise ValueError("nudge_scale must be non-negative.")
+
 
 def mode_signature(cfg: TrainConfig) -> str:
     """Returns a unique string representing the geometric architecture."""
@@ -322,6 +372,8 @@ def trainer2_entrypoint(
     tokenizer: Any = None,
 ) -> None:
     """Entry hook for wiring from main; do not call at import time."""
+    from Liorhybrid.utils.pipeline_audit import audit_file_once
+    audit_file_once("trainer2_entrypoint", __file__)
     _trace("entrypoint:start")
     validate_config(cfg)
     _trace("entrypoint:config_validated")
@@ -365,6 +417,7 @@ def trainer2_entrypoint(
         f"model={type(model).__name__}"
     )
     telemetry = TelemetryState()
+    _ensure_jsonl(telemetry, cfg)
     window_idx = 0
     nudge_every = max(int(cfg.nudge_every_windows), 1)
     did_log_first_batch = False
@@ -448,7 +501,17 @@ def trainer2_entrypoint(
             # Single commit point (after free-only or free+nudge window)
             _maybe_update_memory(memory, free)
 
-            maybe_log_metrics(window_idx, metrics, cfg, telemetry)
+            mem_norm = memory.bank_coord.norm().item() if hasattr(memory, 'bank_coord') else 0.0
+            maybe_log_metrics(
+                window_idx,
+                metrics,
+                cfg,
+                telemetry,
+                epoch_idx=epoch_idx,
+                window_ms=(t_window_end - t_window_start) * 1000.0,
+                mem_norm=mem_norm,
+                batch_idx=batch_count,
+            )
             maybe_checkpoint(
                 window_idx=window_idx,
                 epoch_idx=epoch_idx,
@@ -462,11 +525,11 @@ def trainer2_entrypoint(
 
             window_idx += 1
             # Window progression diagnostic
-            mem_norm = memory.bank_coord.norm().item() if hasattr(memory, 'bank_coord') else 0.0
             print(f"[PROGRESS] window={window_idx} mem_norm={mem_norm:.4f} lior={metrics.lior_mean.item():.6f}")
 
             if cfg.max_windows > 0 and window_idx >= cfg.max_windows:
                 print(f"[{_ts()}] max_windows reached: {cfg.max_windows}")
+                _close_telemetry(telemetry)
                 return
 
         # End of epoch summary
@@ -477,6 +540,7 @@ def trainer2_entrypoint(
 
     total_time = time.time() - t_epoch_start
     print(f"[{_ts()}] training complete: {batch_count} total batches in {total_time:.1f}s")
+    _close_telemetry(telemetry)
 
 # ==============================================================================
 # SECTION 3: GEOMETRY PRECOMPUTE (GPU-only caches, no hot-path einsum)
@@ -841,12 +905,35 @@ def snapshot_system(field: Any, memory: Any, rotor_state: Any) -> Snapshot:
         "memory": _snapshot_any(memory),
     }
     payload["rotor"] = _snapshot_any(rotor_state)
+
+    # Symplectic state: momentum P and equilibrium T_eq (trainer2-specific)
+    # These are dynamically added to field by symplectic_step_dynamics
+    symplectic_state = {}
+    if hasattr(field, "_symplectic_P") and field._symplectic_P is not None:
+        symplectic_state["P"] = field._symplectic_P.detach().clone()
+    if hasattr(field, "_symplectic_T_eq") and field._symplectic_T_eq is not None:
+        symplectic_state["T_eq"] = field._symplectic_T_eq.detach().clone()
+    payload["symplectic"] = symplectic_state
+
     return Snapshot(payload)
 
 
 def restore_system(field: Any, memory: Any, rotor_state_ref: Any, snap: Snapshot) -> Any:
     _restore_any(field, snap.payload["field"])
     _restore_any(memory, snap.payload["memory"])
+
+    # Restore symplectic state (if present)
+    symplectic_state = snap.payload.get("symplectic", {})
+    if "P" in symplectic_state:
+        if hasattr(field, "_symplectic_P") and field._symplectic_P is not None:
+            field._symplectic_P.copy_(symplectic_state["P"])
+        else:
+            field._symplectic_P = symplectic_state["P"].clone()
+    if "T_eq" in symplectic_state:
+        if hasattr(field, "_symplectic_T_eq") and field._symplectic_T_eq is not None:
+            field._symplectic_T_eq.copy_(symplectic_state["T_eq"])
+        else:
+            field._symplectic_T_eq = symplectic_state["T_eq"].clone()
     return _restore_any(rotor_state_ref, snap.payload["rotor"])
 
 # ==============================================================================
@@ -1008,6 +1095,230 @@ class SimpleSDMMemory:
             self.valid_mask[:rest] = True
         self.ptr = (self.ptr + take) % self.capacity
         self.filled = min(self.capacity, self.filled + take)
+
+
+# ==============================================================================
+# SECTION 6C: SYMPLECTIC DYNAMICS (Phase-Space Preserving Integration)
+# ==============================================================================
+# Implements Stormer-Verlet (Leapfrog) integration to preserve phase space volume
+# (Liouville's theorem), preventing information loss ("memory rot").
+#
+# Physics: H(T, P) = (1/2m)||P||^2 + V(T)
+#   - T: field position (cognitive state)
+#   - P: conjugate momentum (rate of change)
+#   - V: potential energy (restoring force for stability)
+#
+# The symplectic integrator exactly preserves the 2-form omega = dT ^ dP,
+# ensuring that information volume is conserved even over long time horizons.
+# ==============================================================================
+
+def spatial_laplacian_trainer2(T: torch.Tensor, dx: float = 1.0) -> torch.Tensor:
+    """
+    Compute spatial Laplacian for 4D fields (N_x, N_y, D, D).
+    For 2D vectors [B, n], returns zeros (no spatial structure to differentiate).
+
+    Ported from kernels/hamiltonian.py for self-containment.
+
+    Args:
+        T: Tensor field - either [B, n] (vector) or [N_x, N_y, D, D] (spatial)
+        dx: Grid spacing (default 1.0)
+
+    Returns:
+        Laplacian of same shape as T
+    """
+    if T.dim() == 2:
+        # [B, n] - no spatial structure, return zeros
+        return torch.zeros_like(T)
+
+    if T.dim() != 4:
+        # Unsupported shape - return zeros as safe fallback
+        return torch.zeros_like(T)
+
+    # 4D tensor: (N_x, N_y, D, D_out)
+    N_x, N_y, D, D_out = T.shape
+
+    # Reshape for 2D convolution: (1, D*D_out, N_x, N_y)
+    T_reshaped = T.permute(2, 3, 0, 1).reshape(1, D * D_out, N_x, N_y)
+
+    # Laplacian kernel: [[0,1,0],[1,-4,1],[0,1,0]] / dx^2
+    kernel = torch.tensor(
+        [[0.0, 1.0, 0.0],
+         [1.0, -4.0, 1.0],
+         [0.0, 1.0, 0.0]],
+        dtype=T.dtype,
+        device=T.device
+    ).reshape(1, 1, 3, 3) / (dx * dx)
+
+    # Expand kernel for all channels (depthwise convolution)
+    kernel = kernel.repeat(D * D_out, 1, 1, 1)
+
+    # Apply convolution with padding='same' for periodic/reflecting boundary
+    import torch.nn.functional as F
+    laplacian = F.conv2d(
+        T_reshaped,
+        kernel,
+        padding=1,  # Equivalent to 'same' for 3x3 kernel
+        groups=D * D_out
+    )
+
+    # Reshape back: (N_x, N_y, D, D_out)
+    laplacian = laplacian.reshape(D, D_out, N_x, N_y).permute(2, 3, 0, 1)
+
+    return laplacian
+
+
+def compute_symplectic_force(
+    T: torch.Tensor,
+    T_equilibrium: Optional[torch.Tensor],
+    cfg: "TrainConfig",
+    external_nudge: Optional[torch.Tensor] = None
+) -> torch.Tensor:
+    """
+    Compute total force F = -grad_T H + external.
+
+    Includes:
+    - Kinetic gradient: +(hbar^2/2m) * laplacian(T)  [note: + sign because F = -grad V]
+    - Restoring force: -k * (T - T_eq)  (harmonic potential gradient)
+    - External nudge: direct force injection
+
+    Physics:
+        For H = KE + PE where PE = (k/2)||T - T_eq||^2
+        F = -dPE/dT = -k(T - T_eq)
+
+    Args:
+        T: Current field state
+        T_equilibrium: Reference equilibrium state (attractor)
+        cfg: TrainConfig with symplectic parameters
+        external_nudge: External force (training signal)
+
+    Returns:
+        Total force tensor, same shape as T
+    """
+    force = torch.zeros_like(T)
+
+    # Kinetic term (quantum potential / smoothness penalty for spatial fields)
+    # This prevents "spiky" field configurations
+    if T.dim() == 4 and cfg.symplectic_hbar_cog > 0:
+        lap = spatial_laplacian_trainer2(T)
+        # F_kinetic = +(hbar^2/2m) * laplacian (dispersive term)
+        kinetic_coeff = (cfg.symplectic_hbar_cog ** 2) / (2.0 * cfg.symplectic_m_cog)
+        force = force + kinetic_coeff * lap
+
+    # Restoring force (prevents drift, creates stable attractor)
+    # F_spring = -k * (T - T_eq)
+    if T_equilibrium is not None and cfg.symplectic_stiffness > 0:
+        force = force - cfg.symplectic_stiffness * (T - T_equilibrium)
+
+    # External driving (training nudge acts as force injection)
+    if external_nudge is not None:
+        force = force + external_nudge
+
+    return force
+
+
+def symplectic_leapfrog_step(
+    T: torch.Tensor,
+    P: torch.Tensor,
+    T_equilibrium: Optional[torch.Tensor],
+    cfg: "TrainConfig",
+    external_nudge: Optional[torch.Tensor] = None
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Shape-agnostic Stormer-Verlet (Leapfrog) symplectic integration step.
+
+    Preserves phase space volume (Liouville's theorem) exactly.
+    Works for [B, n] vectors or [N_x, N_y, D, D] spatial fields.
+
+    Algorithm (velocity Verlet form):
+        1. P_{n+1/2} = P_n + (dt/2) * F(T_n)           [half kick]
+        2. T_{n+1}   = T_n + (dt/m) * P_{n+1/2}       [full drift]
+        3. P_{n+1}   = P_{n+1/2} + (dt/2) * F(T_{n+1}) [half kick]
+
+    Physics:
+        - Exactly preserves symplectic 2-form: omega = dT ^ dP
+        - Time-reversible (run backward to recover initial state)
+        - Energy oscillates but doesn't drift (no secular growth)
+
+    Args:
+        T: Position (field configuration)
+        P: Momentum (conjugate to T)
+        T_equilibrium: Equilibrium point for restoring force
+        cfg: TrainConfig with dt, m_cog, stiffness, etc.
+        external_nudge: External force (training signal)
+
+    Returns:
+        (T_new, P_new): Updated position and momentum
+    """
+    dt = cfg.symplectic_dt
+    m = cfg.symplectic_m_cog
+
+    # Step 1: Half kick - update momentum using force at current position
+    F_t = compute_symplectic_force(T, T_equilibrium, cfg, external_nudge)
+    P_half = P + F_t * (0.5 * dt)
+
+    # Step 2: Full drift - update position using half-step momentum
+    T_new = T + (P_half / m) * dt
+
+    # Step 3: Half kick - update momentum using force at new position
+    F_t_new = compute_symplectic_force(T_new, T_equilibrium, cfg, external_nudge)
+    P_new = P_half + F_t_new * (0.5 * dt)
+
+    return T_new, P_new
+
+
+def compute_symplectic_diagnostics(
+    T: torch.Tensor,
+    P: torch.Tensor,
+    T_equilibrium: Optional[torch.Tensor],
+    cfg: "TrainConfig"
+) -> dict:
+    """
+    Compute conservation diagnostics for symplectic integration.
+
+    Use these to verify the integrator is working correctly:
+    - Total energy should oscillate but not drift
+    - Phase space volume should remain constant
+
+    Args:
+        T: Current position
+        P: Current momentum
+        T_equilibrium: Equilibrium reference
+        cfg: TrainConfig
+
+    Returns:
+        dict with diagnostic values
+    """
+    m = cfg.symplectic_m_cog
+    k = cfg.symplectic_stiffness
+
+    # Kinetic energy: KE = (1/2m) * ||P||^2
+    P_norm_sq = torch.sum(P * P)
+    KE = (0.5 / m) * P_norm_sq
+
+    # Potential energy: PE = (k/2) * ||T - T_eq||^2
+    PE = torch.tensor(0.0, device=T.device, dtype=T.dtype)
+    if T_equilibrium is not None and k > 0:
+        delta = T - T_equilibrium
+        PE = (0.5 * k) * torch.sum(delta * delta)
+
+    # Total energy (should be conserved)
+    total_energy = KE + PE
+
+    # Phase space volume proxy: ||T|| * ||P||
+    # For symplectic integration, this should remain approximately constant
+    T_norm = torch.sqrt(torch.sum(T * T) + 1e-12)
+    P_norm = torch.sqrt(P_norm_sq + 1e-12)
+    phase_space_volume = T_norm * P_norm
+
+    return {
+        "kinetic_energy": KE.item(),
+        "potential_energy": PE.item(),
+        "total_energy": total_energy.item(),
+        "phase_space_volume": phase_space_volume.item(),
+        "T_norm": T_norm.item(),
+        "P_norm": P_norm.item(),
+    }
+
 
 def _make_sig_caller(fn: Callable[..., Any], name: str) -> Callable[..., Any]:
     sig = inspect.signature(fn)
@@ -1311,6 +1622,65 @@ def build_default_hooks(model: nn.Module, field: Any, cfg: TrainConfig) -> StepH
             batch["_trainer2_q_state"] = q_state
         return q_coord, coords, output
 
+    def _symplectic_step_dynamics_impl(
+        field: Any,
+        external_nudge: Optional[torch.Tensor],
+    ) -> torch.Tensor:
+        """
+        Symplectic (Stormer-Verlet) evolution preserving phase space volume.
+
+        This replaces dissipative field.evolve_step() with a Hamiltonian
+        integrator that conserves information (Liouville's theorem).
+
+        Physics interpretation:
+        - Mass (m_cog) = Cognitive inertia (resistance to changing state)
+        - Stiffness (k) = Memory retention (pull back to equilibrium)
+        - Nudge = External force (training signal injection)
+        """
+        T = field.T
+
+        # Get or initialize momentum (field starts at rest)
+        P = getattr(field, "_symplectic_P", None)
+        if P is None:
+            P = torch.zeros_like(T)
+            field._symplectic_P = P
+
+        # Get or initialize equilibrium point (attractor for restoring force)
+        # First state becomes the "truth" that the system oscillates around
+        T_eq = getattr(field, "_symplectic_T_eq", None)
+        if T_eq is None:
+            T_eq = T.detach().clone()
+            field._symplectic_T_eq = T_eq
+
+        # Broadcast nudge if shape mismatch (e.g., [B, n] nudge for [N,N,D,D] field)
+        nudge_broadcast = None
+        if external_nudge is not None:
+            nudge_broadcast = external_nudge
+            if nudge_broadcast.shape != T.shape:
+                # Attempt broadcasting: add leading dims and expand
+                while nudge_broadcast.dim() < T.dim():
+                    nudge_broadcast = nudge_broadcast.unsqueeze(0)
+                try:
+                    nudge_broadcast = nudge_broadcast.expand_as(T)
+                except RuntimeError:
+                    # Shape incompatible - fallback to no nudge
+                    nudge_broadcast = None
+
+        # Symplectic leapfrog step (preserves phase space volume)
+        T_new, P_new = symplectic_leapfrog_step(
+            T=T,
+            P=P,
+            T_equilibrium=T_eq,
+            cfg=cfg,
+            external_nudge=nudge_broadcast
+        )
+
+        # Update field state in-place
+        field.T = T_new
+        field._symplectic_P = P_new
+
+        return T_new
+
     def step_dynamics(
         model: nn.Module,
         field: Any,
@@ -1319,6 +1689,11 @@ def build_default_hooks(model: nn.Module, field: Any, cfg: TrainConfig) -> StepH
         batch: Any,
         external_nudge: Optional[torch.Tensor],
     ) -> Any:
+        # Symplectic mode: preserve phase space volume (Liouville's theorem)
+        if cfg.dynamics_mode == "symplectic":
+            return _symplectic_step_dynamics_impl(field, external_nudge)
+
+        # Original dissipative mode (default for backward compatibility)
         if hasattr(field, "evolve_step"):
             return field.evolve_step(external_input=external_nudge)
         if hasattr(field, "step"):
@@ -1431,6 +1806,8 @@ def run_window(
     window_idx: int = 0,
     epoch_idx: int = 0,
 ) -> PhaseStats:
+    from Liorhybrid.utils.pipeline_audit import audit_file_once
+    audit_file_once("trainer2_run_window", __file__)
     with inference_context():
         _trace("run_window:enter")
         steps = int(cfg.tbptt_window_steps)
@@ -1490,6 +1867,18 @@ def run_window(
             q_coord = _ensure_cuda(q_coord, "q_coord")
             cand_coord = _ensure_cuda(cand_coord, "cand_coord")
             cand_state = _ensure_cuda(cand_state, "cand_state")
+
+            # Apply nudge to coordinates (Option 1: coordinate-space nudge)
+            # This shifts the observer's position toward the target embedding,
+            # creating a measurable difference in LIoR between free and nudged windows.
+            if external_nudge is not None:
+                # Nudge shape: [B, n], q_coord shape: [B, n]
+                if external_nudge.shape == q_coord.shape:
+                    q_coord = q_coord + external_nudge
+                elif external_nudge.shape[-1] == q_coord.shape[-1]:
+                    # Broadcast if batch dims differ
+                    q_coord = q_coord + external_nudge.expand_as(q_coord)
+
             if isinstance(batch, dict):
                 q_state = batch.get("_trainer2_q_state", None)
                 q_coord_u = batch.get("_trainer2_q_coord", None)
@@ -1596,9 +1985,105 @@ def run_window(
         return PhaseStats(metrics=metrics, act=act, mem_update=mem_update, velocity=mean_velocity)
 
 
-def build_nudge(free_stats: PhaseStats, batch: Any, cfg: TrainConfig) -> Optional[torch.Tensor]:
-    if isinstance(batch, dict) and "nudge_template" in batch:
-        return torch.zeros_like(batch["nudge_template"])
+def build_nudge(
+    free_stats: PhaseStats,
+    batch: Any,
+    cfg: TrainConfig,
+    model: nn.Module = None,
+) -> Optional[torch.Tensor]:
+    """
+    Build the nudge signal based on target embeddings.
+
+    Physics interpretation:
+        Nudge = k * (Target_coord - Current_coord)
+
+    This creates a "force of truth" that attracts the system
+    toward the ground truth embedding during the nudged phase.
+
+    Args:
+        free_stats: Statistics from free (unnudged) window run
+        batch: Current batch dict with input_ids, attention_mask, etc.
+        cfg: Training configuration
+        model: Model with input_embedding for target lookup
+
+    Returns:
+        Nudge tensor of shape matching q_coord, or None if disabled.
+    """
+    # Check if nudge is disabled
+    if cfg.nudge_mode == "off":
+        return None
+
+    # Legacy template mode (for backward compatibility)
+    if cfg.nudge_mode == "template":
+        if isinstance(batch, dict) and "nudge_template" in batch:
+            return torch.zeros_like(batch["nudge_template"])
+        return None
+
+    # Target embedding mode
+    if cfg.nudge_mode != "target_embedding":
+        return None
+
+    # Get current coordinates from batch (set by build_retrieval_batch)
+    current_coord = batch.get("_trainer2_q_coord", None) if isinstance(batch, dict) else None
+    if current_coord is None:
+        return None  # No coordinates available
+
+    # Get target embedding (need model for this)
+    if model is None or not hasattr(model, "input_embedding"):
+        return None
+
+    # Compute target coordinates from next token
+    if isinstance(batch, dict) and "input_ids" in batch:
+        input_ids = batch["input_ids"]
+
+        if cfg.nudge_use_shifted_target:
+            # Shift right: target[t] = input[t+1]
+            # Use last token as target (or pad with itself)
+            if input_ids.shape[1] > 1:
+                target_ids = input_ids[:, 1:]  # (B, T-1)
+                # Pad to maintain shape
+                last_token = input_ids[:, -1:]
+                target_ids = torch.cat([target_ids, last_token], dim=1)  # (B, T)
+            else:
+                target_ids = input_ids
+        else:
+            target_ids = input_ids
+
+        # Embed target tokens
+        with torch.no_grad():
+            target_emb = model.input_embedding(target_ids, modality="text")  # (B, T, D)
+
+        # Get coordinate dimension
+        n = current_coord.shape[-1]
+        if target_emb.shape[-1] < n:
+            # Pad to match coord dimension
+            pad = torch.zeros(
+                target_emb.shape[0],
+                target_emb.shape[1],
+                n - target_emb.shape[-1],
+                device=target_emb.device,
+                dtype=target_emb.dtype,
+            )
+            target_coords = torch.cat([target_emb, pad], dim=-1)
+        else:
+            target_coords = target_emb[..., :n]
+
+        # Average over sequence (match q_coord computation)
+        attn_mask = batch.get("attention_mask", None)
+        if attn_mask is not None:
+            if attn_mask.dim() == 1:
+                attn_mask = attn_mask.unsqueeze(0)
+            attn_mask = attn_mask.to(device=target_coords.device, dtype=torch.float32)
+            mask_sum = attn_mask.sum(dim=-1, keepdim=True).clamp(min=1.0)
+            target_coord = (target_coords * attn_mask.unsqueeze(-1)).sum(dim=1) / mask_sum
+        else:
+            target_coord = target_coords.mean(dim=1)  # (B, n)
+
+        # Compute nudge: F = k * (target - current)
+        nudge = cfg.nudge_scale * (target_coord - current_coord)
+
+        return nudge
+
     return None
 
 
@@ -1676,7 +2161,7 @@ def apply_manual_update(
             v_sq_norm = v_sq / (v_sq.sum() + 1e-8)
 
             # Δg_ii: if nudge helped (ΔLIoR < 0), make these directions cheaper
-            delta_g = eta * (-lior_diff_val) * v_sq_norm
+            delta_g = eta * (lior_diff_val) * v_sq_norm
 
             # Apply update to diagonal metric
             g_diag.add_(delta_g)
@@ -1796,6 +2281,8 @@ def run_two_phase_and_update(
     CRITICAL: Updates (apply_manual_update, _maybe_update_memory) MUST happen
     OUTSIDE inference_context(). InferenceMode = immutable state.
     """
+    from Liorhybrid.utils.pipeline_audit import audit_file_once
+    audit_file_once("trainer2_two_phase", __file__)
     # Phase 1: Run both windows inside inference mode (read-only is fine)
     snap = None
     try:
@@ -1813,7 +2300,7 @@ def run_two_phase_and_update(
             _trace("two_phase:free_window:done")
 
             _trace("two_phase:build_nudge:start")
-            nudge = build_nudge(free, batch, cfg)
+            nudge = build_nudge(free, batch, cfg, model=model)
             _trace("two_phase:build_nudge:done")
             _trace("two_phase:restore:start")
             restore_system(field, memory, rotor_state, snap)
@@ -2260,6 +2747,59 @@ def retrieval_step_with_spectral(
 # SECTION 13: TELEMETRY, LOGGING, AND CHECKPOINT POLICY
 # ==============================================================================
 
+def _telemetry_config_hash(cfg: TrainConfig) -> str:
+    payload = dataclasses.asdict(cfg)
+    encoded = json.dumps(payload, sort_keys=True, ensure_ascii=True)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:12]
+
+
+def _telemetry_path(cfg: TrainConfig) -> str:
+    filename = cfg.telemetry_jsonl_filename or "telemetry.jsonl"
+    if not filename.endswith(".jsonl"):
+        filename = f"{filename}.jsonl"
+    prefix = cfg.run_name or "run"
+    return os.path.join(cfg.run_dir, f"{prefix}_{filename}")
+
+
+def _write_jsonl(state: "TelemetryState", record: dict) -> None:
+    if state.jsonl_fp is None:
+        return
+    state.jsonl_fp.write(json.dumps(record, ensure_ascii=True) + "\n")
+    state.jsonl_fp.flush()
+
+
+def _ensure_jsonl(state: "TelemetryState", cfg: TrainConfig) -> None:
+    if not cfg.telemetry_jsonl:
+        return
+    if state.jsonl_fp is not None:
+        return
+    os.makedirs(cfg.run_dir, exist_ok=True)
+    state.jsonl_path = _telemetry_path(cfg)
+    state.config_hash = state.config_hash or _telemetry_config_hash(cfg)
+    state.jsonl_fp = open(state.jsonl_path, "a", encoding="ascii")
+    meta = {
+        "type": "run_meta",
+        "ts_utc": _ts_utc(),
+        "run_name": cfg.run_name,
+        "config_hash": state.config_hash,
+        "mode_signature": mode_signature(cfg),
+        "tbptt_window_steps": cfg.tbptt_window_steps,
+        "log_every_windows": cfg.log_every_windows,
+        "save_every_windows": cfg.save_every_windows,
+    }
+    _write_jsonl(state, meta)
+
+
+def _close_telemetry(state: "TelemetryState") -> None:
+    if state.jsonl_fp is None:
+        return
+    try:
+        state.jsonl_fp.flush()
+    finally:
+        state.jsonl_fp.close()
+    state.jsonl_fp = None
+
+
 @dataclass
 class TelemetryState:
     last_log_window: int = -1
@@ -2267,6 +2807,9 @@ class TelemetryState:
     ptr: int = 0
     flush_stream: Optional[torch.cuda.Stream] = None
     staging_cpu: Optional[torch.Tensor] = None  # pinned [3]
+    jsonl_path: Optional[str] = None
+    jsonl_fp: Optional[object] = None
+    config_hash: Optional[str] = None
 
 
 def _ensure_flush_stream(state: TelemetryState) -> None:
@@ -2279,10 +2822,15 @@ def _ensure_staging_cpu(state: TelemetryState, dtype: torch.dtype) -> None:
         state.staging_cpu = torch.empty((3,), device="cpu", dtype=dtype, pin_memory=True)
 
 
-def _log_metrics_buffered(window_idx: int, metrics: WindowMetrics, cfg: TrainConfig, state: TelemetryState) -> None:
+def _log_metrics_buffered(
+    window_idx: int,
+    metrics: WindowMetrics,
+    cfg: TrainConfig,
+    state: TelemetryState,
+) -> Optional[Tuple[float, float, float]]:
     """Buffer metrics on GPU; async flush to host at log interval (side stream + pinned staging)."""
     if cfg.log_every_windows <= 0:
-        return
+        return None
 
     if state.buffer is None:
         buf_len = max(int(cfg.log_every_windows), 1)
@@ -2299,9 +2847,9 @@ def _log_metrics_buffered(window_idx: int, metrics: WindowMetrics, cfg: TrainCon
     state.ptr += 1
 
     if window_idx % cfg.log_every_windows != 0:
-        return
+        return None
     if state.last_log_window == window_idx:
-        return
+        return None
     state.last_log_window = window_idx
 
     means_gpu = buf.mean(dim=1)
@@ -2324,11 +2872,46 @@ def _log_metrics_buffered(window_idx: int, metrics: WindowMetrics, cfg: TrainCon
     r_mean = float(staging[1])
     spd = float(staging[2])
     print(f"[{_ts()}] window={window_idx} lior={lior:.6f} R={r_mean:.6f} spd={spd:.6f}")
+    return (lior, r_mean, spd)
 
 
-def maybe_log_metrics(window_idx: int, metrics: WindowMetrics, cfg: TrainConfig, state: TelemetryState) -> None:
+def maybe_log_metrics(
+    window_idx: int,
+    metrics: WindowMetrics,
+    cfg: TrainConfig,
+    state: TelemetryState,
+    *,
+    epoch_idx: Optional[int] = None,
+    window_ms: Optional[float] = None,
+    mem_norm: Optional[float] = None,
+    batch_idx: Optional[int] = None,
+) -> None:
     # Buffered logging; avoid per-step host syncs.
-    _log_metrics_buffered(window_idx, metrics, cfg, state)
+    means = _log_metrics_buffered(window_idx, metrics, cfg, state)
+    if means is None:
+        return
+    if not cfg.telemetry_jsonl:
+        return
+
+    _ensure_jsonl(state, cfg)
+    lior, r_mean, spd = means
+    record = {
+        "type": "window_metrics",
+        "ts_utc": _ts_utc(),
+        "run_name": cfg.run_name,
+        "config_hash": state.config_hash,
+        "epoch": epoch_idx,
+        "window": window_idx,
+        "batch": batch_idx,
+        "total_loss": lior,
+        "lior_mean": lior,
+        "R_mean": r_mean,
+        "spd_mean": spd,
+        "window_ms": window_ms,
+        "mem_norm": mem_norm,
+        "tbptt_window_steps": cfg.tbptt_window_steps,
+    }
+    _write_jsonl(state, record)
 
 
 def _get_tokenizer_dict(tokenizer: Any) -> Optional[dict]:
@@ -2375,13 +2958,22 @@ def maybe_checkpoint(*args: Any, **kwargs: Any) -> None:
         'use_mamba': True,
     }
 
+    field_state_dict = None
+    if hasattr(field, "state_dict") and callable(field.state_dict):
+        try:
+            field_state_dict = field.state_dict()
+        except Exception:
+            field_state_dict = None
+    if field_state_dict is None:
+        field_state_dict = _snapshot_any(field)
+
     ckpt = {
         # Inference-compatible keys (required by inference/inference.py)
         "epoch": epoch_idx,
         "global_step": window_idx,
         "config": inference_config,
         "model_state_dict": model.state_dict() if hasattr(model, "state_dict") else None,
-        "field_state_dict": _snapshot_any(field),
+        "field_state_dict": field_state_dict,
         "input_embedding_state_dict": model.input_embedding.state_dict() if hasattr(model, 'input_embedding') and model.input_embedding is not None else None,
         "lm_head_state_dict": model.lm_head.state_dict() if hasattr(model, 'lm_head') and model.lm_head is not None else None,
         "tokenizer": _get_tokenizer_dict(tokenizer),

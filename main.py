@@ -1312,6 +1312,24 @@ def configure_trainer2_params(config):
     config['beta_nudge'] = float(input(f"  beta_nudge [1e-3]: ").strip() or config.get('beta_nudge', 1e-3))
 
     # -------------------------------------------------------------------------
+    # SECTION E: DYNAMICS MODE (field evolution method)
+    # -------------------------------------------------------------------------
+    print("\n[E] DYNAMICS MODE (field evolution)")
+    print("-" * 50)
+    print("  dissipative: Standard gradient-based (default)")
+    print("  symplectic: Phase-space preserving (no memory bleed)")
+    config['dynamics_mode'] = input(f"  dynamics_mode [dissipative]: ").strip() or config.get('dynamics_mode', 'dissipative')
+
+    if config['dynamics_mode'] == 'symplectic':
+        print("\n  Symplectic parameters (Stormer-Verlet integration):")
+        config['symplectic_dt'] = float(input(f"    symplectic_dt [0.005]: ").strip() or config.get('symplectic_dt', 0.005))
+        config['symplectic_m_cog'] = float(input(f"    symplectic_m_cog (inertia) [1.0]: ").strip() or config.get('symplectic_m_cog', 1.0))
+        config['symplectic_hbar_cog'] = float(input(f"    symplectic_hbar_cog [0.1]: ").strip() or config.get('symplectic_hbar_cog', 0.1))
+        print("    symplectic_potential: zero | harmonic | gaussian_well")
+        config['symplectic_potential'] = input(f"    symplectic_potential [harmonic]: ").strip() or config.get('symplectic_potential', 'harmonic')
+        config['symplectic_stiffness'] = float(input(f"    symplectic_stiffness [0.01]: ").strip() or config.get('symplectic_stiffness', 0.01))
+
+    # -------------------------------------------------------------------------
     # SECTION C: CORE ARCHITECTURE (main param count drivers)
     # -------------------------------------------------------------------------
     print("\n[C] CORE ARCHITECTURE (main param count drivers)")

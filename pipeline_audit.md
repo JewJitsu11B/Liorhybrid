@@ -46,3 +46,16 @@
 - `2026-01-07T17:04:31.791731+00:00` | `preflight` | `main.py` | `.`
 - `2026-01-07T17:04:33.063147+00:00` | `field_state_dict` | `core/tensor_field.py` | `core`
 - `2026-01-07T17:04:36.193469+00:00` | `kernel_fractional_memory_weight` | `kernels/fractional_memory.py` | `kernels`
+- `2026-01-15T11:17:32.849905+00:00` | `preflight` | `main.py` | `.`
+- `2026-01-15T11:17:33.758807+00:00` | `field_state_dict` | `core/tensor_field.py` | `core`
+- `2026-01-15T11:17:35.292114+00:00` | `kernel_fractional_memory_weight` | `kernels/fractional_memory.py` | `kernels`
+- `2026-01-15T11:32:12.244371+00:00` | `preflight` | `main.py` | `.`
+- `2026-01-15T11:32:12.862198+00:00` | `field_state_dict` | `core/tensor_field.py` | `core`
+- `2026-01-15T11:32:14.492075+00:00` | `kernel_fractional_memory_weight` | `kernels/fractional_memory.py` | `kernels`
+- `2026-01-15T12:00:36.369535+00:00` | `preflight` | `main.py` | `.`
+- `2026-01-15T12:00:37.790266+00:00` | `field_state_dict` | `core/tensor_field.py` | `core`
+- `2026-01-15T12:00:44.099198+00:00` | `kernel_fractional_memory_weight` | `kernels/fractional_memory.py` | `kernels`
+- `2026-01-15T12:55:40.884458+00:00` | `preflight` | `main.py` | `.`
+- `2026-01-15T12:55:40.885602+00:00` | `trainer2_entrypoint` | `training/trainer2.py` | `training`
+- `2026-01-15T12:55:42.290402+00:00` | `field_state_dict` | `core/tensor_field.py` | `core`
+- `2026-01-15T12:55:47.175725+00:00` | `kernel_fractional_memory_weight` | `kernels/fractional_memory.py` | `kernels`
