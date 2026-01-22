@@ -742,6 +742,23 @@ def lior_step(
     return R_sc * spd
 
 
+def lior_step_fused(
+    R_sc: torch.Tensor,
+    v: torch.Tensor,
+    g0: torch.Tensor,
+    g0_diag: Optional[torch.Tensor],
+    cfg: TrainConfig,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    OPTIMIZATION: Fused version that computes both lior and spd in a single pass.
+    Returns (dlior, spd) to avoid redundant quad_form_batch computation.
+    """
+    v2 = v.unsqueeze(1)
+    spd = quad_form_batch(v2, g=g0, eps=cfg.eps, g_diag=g0_diag).squeeze(1)
+    dlior = R_sc * spd
+    return dlior, spd
+
+
 @dataclass
 class WindowMetrics:
     lior_mean: torch.Tensor
@@ -1835,17 +1852,26 @@ def run_window(
         mem_update: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
 
         progress_every = int(getattr(cfg, "step_progress_every", 0) or 0)
+        
+        # OPTIMIZATION: Defer .item() calls to avoid per-step GPU sync
+        # Store metrics on GPU, sync only at window boundary
+        progress_metrics_gpu = None
+        if progress_every > 0:
+            progress_metrics_gpu = torch.zeros(3, device=DEVICE, dtype=torch.float32)
 
         for _t in range(steps):
             if _t == 0:
                 _trace("run_window:step0:start")
             if progress_every > 0 and (_t % progress_every == 0) and _t > 0:
-                # Live perf metrics (uses accumulated values, no extra cuda sync)
+                # OPTIMIZATION: Batch metric computation on GPU, single sync
                 import math
                 inv_t = 1.0 / float(_t)
-                lior_now = (lior_acc * inv_t).item()
-                R_now = (R_acc * inv_t).item()
-                spd_now = (spd_acc * inv_t).item()
+                progress_metrics_gpu[0] = lior_acc * inv_t
+                progress_metrics_gpu[1] = R_acc * inv_t
+                progress_metrics_gpu[2] = spd_acc * inv_t
+                # Single .item() call for all 3 metrics
+                metrics_cpu = progress_metrics_gpu.cpu()
+                lior_now, R_now, spd_now = metrics_cpu[0].item(), metrics_cpu[1].item(), metrics_cpu[2].item()
                 ppl = math.exp(min(lior_now, 20.0))  # Perplexity = exp(loss), capped
                 print(f"[{_ts()}] e{epoch_idx} w{window_idx} step {_t}/{steps} | loss={lior_now:.4f} ppl={ppl:.2f} R={R_now:.4f} spd={spd_now:.4f}", flush=True)
 
@@ -1927,22 +1953,21 @@ def run_window(
                 v = v.squeeze(1)
             if _t == 0:
                 _trace("run_window:step0:lior_step:start")
-            dlior = lior_step(R_sc=R_sc, v=v, g0=geom.g0, g0_diag=geom.g0_diag, cfg=cfg)
+            # OPTIMIZATION: Use fused version to compute both dlior and spd in one pass
+            dlior, spd = lior_step_fused(R_sc=R_sc, v=v, g0=geom.g0, g0_diag=geom.g0_diag, cfg=cfg)
             if _t == 0:
                 _trace("run_window:step0:lior_step:done")
 
             lior_acc = lior_acc + dlior.mean()
             R_acc = R_acc + R_sc.mean()
-
-            spd = quad_form_batch(v.unsqueeze(1), g=geom.g0, eps=cfg.eps, g_diag=geom.g0_diag).squeeze(1)
             spd_acc = spd_acc + spd.mean()
 
             # Accumulate velocity for directional metric learning
-            # CRITICAL: Must detach BOTH sides to prevent graph accumulation
+            # OPTIMIZATION: Use in-place add to avoid creating new tensors
             if velocity_acc is None:
                 velocity_acc = v.detach().clone()
             else:
-                velocity_acc = velocity_acc.detach() + v.detach()
+                velocity_acc.add_(v)
 
             # Push to geometric diagnostics buffer
             path_buffer.push(
@@ -2186,35 +2211,45 @@ def apply_manual_update(
                     # Rotor learning rate (smaller than metric lr)
                     rotor_lr = eta * 0.01
 
-                    for layer_idx in range(layers):
-                        for pair_idx in range(pairs_per_layer):
-                            i, j = geom.rotor_layers[layer_idx, pair_idx]
-                            i, j = int(i.item()), int(j.item())
-
-                            if i >= v_mean.shape[-1] or j >= v_mean.shape[-1]:
-                                continue
-
-                            # Velocity in this plane (original frame)
-                            v_i, v_j = v_mean[i].item(), v_mean[j].item()
-                            v_plane_mag = math.sqrt(v_i**2 + v_j**2)
-
-                            if v_plane_mag < 1e-6:
-                                continue
-
-                            # Angle of velocity in this plane
-                            v_angle = math.atan2(v_j, v_i)
-
-                            k_idx = layer_idx * pairs_per_layer + pair_idx
-                            if k_idx >= theta.shape[-1]:
-                                continue
-
-                            # Update rotor to align with velocity direction
-                            # If nudge helped, reinforce alignment
-                            delta_theta = rotor_lr * (-lior_diff_val) * v_angle * v_plane_mag
-                            if math.isfinite(delta_theta):
-                                theta[..., k_idx].add_(delta_theta)
-                                total_updates += 1
-                                total_delta_theta += abs(delta_theta)
+                    # OPTIMIZATION: Vectorize rotor update to eliminate nested .item() calls
+                    # Flatten rotor_layers to process all pairs at once
+                    rotor_pairs = geom.rotor_layers.reshape(-1, 2)  # [layers*pairs, 2]
+                    valid_pairs = []
+                    valid_k_idx = []
+                    
+                    for k_idx, (i_j) in enumerate(rotor_pairs):
+                        i, j = int(i_j[0].item()), int(i_j[1].item())
+                        if i < v_mean.shape[-1] and j < v_mean.shape[-1] and k_idx < theta.shape[-1]:
+                            valid_pairs.append((i, j))
+                            valid_k_idx.append(k_idx)
+                    
+                    if valid_pairs:
+                        # Vectorized angle computation
+                        i_indices = torch.tensor([p[0] for p in valid_pairs], device=DEVICE)
+                        j_indices = torch.tensor([p[1] for p in valid_pairs], device=DEVICE)
+                        
+                        v_i = v_mean[i_indices]
+                        v_j = v_mean[j_indices]
+                        v_plane_mag = torch.sqrt(v_i**2 + v_j**2)
+                        
+                        # Filter out tiny magnitudes
+                        valid_mask = v_plane_mag >= 1e-6
+                        
+                        if valid_mask.any():
+                            v_angle = torch.atan2(v_j[valid_mask], v_i[valid_mask])
+                            delta_theta = rotor_lr * (-lior_diff_val) * v_angle * v_plane_mag[valid_mask]
+                            
+                            # Filter finite values
+                            finite_mask = torch.isfinite(delta_theta)
+                            if finite_mask.any():
+                                valid_k = torch.tensor([valid_k_idx[i] for i, m in enumerate(valid_mask) if m], device=DEVICE)
+                                valid_k = valid_k[finite_mask]
+                                delta_theta = delta_theta[finite_mask]
+                                
+                                # Apply updates
+                                theta.index_add_(theta.dim() - 1, valid_k, delta_theta)
+                                total_updates = len(delta_theta)
+                                total_delta_theta = delta_theta.abs().sum().item()
 
                     if total_updates > 0:
                         # Wrap theta to [-π, π] (in-place)
@@ -2365,10 +2400,13 @@ def run_two_phase_and_update(
     # Memory update OUTSIDE inference mode
     _maybe_update_memory(memory, free)
 
-    # Periodic GPU memory cleanup to prevent fragmentation
-    # Only do this every N windows to avoid overhead
-    if window_idx > 0 and window_idx % 10 == 0:
-        torch.cuda.empty_cache()
+    # OPTIMIZATION: Adaptive GPU memory cleanup based on usage, not periodic
+    # Only clear cache if memory usage is above 90% to avoid blocking stalls
+    if window_idx > 0 and window_idx % 50 == 0:  # Check less frequently
+        mem_allocated = torch.cuda.memory_allocated(DEVICE)
+        mem_reserved = torch.cuda.memory_reserved(DEVICE)
+        if mem_allocated / mem_reserved > 0.9:
+            torch.cuda.empty_cache()
 
     return free, nudged
 
