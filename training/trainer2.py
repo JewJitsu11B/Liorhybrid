@@ -649,10 +649,13 @@ def quad_form_batch(
     raise ValueError("g must be [n,n] or [B,n,n].")
 
 
+# OPTIMIZATION: JIT compile for better fusion in hot path
+@torch.jit.script
 def retrieval_weights_from_cost(cost: torch.Tensor, beta: float) -> torch.Tensor:
     return torch.softmax(-beta * cost, dim=-1)
 
 
+@torch.jit.script
 def retrieval_mix(values: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
     return torch.sum(values * w.unsqueeze(-1), dim=1)
 
@@ -2692,9 +2695,94 @@ def maybe_compile_step_fn(step_fn: Callable[..., Any], cfg: TrainConfig) -> Call
 
 
 def maybe_capture_cudagraph(step_fn: Callable[..., Any], static_inputs: Any, cfg: TrainConfig) -> Callable[..., Any]:
+    """
+    Capture a CUDA graph for the step function if enabled.
+    
+    Requirements:
+    - static_shapes=True: All tensors must have fixed shapes
+    - capture_batch_size > 0: Fixed batch size for capture
+    - warmup_steps >= 1: Number of warmup iterations before capture
+    
+    Returns a wrapper that replays the captured graph.
+    """
     if not cfg.use_cudagraphs:
         return step_fn
-    raise NotImplementedError("CUDA graph capture is not implemented in trainer2 skeleton.")
+    
+    # CUDA graphs require PyTorch 1.10+ and CUDA 11+
+    if not hasattr(torch.cuda, 'CUDAGraph'):
+        print("WARNING: CUDA graphs not available in this PyTorch version. Falling back to eager mode.")
+        return step_fn
+    
+    print(f"[CUDAGRAPH] Preparing CUDA graph capture (batch_size={cfg.capture_batch_size})")
+    
+    # State for graph replay
+    graph_state = {
+        'graph': None,
+        'static_input': None,
+        'static_output': None,
+        'warmup_done': False,
+        'warmup_count': 0,
+    }
+    
+    def wrapped_fn(*args, **kwargs):
+        # Warmup phase: run eagerly to stabilize allocations
+        if not graph_state['warmup_done']:
+            graph_state['warmup_count'] += 1
+            result = step_fn(*args, **kwargs)
+            
+            if graph_state['warmup_count'] >= cfg.warmup_steps:
+                graph_state['warmup_done'] = True
+                print(f"[CUDAGRAPH] Warmup complete ({cfg.warmup_steps} steps). Capturing graph...")
+                
+                # Capture graph
+                try:
+                    graph = torch.cuda.CUDAGraph()
+                    
+                    # Create static tensors for capture (clone inputs)
+                    static_args = []
+                    for arg in args:
+                        if isinstance(arg, torch.Tensor):
+                            static_args.append(arg.clone())
+                        else:
+                            static_args.append(arg)
+                    
+                    # Synchronize before capture
+                    torch.cuda.synchronize()
+                    
+                    # Capture the graph
+                    with torch.cuda.graph(graph):
+                        static_output = step_fn(*static_args, **kwargs)
+                    
+                    graph_state['graph'] = graph
+                    graph_state['static_input'] = static_args
+                    graph_state['static_output'] = static_output
+                    
+                    print("[CUDAGRAPH] Graph captured successfully!")
+                    
+                except Exception as e:
+                    print(f"[CUDAGRAPH] Capture failed: {e}")
+                    print("[CUDAGRAPH] Falling back to eager mode")
+                    graph_state['graph'] = None
+            
+            return result
+        
+        # Graph replay phase
+        if graph_state['graph'] is not None:
+            # Copy input data to static buffers
+            for static_arg, arg in zip(graph_state['static_input'], args):
+                if isinstance(static_arg, torch.Tensor) and isinstance(arg, torch.Tensor):
+                    static_arg.copy_(arg)
+            
+            # Replay graph
+            graph_state['graph'].replay()
+            
+            # Return static output (no copy needed, it's updated in-place)
+            return graph_state['static_output']
+        else:
+            # Fallback to eager if capture failed
+            return step_fn(*args, **kwargs)
+    
+    return wrapped_fn
 
 
 @dataclass
