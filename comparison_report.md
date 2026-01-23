@@ -1,7 +1,7 @@
 # Comparison Report
 
 ## Overview
-This report compares and  contrasts the designs of **Coordinate Spacetime** and **Jamba architecture**.
+This report compares and contrasts the designs of **Coordinate Spacetime** and **Jamba architecture**. The broader Liorhybrid work is still in progress; this comparison is written as if the geometric approach described in the newer architecture documents (e.g., ARCHITECTURE_COMPARISON.md) were successfully completed.
 
 ## Coordinate Spacetime
 - **Definition**: A design approach focusing on a two-dimensional coordinate system for temporal and spatial analysis.
@@ -28,6 +28,8 @@ This report compares and  contrasts the designs of **Coordinate Spacetime** and 
    - Coordinate Spacetime is ideal for applications where timing and geographic accuracy are critical, whereas Jamba works well in dynamic environments requiring frequent changes.
 3. **User Experience**:
    - Jamba's structure may lead to better user experience for general tasks, while Coordinate Spacetime may require training to fully leverage.
+4. **Mathematical Upgrade**:
+   - Both approaches still operate over tokens and rely on softmax (and its variants) for weighting, but the newer geometric framing replaces the earlier, purely linear-algebra view.
 
 ## Conclusion
-Both designs have their strengths and weaknesses. The best choice depends on the specific requirements of the application and the skill level of the end-users.
+Both designs have their strengths and weaknesses. The best choice depends on the specific requirements of the application and the skill level of the end-users. Because the software is not yet finished, these observations are provisional and assume the geometric approach reaches a successful completion.
