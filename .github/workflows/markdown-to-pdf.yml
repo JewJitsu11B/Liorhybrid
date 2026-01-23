@@ -1,0 +1,34 @@
+name: Convert Markdown to PDF
+
+on:
+  push:
+    paths:
+      - 'comparison_report.md'
+  workflow_dispatch:
+
+jobs:
+  convert-to-pdf:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Convert Markdown to PDF
+        uses: baileyjm02/markdown-to-pdf@v1
+        with:
+          input_path: comparison_report.md
+          output_dir: .
+          
+      - name: Commit PDF
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add comparison_report.pdf
+          git diff --quiet && git diff --staged --quiet || git commit -m "Auto-generate PDF from comparison_report.md"
+          
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.ref }}
