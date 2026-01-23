@@ -1,6 +1,6 @@
 # LIoRHybrid: Physics-Based AI That Explains Itself
 
-A geometric deep learning architecture that uses **quantum-inspired field theory**, **power-law memory**, and **Riemannian geometry** to build AI systems where physics explains *why* they work, not just benchmarks showing *that* they work.
+A geometric deep learning architecture that uses **quantum-inspired field theory**, **LIoR memory kernel**, and **Riemannian geometry** to build AI systems where physics explains *why* they work, not just benchmarks showing *that* they work.
 
 ## Overview
 
@@ -13,7 +13,7 @@ iℏ_cog ∂_t T = H[T] + Λ_QR[T] - Λ_F[T] + J
 where:
 - **H[T]**: Hamiltonian evolution (kinetic + potential)
 - **Λ_QR[T]**: Bayesian recursive update (belief revision)
-- **Λ_F[T]**: Fractional memory (power-law damping with O(1) recurrence)
+- **Λ_F[T]**: Fractional memory via **LIoR kernel** (power-law with O(1) recurrence)
 - **J**: External input (stimulus)
 
 ### Core Architecture
@@ -21,19 +21,19 @@ where:
 **LIoRHybrid** combines five key components:
 
 1. **Cognitive Tensor Field (T_ij)** - Quantum-inspired state representation
-2. **Geometric Mamba** - O(N) state-space model with CI8 geometric operators
-3. **LIoR Memory Kernel** - Power-law non-Markovian dynamics with O(1) recurrence
+2. **LIoR Memory Kernel** - **L**earnable **I**ntegral **o**f **R**esilience with O(1) recurrence for non-Markovian dynamics
+3. **Causal Field Encoder** - O(N log N) parallel processing via FFT convolution
 4. **Learned Riemannian Geometry** - Metric emerges from field physics
 5. **Geodesic Training** - Optimization follows least-action paths through curved space
 
 ### Key Features
 
-- **O(N) Complexity**: Geometric Mamba provides linear-time processing for long sequences
+- **O(1) Memory Recurrence**: LIoR kernel provides power-law memory without sequential cost
+- **O(N log N) Processing**: Causal field layers use FFT for parallel convolution
 - **Physics-Grounded**: All operators derived from first principles with mathematical guarantees
 - **Interpretable**: Geometric products (wedge/tensor/spinor) with clear physical meaning
 - **Non-Markovian Memory**: Power-law kernels for long-range temporal correlations
 - **Field-Contracted Attention**: Memory-efficient geometric products via field contractions
-- **DPR Integration**: Statistically optimal K/V generation using pre-trained encoders
 - **GPU Acceleration**: Full PyTorch implementation with CUDA support
 
 ## Installation
@@ -66,6 +66,7 @@ Install all dependencies:
 ```bash
 pip install -r requirements.txt
 ```
+```
 
 ## Quick Start
 
@@ -78,12 +79,12 @@ python main.py
 ```
 
 This launches an interactive menu where you can:
-1. **Quick Start** - Train with Geometric Mamba on sample or custom data
+1. **Quick Start** - Train with CausalField + LIoR on sample or custom data
 2. **Full Training** - End-to-end training with all components
 3. **Resume from Checkpoint** - Continue previous training runs
 4. **Generate Sample Dataset** - Create test data for experimentation
 
-### Choose Your Architecture
+### Architecture Options
 
 When starting training, you'll select between:
 
@@ -92,18 +93,18 @@ When starting training, you'll select between:
 - Field-contracted geometric products
 - Best for shorter sequences
 
-**Geometric Mamba** (O(N)) - **RECOMMENDED**:
-- Linear complexity state-space model
-- CI8 (Complex Octonion) geometric operators
-- Trinor/Wedge/Spinor products
-- DPR integration for optimal K/V
-- Best for long sequences (10k+ tokens)
+**CausalField with LIoR** (O(N log N)) - **RECOMMENDED**:
+- Parallel FFT-based convolution: O(N log N)
+- LIoR memory kernel: O(1) recurrence for power-law memory
+- Complex octonion state space with geometric operators
+- Address-based attention (no dense K/V matmul)
+- Best for long sequences with temporal dependencies
 
 ### Quick Training Example
 
 ```bash
 python main.py
-# Select: 1 (Quick Start) → 'sample' → 2 (Geometric Mamba) → 1 (Quick config) → Y
+# Select: 1 (Quick Start) → 'sample' → 2 (CausalField+LIoR) → 1 (Quick config) → Y
 ```
 
 ### Educational Demo
@@ -114,11 +115,9 @@ To understand how geometric operators work before training:
 python demo_geometric_mamba.py
 ```
 
-This shows:
+This demonstrates:
 - ComplexOctonion (CI8) operations
-- How Trinor replaces matrix A
-- How Wedge replaces matrix B  
-- How Spinor replaces matrix C
+- Geometric product structure (Trinor/Wedge/Spinor)
 - Comparison tables and examples
 
 ### Programmatic Usage
@@ -127,7 +126,7 @@ For custom training pipelines:
 
 ```python
 from Liorhybrid.core import CognitiveTensorField, FieldConfig
-from Liorhybrid.inference import GeometricTransformerWithMamba
+from Liorhybrid.inference import GeometricTransformer
 from Liorhybrid.training import CognitiveTrainer
 
 # Configure field
@@ -144,14 +143,13 @@ config = FieldConfig(
 # Create field
 field = CognitiveTensorField(config)
 
-# Create model with Geometric Mamba
-model = GeometricTransformerWithMamba(
+# Create model with CausalField + LIoR
+model = GeometricTransformer(
     d_model=512,
-    n_mamba_layers=6,
-    n_attention_layers=2,
+    n_layers=6,
     n_heads=8,
     field_dim=16,
-    use_dpr=True
+    use_lior=True  # Enable LIoR memory kernel
 )
 
 # Train
@@ -166,7 +164,6 @@ For detailed information, see:
 - **[QUICK_START.md](QUICK_START.md)** - Comprehensive quick start guide with examples
 - **[EXECUTIVE_SUMMARY.md](EXECUTIVE_SUMMARY.md)** - Project overview, use cases, and engineering spec
 - **[IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md)** - Technical implementation details
-- **[GEOMETRIC_MAMBA_GUIDE.md](GEOMETRIC_MAMBA_GUIDE.md)** - Operator correspondence and mathematical background
 - **[TRAINING.md](TRAINING.md)** - Training procedures and configuration
 - **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Common issues and solutions
 
@@ -202,16 +199,15 @@ Liorhybrid/
 │   └── tensor_field.py        # CognitiveTensorField class
 ├── models/                     # Physics models
 │   ├── biquaternion.py        # Biquaternion algebra
-│   ├── causal_field.py        # Causal field operations
+│   ├── causal_field.py        # CausalField with LIoR kernel
 │   ├── complex_metric.py      # Riemannian metric learning
 │   ├── lior_kernel.py         # LIoR memory kernel (O(1) recurrence)
 │   └── manifold.py            # Manifold operations
 ├── inference/                  # Inference and attention
-│   ├── geometric_mamba.py     # Geometric Mamba (O(N) state-space)
 │   ├── geometric_attention.py # Field-contracted attention
 │   ├── geometric_products.py  # Wedge/tensor/spinor products
-│   ├── dpr_encoder.py         # DPR K/V generation
-│   └── geometric_stack.py     # Full transformer stack
+│   ├── geometric_stack.py     # Full transformer stack with CausalField
+│   └── composite_k.py         # Address-based K structure
 ├── training/                   # Training infrastructure
 │   ├── trainer.py             # Main training loop
 │   ├── lior_trainer.py        # LIoR-specific training
@@ -262,25 +258,40 @@ w_ij = exp(-|T_ij - E_ij|²/τ)
 
 Drives field toward evidence-weighted posterior.
 
-### Fractional Memory (LIoR Kernel)
+### LIoR Memory Kernel (Lior Integral of Resilience)
+
+The key innovation that replaces traditional sequential memory:
 
 ```
-Λ_F[T]_ij = λ_F ∫₀ᵗ K(t-τ) T_ij(τ) dτ
-K(τ) = τ^(α-1) / Γ(α)
+Λ_F[T]_ij = λ_F ∫₀ᵗ K_L(t-τ) T_ij(τ) dτ
+
+K_L(τ; J_H) = Θ(τ) [
+    α exp(-β τ)                      # Exponential (Markovian)
+  - γ τ^(-δ) exp(-ξ τ)               # Power-law (Fractional)
+  + η cos(ω τ + φ) exp(-ζ τ)         # Phasic (Oscillatory)
+]
 ```
 
-Power-law kernel creates long-range temporal correlations with O(1) recurrence.
-
-### Geometric Mamba
-
-State-space model with CI8 (Complex Octonion) structure:
+**Key insight**: The full path integral memory can be computed via **finite-pole recurrence in O(1) time**:
 
 ```
-h_t = Trinor(x_t) • h_{t-1} + Wedge(x_t)
-y_t = Spinor(h_t)
+m_t = ρ m_{t-1} + η x_t - ξ x_{t-p_eff}
 ```
 
-where Trinor/Wedge/Spinor are geometric products derived from field contractions.
+This is "Non-Markovian physics with O(1) Bayesian filter update."
+
+### CausalField Architecture
+
+State-space model with complex octonion structure and FFT-based parallel processing:
+
+```
+J^{μν}_{ρσ}(x) = associator(ψ)  # Non-associativity current
+T^{μν}_{ρσ}(x) = α J - (1-α) ∫ k(τ) Π·Γ·Φ·J(x') dx'
+```
+
+- **Complexity**: O(N log N) via FFT convolution (parallel, not sequential)
+- **Memory**: O(1) update via LIoR kernel recurrence
+- **Address-based attention**: No dense K/V matmul, only 64 neighbor probing
 
 ### Riemannian Geometry
 
@@ -305,12 +316,24 @@ Training follows geodesics (least-action paths) through learned geometry.
 | τ | Bayesian temperature | 0.5 | 0.1-1.0 | Evidence sharpness |
 | D | Tensor dimension | 16 | ≥16 | Internal DOF (≥16 for overdetermination) |
 
+### LIoR Kernel Parameters
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| α | Exponential weight | 0.5 |
+| β | Exponential decay | 1.0 |
+| γ | Power-law weight | 0.3 |
+| δ | Power-law exponent | 0.5 |
+| η | Oscillatory amplitude | 0.2 |
+| ω | Oscillatory frequency | 1.0 |
+| p_eff | Effective pole count for O(1) recurrence | 4 |
+
 ### Model Architecture Parameters
 
 | Parameter | Description | Recommended |
 |-----------|-------------|-------------|
 | d_model | Model dimension | 512-1024 |
-| n_mamba_layers | Geometric Mamba layers | 6-12 |
+| n_layers | CausalField layers | 6-12 |
 | n_attention_layers | Geometric attention layers | 2-4 |
 | n_heads | Attention heads | 8-16 |
 | field_dim | Field tensor dimension | 16-32 |
@@ -320,10 +343,9 @@ Training follows geodesics (least-action paths) through learned geometry.
 ### Core Components ✓
 
 - **Cognitive Tensor Field**: Full field evolution with all operators
-- **Geometric Mamba**: O(N) state-space model with CI8 operators
+- **LIoR Memory Kernel**: O(1) recurrence for non-Markovian power-law memory
+- **CausalField Encoder**: O(N log N) parallel processing via FFT convolution
 - **Field-Contracted Attention**: Memory-efficient geometric products
-- **LIoR Memory Kernel**: O(1) recurrence for power-law memory
-- **DPR Integration**: Statistically optimal K/V generation
 - **Riemannian Metric Learning**: Geometry emerges from field
 - **Geodesic Optimization**: Physics-guided training
 - **Comprehensive Logging**: All metrics tracked (timing, complexity, field state, etc.)
@@ -347,27 +369,30 @@ Training follows geodesics (least-action paths) through learned geometry.
 - Domains requiring interpretability and uncertainty quantification
 
 **Key Advantages**:
-- O(N) complexity for long sequences (vs O(N²) for standard transformers)
+- O(1) memory recurrence (vs O(T) for RNNs, O(T²) for standard transformers)
+- O(N log N) processing via parallel FFT (vs O(N²) for attention)
 - Physics-based interpretability
 - Mathematical guarantees and conservation laws
-- Non-Markovian memory without quadratic cost
+- Non-Markovian memory without sequential cost
 - Emergent geometry from data
 
 ## Performance
 
 ### Complexity Comparison
 
-| Architecture | Complexity | Memory | Long Sequences |
-|--------------|------------|---------|----------------|
-| Standard Transformer | O(N²) | O(N²) | Slow (>2048 tokens) |
-| **Geometric Mamba** | **O(N)** | **O(N)** | **Fast (10k+ tokens)** |
+| Component | Traditional | LIoRHybrid | Improvement |
+|-----------|-------------|------------|-------------|
+| **Memory Recurrence** | O(T) sequential (RNN/LSTM) | **O(1)** via LIoR | **T× faster** |
+| **Sequence Processing** | O(N²) attention (Transformer) | **O(N log N)** via FFT | **N/log N × faster** |
+| **Memory Type** | Exponential decay (Markovian) | **Power-law** (non-Markovian) | True long-range |
+| **Attention** | O(N²) dense matmul | **O(N × 64)** address probing | **N/64 × less** |
 
-### Benchmark Results
+### Key Innovations
 
-- **10-20x faster** on medium sequences (512-2048 tokens)
-- **100x+ faster** on long sequences (>2048 tokens)  
-- Linear scaling to 10k+ tokens
-- Reduced memory footprint via field contractions
+1. **LIoR Kernel**: Replaces sequential memory accumulation with O(1) finite-pole recurrence
+2. **Parallel FFT**: CausalField uses FFT convolution instead of sequential processing
+3. **Address-Based Attention**: 64 neighbor probing instead of dense K/V matmul
+4. **Non-Markovian Physics**: Power-law memory without quadratic cost
 
 ## Contributing
 
@@ -381,7 +406,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on:
 
 For complete mathematical derivations:
 - **EXECUTIVE_SUMMARY.md**: Engineering specification and use cases
-- **GEOMETRIC_MAMBA_GUIDE.md**: Operator correspondence
 - **PHYSICS_AUDIT_FINAL.md**: Physics validation
 - **IMPLEMENTATION_SUMMARY.md**: Technical details
 
