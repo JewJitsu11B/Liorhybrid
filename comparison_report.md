@@ -1,7 +1,7 @@
 # Comparison Report
 
 ## Overview
-This report compares and contrasts the designs of **Coordinate Spacetime** and **Jamba architecture**. The broader Liorhybrid work is still in progress; this comparison is written as if the geometric approach described in the newer architecture documents (e.g., ARCHITECTURE_COMPARISON.md) were successfully completed.
+This report compares and contrasts the designs of **Coordinate Spacetime** and **Jamba architecture**. The broader Liorhybrid work is still in progress, so this comparison assumes the geometric approach described in the newer architecture documents (e.g., ARCHITECTURE_COMPARISON.md) will be successfully completed.
 
 ## Coordinate Spacetime
 - **Definition**: A design approach focusing on a two-dimensional coordinate system for temporal and spatial analysis.
