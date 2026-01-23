@@ -29,7 +29,7 @@ This report compares and contrasts the designs of **Coordinate Spacetime** and *
 3. **User Experience**:
    - Jamba's structure may lead to better user experience for general tasks, while Coordinate Spacetime may require training to fully leverage.
 4. **Mathematical Upgrade**:
-   - Both approaches still operate over tokens and rely on softmax (and its variants) for weighting, but the newer geometric framing replaces the earlier, purely linear-algebra view.
+   - Both approaches still operate over tokens and rely on softmax (and its variants) for weighting, but the newer geometric framing replaces the earlier purely linear algebra view.
 
 ## Conclusion
 Both designs have their strengths and weaknesses. The best choice depends on the specific requirements of the application and the skill level of the end-users. Because the software is not yet finished, these observations are provisional and assume the geometric approach reaches a successful completion.
