@@ -16,7 +16,7 @@ setup(
     description="Bayesian recursive dynamics with fractional memory for cognitive tensor fields",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/samleizerman/Liorhybrid",  # Update with actual URL
+    url="https://github.com/JewJitsu11B/Liorhybrid",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 3 - Alpha",
