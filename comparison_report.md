@@ -1,7 +1,7 @@
 # Comparison Report
 
 ## Overview
-This report compares and contrasts the designs of **Coordinate Spacetime** and **Jamba architecture**.
+This report compares and  contrasts the designs of **Coordinate Spacetime** and **Jamba architecture**.
 
 ## Coordinate Spacetime
 - **Definition**: A design approach focusing on a two-dimensional coordinate system for temporal and spatial analysis.
