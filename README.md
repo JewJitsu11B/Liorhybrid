@@ -109,16 +109,13 @@ python main.py
 
 ### Educational Demo
 
-To understand how geometric operators work before training:
+To understand how geometric operators work:
 
 ```bash
 python demo_geometric_mamba.py
 ```
 
-This demonstrates:
-- ComplexOctonion (CI8) operations
-- Geometric product structure (Trinor/Wedge/Spinor)
-- Comparison tables and examples
+Note: This demo file retains the "mamba" name for historical reasons but demonstrates **geometric operators** (ComplexOctonion, Trinor/Wedge/Spinor) that are used in the CausalField+LIoR architecture.
 
 ### Programmatic Usage
 
@@ -171,10 +168,12 @@ For detailed information, see:
 
 See `examples/` directory:
 
-- **demo_geometric_mamba.py**: Educational demo of geometric operators
+- **demo_geometric_mamba.py**: Educational demo of geometric operators (ComplexOctonion, Trinor/Wedge/Spinor)
 - **simple_evolution.py**: Basic field evolution with diagnostics  
 - **geometric_inference.py**: Inference with geometric attention
 - **potential_evolution.py**: Field evolution with external potentials
+
+Note: `demo_geometric_mamba.py` demonstrates geometric operators used in the CausalField+LIoR architecture.
 
 ## Testing
 
