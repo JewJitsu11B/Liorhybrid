@@ -9,7 +9,7 @@
 
 Liorhybrid represents a **paradigm shift** from engineering-driven architectures to physics-first design. Rather than optimizing attention mechanisms, it implements the geometry of thought through unified field theory.
 
-**Key Distinction**: Not competing with Jamba/GPT-4 on general language modeling, but defining a new category for structured reasoning with geometric and physical understanding.
+It replaces the flat math of linear algebra with the rigor and structure of differential geometry and operator algebrasreasoning with geometric and physical understanding.
 
 ---
 
