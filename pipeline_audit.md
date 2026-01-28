@@ -59,3 +59,14 @@
 - `2026-01-15T12:55:40.885602+00:00` | `trainer2_entrypoint` | `training/trainer2.py` | `training`
 - `2026-01-15T12:55:42.290402+00:00` | `field_state_dict` | `core/tensor_field.py` | `core`
 - `2026-01-15T12:55:47.175725+00:00` | `kernel_fractional_memory_weight` | `kernels/fractional_memory.py` | `kernels`
+- `2026-01-28T05:53:24.566724+00:00` | `field_evolve_step` | `core/tensor_field.py` | `core`
+- `2026-01-28T05:53:24.592143+00:00` | `kernel_fractional_memory_weight` | `kernels/fractional_memory.py` | `kernels`
+- `2026-01-28T05:53:42.798235+00:00` | `field_evolve_step` | `core/tensor_field.py` | `core`
+- `2026-01-28T05:53:42.870077+00:00` | `kernel_fractional_memory_weight` | `kernels/fractional_memory.py` | `kernels`
+- `2026-01-28T05:54:06.929022+00:00` | `field_evolve_step` | `core/tensor_field.py` | `core`
+- `2026-01-28T05:54:15.121552+00:00` | `field_evolve_step` | `core/tensor_field.py` | `core`
+- `2026-01-28T05:54:15.133339+00:00` | `kernel_fractional_memory_weight` | `kernels/fractional_memory.py` | `kernels`
+- `2026-01-28T05:54:38.238046+00:00` | `field_evolve_step` | `core/tensor_field.py` | `core`
+- `2026-01-28T05:54:38.242643+00:00` | `kernel_fractional_memory_weight` | `kernels/fractional_memory.py` | `kernels`
+- `2026-01-28T05:54:53.102887+00:00` | `field_evolve_step` | `core/tensor_field.py` | `core`
+- `2026-01-28T05:54:53.107241+00:00` | `kernel_fractional_memory_weight` | `kernels/fractional_memory.py` | `kernels`

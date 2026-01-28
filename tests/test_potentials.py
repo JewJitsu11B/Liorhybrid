@@ -6,14 +6,9 @@ Verifies that non-trivial potentials work correctly.
 
 import torch
 import pytest
-import sys
-from pathlib import Path
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from kernels.hamiltonian import create_potential, hamiltonian_evolution
-from core import CognitiveTensorField, FAST_TEST_CONFIG
+from ..kernels.hamiltonian import create_potential, hamiltonian_evolution
+from ..core import CognitiveTensorField, FAST_TEST_CONFIG
 
 
 def test_create_harmonic_potential():
