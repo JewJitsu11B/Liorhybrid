@@ -291,8 +291,7 @@ class GeometricStack(nn.Module):
         if not hasattr(self, 'address_builder'):
             addr_config = AddressConfig(d=self.d_model // 2)  # Match contracted dimension
             self.address_builder = AddressBuilder(
-                config=addr_config,
-                enable_collision_check=False  # Disable for batched inference
+                config=addr_config
             ).to(encoder_output.device)
         
         # Build candidate embeddings from field state (spatial sampling)

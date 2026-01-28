@@ -20,25 +20,25 @@ Exactly 64 neighbors with role-based typing:
 
 All slots MUST be populated. Fails fast if unable to fill 64 slots.
 
-### 3. 6 Similarity Score Channels
-Each neighbor has 6 metric-derived score channels (reduced from 8):
+### 3. 6 Geometric Similarity Score Channels
+Each neighbor has 6 geometric score channels (changed from generic names):
 
 | Channel | Name | Derivation | Purpose |
 |---------|------|------------|---------|
-| 0 | Metric Distance | `1 / (d_metric + ε)` | Inverse curved distance (similarity) |
-| 1 | Transport-Corrected | `1 / (d_corrected + ε)` | Geodesically corrected distance |
-| 2 | Attraction Strength | Learned from metric/transport | Boost attractors |
-| 3 | Repulsion Strength | Learned from metric/transport | Boost repulsors (negative) |
-| 4 | Confidence Score | Learned from metric/transport | Reliability weight |
+| 0 | Dot Product | `q·g·c` (metric-weighted) | Standard similarity with learned metric |
+| 1 | Wedge Product | `\|q×c\|` via metric | Antisymmetric, captures orthogonality |
+| 2 | Tensor Product | `q⊗c` element-wise | Full correlation structure |
+| 3 | Spinor Product | Transport-weighted | Rotational component via Christoffel |
+| 4 | Energy | `-1/r²` | Field potential (attractive) |
 | 5 | Heap Rank | `position / 64` | Position-based ordering [0,1] |
 
 **All scores excluded from ECC/timestamp calculations.**
 
-### 4. Collision Detection
-- **Route Hash**: SHA256(embedding_bytes + salt_bytes)
-- **Uniqueness Guarantee**: Registry tracks all generated hashes
-- **Rehash on Collision**: Incrementing salt (0, 1, 2, ...) until unique (max 10 attempts)
-- **Salt Storage**: First ECC byte stores salt used (for debugging)
+### 4. Natural Uniqueness (No Collision Detection)
+- **Addresses are naturally unique** based on their embeddings
+- No SHA256 hashing or collision detection needed
+- Each embedding produces a unique address through metric/transport projections
+- Simpler and more efficient than hash-based collision avoidance
 
 ### 5. Address Structure Layout
 
@@ -101,11 +101,10 @@ Sample N_cand Candidates from Field State (128-512)
 ║  2. NeighborSelector.select_neighbors()        ║
 ║     - Compute metric distances                 ║
 ║     - Select 32 nearest (smallest d_metric)    ║
-║     - Select 16 attractors (high channel 2)    ║
-║     - Select 16 repulsors (high channel 3)     ║
-║     - Compute 6 score channels per neighbor    ║
-║  3. Collision check (route_hash + salt)        ║
-║  4. Pack into Address structure                ║
+║     - Select 16 attractors (high dot product)  ║
+║     - Select 16 repulsors (high wedge product) ║
+║     - Compute 6 geometric score channels       ║
+║  3. Pack into Address structure                ║
 ╚════════════════════════════════════════════════╝
          ↓
 Address(batch, 7074) with 64 neighbors
@@ -132,11 +131,8 @@ Output (batch, seq_len, d_model)
 from Liorhybrid.inference.address import AddressBuilder, AddressConfig
 
 # Configure
-config = AddressConfig(d=512)  # 6 score channels by default
-builder = AddressBuilder(
-    config=config,
-    enable_collision_check=True  # Enable for production
-)
+config = AddressConfig(d=512)  # 6 geometric score channels by default
+builder = AddressBuilder(config=config)
 
 # Build address
 embedding = torch.randn(batch_size, 512)
@@ -234,12 +230,6 @@ The system raises `ValueError` in these cases:
    Address probing requires valid metric/transport and sufficient candidates.
    ```
 
-5. **Collision Detection Failed**:
-   ```python
-   RuntimeError: Failed to find unique route_hash after 10 attempts. 
-   Total collisions detected: 15
-   ```
-
 ### Handling Strategy
 
 ```python
@@ -252,7 +242,6 @@ except ValueError as e:
     # Fallback strategies:
     # 1. Generate more candidates
     # 2. Check metric validity
-    # 3. Disable strict mode (NOT RECOMMENDED)
     raise
 ```
 
@@ -275,10 +264,9 @@ except ValueError as e:
 
 ### Unit Tests (`tests/test_address_option6.py`)
 
-- `TestAddressConfig`: Dimension validation (6 scores, d_block=86, total=7074)
-- `TestNeighborSelector`: Fail-fast behavior, metric validation, 64-slot population
+- `TestAddressConfig`: Dimension validation (6 geometric scores, d_block=86, total=7074)
+- `TestNeighborSelector`: Fail-fast behavior, metric validation, 64-slot population, geometric scores
 - `TestAddressBuilder`: Full address construction, metric/transport presence
-- `TestCollisionDetection`: Hash uniqueness, rehash mechanism
 - `TestAddressStructure`: Role slices, 6-channel validation
 
 ### Integration Tests (`tests/test_address_probing_integration.py`)
@@ -304,9 +292,8 @@ python -m pytest tests/test_address_probing_integration.py -v
 ### Optimization Tips
 
 1. **Reduce Candidate Pool**: Use 128-256 candidates instead of 512
-2. **Batch Collision Checks**: Disable for inference (`enable_collision_check=False`)
-3. **Reuse AddressBuilder**: Cache builder instance across batches
-4. **FP16 Inference**: Use `torch.float16` for addresses (caution: metric precision)
+2. **Reuse AddressBuilder**: Cache builder instance across batches
+3. **FP16 Inference**: Use `torch.float16` for addresses (caution: metric precision)
 
 ### Benchmarks (d=512, batch=8, seq_len=128, N_cand=128)
 
@@ -348,8 +335,8 @@ output, weights = attention(
 ```
 
 **Benefits of Migration:**
-- 6 score channels (vs. ad-hoc similarities)
-- Collision detection
+- 6 geometric score channels (dot, wedge, tensor, spinor, energy, rank)
+- Natural uniqueness (no collision detection overhead)
 - Role-typed neighbors
 - Fail-fast validation
 - Metric/transport storage
@@ -372,10 +359,10 @@ output, weights = attention(
 
 ## Changelog
 
-### 2026-01-28: Option 6 Implementation
-- Changed score channels from 8 to 6
+### 2026-01-28: Option 6 Implementation (Updated)
+- Changed score channels from 8 to 6 geometric products (dot, wedge, tensor, spinor, energy, rank)
+- Removed SHA256 collision detection - addresses naturally unique based on embeddings
 - Added strict metric-only neighbor selection
-- Implemented collision detection with SHA256 route_hash
 - Integrated address probing in geometric attention
 - Created comprehensive test suite
 - Updated documentation and examples

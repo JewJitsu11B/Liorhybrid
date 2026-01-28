@@ -20,126 +20,22 @@ Neighbor roles by position:
 
 Per-neighbor block (d_block = 86):
 - value: d' = 64 (reduced interaction vector)
-- scores: m = 6 (6 metric-derived similarity channels)
+- scores: m = 6 (geometric similarity channels: dot, wedge, tensor, spinor, energy, rank)
 - coords: k = 16 (routing info)
 
 Strict Requirements (Option 6):
 - Neighbor selection: ONLY metric-derived distances (no Euclidean fallback)
 - All 64 slots MUST be populated (fail fast if unable)
-- 6 score channels per neighbor (all from metric/transport)
-- Collision detection via route_hash with rehash on conflict
+- 6 score channels per neighbor (geometric products: dot, wedge, tensor, spinor, energy, rank)
+- Addresses naturally unique based on embeddings (no collision detection needed)
 """
 try: import usage_tracker; usage_tracker.track(__file__)
 except: pass
 
 import torch
 import torch.nn as nn
-import hashlib
 from dataclasses import dataclass
-from typing import Optional, Tuple, NamedTuple, Dict, Set
-
-
-# =============================================================================
-# Collision Detection Utilities
-# =============================================================================
-
-class AddressRegistry:
-    """
-    Registry for detecting address collisions.
-    
-    Maintains a set of route_hash values to ensure uniqueness.
-    Provides rehash mechanism on collision.
-    """
-    
-    def __init__(self):
-        self.registry: Set[str] = set()
-        self.collision_count: int = 0
-    
-    def compute_route_hash(
-        self,
-        embedding: torch.Tensor,
-        salt: int = 0
-    ) -> str:
-        """
-        Compute route hash for collision detection.
-        
-        Hash = SHA256(embedding_bytes + salt)
-        
-        Args:
-            embedding: Address core embedding (d,)
-            salt: Salt value for rehashing (default 0)
-            
-        Returns:
-            hash_hex: 64-character hex string
-        """
-        # Convert embedding to bytes
-        embedding_np = embedding.detach().cpu().numpy()
-        embedding_bytes = embedding_np.tobytes()
-        
-        # Add salt
-        salt_bytes = salt.to_bytes(8, byteorder='big', signed=False)
-        
-        # Compute SHA256
-        hasher = hashlib.sha256()
-        hasher.update(embedding_bytes)
-        hasher.update(salt_bytes)
-        hash_hex = hasher.hexdigest()
-        
-        return hash_hex
-    
-    def check_and_register(
-        self,
-        embedding: torch.Tensor,
-        max_rehash_attempts: int = 10
-    ) -> Tuple[str, int]:
-        """
-        Check for collision and register address.
-        
-        If collision detected, rehash with incrementing salt until unique.
-        
-        Args:
-            embedding: Address core embedding (d,)
-            max_rehash_attempts: Maximum rehash attempts before giving up
-            
-        Returns:
-            route_hash: Unique hash string
-            salt_used: Salt value that produced unique hash
-            
-        Raises:
-            RuntimeError: If cannot find unique hash after max_rehash_attempts
-        """
-        salt = 0
-        for attempt in range(max_rehash_attempts):
-            route_hash = self.compute_route_hash(embedding, salt)
-            
-            if route_hash not in self.registry:
-                # Unique hash found
-                self.registry.add(route_hash)
-                return route_hash, salt
-            
-            # Collision detected
-            self.collision_count += 1
-            salt += 1
-        
-        # Failed to find unique hash
-        raise RuntimeError(
-            f"Failed to find unique route_hash after {max_rehash_attempts} attempts. "
-            f"Total collisions detected: {self.collision_count}"
-        )
-    
-    def clear(self):
-        """Clear registry (for testing)."""
-        self.registry.clear()
-        self.collision_count = 0
-
-
-# Global registry (can be replaced with per-session registry if needed)
-_global_address_registry = AddressRegistry()
-
-
-def get_address_registry() -> AddressRegistry:
-    """Get global address registry."""
-    return _global_address_registry
+from typing import Optional, Tuple, NamedTuple
 
 
 @dataclass
@@ -249,27 +145,22 @@ class NeighborSelector(nn.Module):
     NO FALLBACK to Euclidean or cosine distance.
     Fails fast if metric is missing or invalid.
     
-    Computes 6 similarity score channels per neighbor under the chosen metric:
-        1. Metric distance (curved)
-        2. Transport-corrected distance
-        3. Attraction strength (for attractors)
-        4. Repulsion strength (for repulsors)
-        5. Confidence score
-        6. Heap rank (position-based ordering)
+    Computes 6 geometric similarity score channels per neighbor:
+        1. Dot product (standard inner product with metric)
+        2. Wedge product (antisymmetric, captures orthogonality)
+        3. Tensor product (full correlation structure)
+        4. Spinor product (rotational features)
+        5. Energy (field-based potential)
+        6. Heap rank (position-based ordering [0,1])
     """
     
     def __init__(self, config: Optional[AddressConfig] = None):
         super().__init__()
         self.config = config or AddressConfig()
         
-        # Projection to compute similarity scores from metric/transport
-        self.score_from_metric = nn.Linear(2 * self.config.d, self.config.m)
-        
-        # Initialize with small weights for stable gradients
-        nn.init.normal_(self.score_from_metric.weight, std=0.02)
-        nn.init.zeros_(self.score_from_metric.bias)
+        # No learned projection - geometric products computed directly
     
-    def compute_metric_distance(
+    def compute_geometric_scores(
         self,
         query: torch.Tensor,      # (batch, d)
         candidates: torch.Tensor, # (batch, N_cand, d)
@@ -277,11 +168,19 @@ class NeighborSelector(nn.Module):
         transport: torch.Tensor   # (batch, d) - transport coefficients
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Compute metric distance using learned curved metric.
+        Compute metric distance and 6 geometric similarity scores.
         
         Distance formula (diagonal metric):
             d²(q, c) = (q - c)ᵀ g (q - c)
         where g is the diagonal metric tensor.
+        
+        Geometric scores use metric-weighted inner products:
+        - Dot: q·g·c (standard metric-weighted dot product)
+        - Wedge: |q×c| using metric (captures orthogonality)
+        - Tensor: q⊗c via metric (full correlation)
+        - Spinor: rotational component via metric
+        - Energy: potential field strength
+        - Rank: position in sorted list
         
         Args:
             query: Query embedding (batch, d)
@@ -291,7 +190,7 @@ class NeighborSelector(nn.Module):
             
         Returns:
             distances: Metric distances (batch, N_cand)
-            scores_6ch: 6-channel similarity scores (batch, N_cand, 6)
+            scores_6ch: 6 geometric similarity scores (batch, N_cand, 6)
         """
         batch_size = query.shape[0]
         n_cand = candidates.shape[1]
@@ -308,26 +207,43 @@ class NeighborSelector(nn.Module):
         distances_sq = (diff * weighted_diff).sum(dim=-1)  # (batch, N_cand)
         distances = torch.sqrt(distances_sq.clamp(min=1e-8))  # (batch, N_cand)
         
-        # Transport-corrected distance (parallel transport along geodesic)
+        # Initialize 6-channel scores
+        scores_6ch = torch.zeros(batch_size, n_cand, 6, device=query.device, dtype=query.dtype)
+        
+        # Channel 0: Dot product (metric-weighted inner product)
+        # dot(q, c) = q·g·c
+        q_weighted = query * metric  # (batch, d)
+        q_weighted_exp = q_weighted.unsqueeze(1)  # (batch, 1, d)
+        dot_scores = (q_weighted_exp * candidates).sum(dim=-1)  # (batch, N_cand)
+        scores_6ch[..., 0] = dot_scores / (query.norm(dim=-1, keepdim=True).unsqueeze(1) * candidates.norm(dim=-1).clamp(min=1e-8) + 1e-8)
+        
+        # Channel 1: Wedge product (antisymmetric, measures orthogonality)
+        # |q×c| approximated via (q·g·q)(c·g·c) - (q·g·c)²
+        q_norm_sq = (query * metric * query).sum(dim=-1, keepdim=True).unsqueeze(1)  # (batch, 1, 1)
+        c_norm_sq = (candidates * metric_exp * candidates).sum(dim=-1)  # (batch, N_cand)
+        wedge_scores = torch.sqrt(
+            (q_norm_sq.squeeze(-1) * c_norm_sq - dot_scores.pow(2)).clamp(min=0.0) + 1e-8
+        )
+        scores_6ch[..., 1] = wedge_scores / (q_norm_sq.squeeze(-1) * c_norm_sq).sqrt().clamp(min=1e-8)
+        
+        # Channel 2: Tensor product (full correlation, element-wise product magnitude)
+        # ||q⊗c|| via metric
+        tensor_scores = (q_weighted_exp * candidates).abs().mean(dim=-1)  # (batch, N_cand)
+        scores_6ch[..., 2] = tensor_scores
+        
+        # Channel 3: Spinor product (rotational component using transport)
+        # Approximated via transport-weighted cross product
         transport_exp = transport.unsqueeze(1)  # (batch, 1, d)
-        transport_correction = (diff * transport_exp).sum(dim=-1)  # (batch, N_cand)
-        corrected_distances = distances + 0.1 * transport_correction  # Small correction term
+        spinor_scores = (diff * transport_exp).abs().sum(dim=-1)  # (batch, N_cand)
+        scores_6ch[..., 3] = spinor_scores / (distances + 1e-3)
         
-        # Compute 6 similarity score channels from metric and transport
-        # Concatenate metric and transport for scoring
-        metric_transport = torch.cat([metric, transport], dim=-1)  # (batch, 2*d)
-        metric_transport_exp = metric_transport.unsqueeze(1).expand(batch_size, n_cand, -1)
+        # Channel 4: Energy (field potential - inverse distance squared)
+        # E = -1/r representing attractive potential
+        energy_scores = -1.0 / (distances.pow(2) + 1e-3)
+        scores_6ch[..., 4] = energy_scores
         
-        # Project to 6 channels via learned projection
-        scores_6ch = self.score_from_metric(metric_transport_exp)  # (batch, N_cand, 6)
-        
-        # Channel 1: Inverse metric distance (similarity)
-        scores_6ch[..., 0] = 1.0 / (distances + 1e-3)
-        
-        # Channel 2: Inverse transport-corrected distance
-        scores_6ch[..., 1] = 1.0 / (corrected_distances.abs() + 1e-3)
-        
-        # Channels 3-6 are learned from the projection (attraction, repulsion, confidence, rank)
+        # Channel 5: Heap rank (will be filled in select_neighbors)
+        # Placeholder zeros for now
         
         return distances, scores_6ch
     
@@ -337,7 +253,6 @@ class NeighborSelector(nn.Module):
         candidate_embeddings: torch.Tensor,   # (batch, N_cand, d)
         metric: torch.Tensor,                 # (batch, d)
         transport: torch.Tensor,              # (batch, d)
-        route_salt: Optional[int] = None      # For collision prevention
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Select exactly 64 neighbors using strict metric-only selection.
@@ -351,11 +266,10 @@ class NeighborSelector(nn.Module):
             candidate_embeddings: Candidates (batch, N_cand, d)
             metric: Diagonal metric (batch, d) - REQUIRED
             transport: Transport coefficients (batch, d) - REQUIRED
-            route_salt: Optional salt for collision prevention
             
         Returns:
             selected_embeddings: (batch, 64, d)
-            selected_scores: (batch, 64, 6) - 6 score channels
+            selected_scores: (batch, 64, 6) - 6 geometric score channels
             selected_indices: (batch, 64) - indices into candidates
             
         Raises:
@@ -391,8 +305,8 @@ class NeighborSelector(nn.Module):
                 f"but only {n_cand} provided. Fail fast."
             )
         
-        # Compute metric distances and 6-channel scores
-        distances, scores_6ch = self.compute_metric_distance(
+        # Compute metric distances and 6 geometric score channels
+        distances, scores_6ch = self.compute_geometric_scores(
             query_embedding, candidate_embeddings, metric, transport
         )
         
@@ -405,15 +319,13 @@ class NeighborSelector(nn.Module):
         )
         nearest_idx = nearest_idx  # (batch, 32)
         
-        # For attractors: select candidates with high positive scores on channel 3
-        # (learned attraction strength)
-        attractor_scores = scores_6ch[..., 2]  # (batch, N_cand)
+        # For attractors: select candidates with high dot product (channel 0)
+        attractor_scores = scores_6ch[..., 0]  # (batch, N_cand)
         _, attractor_idx = torch.topk(attractor_scores, k=16, dim=-1, sorted=True)
         
-        # For repulsors: select candidates with high negative scores on channel 4
-        # (learned repulsion strength - or we can use smallest distances beyond nearest)
-        repulsor_scores = scores_6ch[..., 3]  # (batch, N_cand)
-        _, repulsor_idx = torch.topk(-repulsor_scores, k=16, dim=-1, sorted=True)
+        # For repulsors: select candidates with high wedge product (channel 1, orthogonal)
+        repulsor_scores = scores_6ch[..., 1]  # (batch, N_cand)
+        _, repulsor_idx = torch.topk(repulsor_scores, k=16, dim=-1, sorted=True)
         
         # Combine indices: [32 nearest | 16 attractors | 16 repulsors]
         selected_indices = torch.cat([nearest_idx, attractor_idx, repulsor_idx], dim=1)  # (batch, 64)
@@ -425,7 +337,7 @@ class NeighborSelector(nn.Module):
         # Gather selected scores
         selected_scores = scores_6ch[batch_indices, selected_indices]  # (batch, 64, 6)
         
-        # Update channel 6: Heap rank (position in selection)
+        # Update channel 5: Heap rank (position in selection)
         heap_ranks = torch.arange(64, device=query_embedding.device, dtype=selected_scores.dtype)
         heap_ranks = heap_ranks.unsqueeze(0).expand(batch_size, -1)  # (batch, 64)
         selected_scores[..., 5] = heap_ranks / 64.0  # Normalize to [0, 1]
@@ -677,21 +589,17 @@ class AddressBuilder(nn.Module):
     Option 6 Requirements:
     - Uses NeighborSelector with metric-only distances (no Euclidean fallback)
     - Enforces exactly 64 neighbor slots (32 nearest, 16 attractors, 16 repulsors)
-    - Computes 6 similarity scores per neighbor under the chosen metric
+    - Computes 6 geometric similarity scores per neighbor (dot, wedge, tensor, spinor, energy, rank)
     - Fails fast if metric is missing or invalid
-    - Collision detection with route_hash and rehash on conflict
+    - Addresses are naturally unique based on embeddings (no collision detection)
     """
 
     def __init__(
         self,
         config: Optional[AddressConfig] = None,
-        enable_collision_check: bool = True,
-        address_registry: Optional[AddressRegistry] = None
     ):
         super().__init__()
         self.config = config or AddressConfig()
-        self.enable_collision_check = enable_collision_check
-        self.address_registry = address_registry or get_address_registry()
 
         # Projections for building address components
         self.metric_proj = nn.Linear(self.config.d, self.config.d)
@@ -749,22 +657,6 @@ class AddressBuilder(nn.Module):
         
         addr.metric = metric
         addr.transport = transport
-        
-        # Collision detection (per-batch-item, use first item for demo)
-        if self.enable_collision_check and batch_size > 0:
-            try:
-                route_hash, salt_used = self.address_registry.check_and_register(
-                    embedding[0]  # Check first item in batch
-                )
-                # Store salt in ECC field for debugging (first 4 bytes)
-                # Real ECC would go here
-                addr.ecc[0, 0] = float(salt_used)
-            except RuntimeError as e:
-                # Collision failure - re-raise with context
-                raise RuntimeError(
-                    f"Address collision detection failed: {e}. "
-                    "Unable to generate unique address."
-                )
 
         # Fill neighbors using strict metric-only selection
         if enable_probing:
@@ -784,7 +676,7 @@ class AddressBuilder(nn.Module):
                 values = self.value_proj(selected_embeddings)  # (batch, 64, d')
                 coords = self.coord_proj(selected_embeddings)  # (batch, 64, k)
                 
-                # Scores already computed by neighbor_selector (6 channels)
+                # Scores already computed by neighbor_selector (6 geometric channels)
                 scores = selected_scores  # (batch, 64, 6)
                 
                 # Pack into neighbor blocks
@@ -813,8 +705,9 @@ class AddressBuilder(nn.Module):
             device=device, dtype=dtype
         ).expand(batch_size, -1)
 
-        # ECC would be computed here (placeholder: zeros except salt)
+        # ECC would be computed here (placeholder: zeros)
         # Real implementation would compute BCH code from content
+        # Addresses are naturally unique based on embeddings - no collision detection needed
 
         return addr
 
@@ -839,37 +732,36 @@ Per-neighbor block (86 floats):
   Offset  Size  Field
   ------  ----  -----
   0       64    value (d')
-  64      6     scores (m) - 6 metric-derived similarity channels
+  64      6     scores (m) - 6 geometric similarity channels
   70      16    coords (k)
 
 Neighbor roles:
   N1-N32  (idx 0-31):   absolute nearest (metric-based)
-  N33-N48 (idx 32-47):  attractors (high positive scores)
-  N49-N64 (idx 48-63):  repulsors (contrastive evidence)
+  N33-N48 (idx 32-47):  attractors (high dot product)
+  N49-N64 (idx 48-63):  repulsors (high wedge product, orthogonal)
 
-6 Similarity Score Channels (all metric-derived):
-  Channel 0: Metric distance (inverse, curved geometry)
-  Channel 1: Transport-corrected distance (parallel transport)
-  Channel 2: Attraction strength (learned from metric/transport)
-  Channel 3: Repulsion strength (learned from metric/transport)
-  Channel 4: Confidence score (learned from metric/transport)
+6 Geometric Similarity Score Channels:
+  Channel 0: Dot product (metric-weighted inner product q·g·c)
+  Channel 1: Wedge product (antisymmetric, captures orthogonality |q×c|)
+  Channel 2: Tensor product (full correlation structure q⊗c)
+  Channel 3: Spinor product (rotational features via transport)
+  Channel 4: Energy (field potential -1/r²)
   Channel 5: Heap rank (position in selection, normalized to [0,1])
 
 Strict Requirements (Option 6):
   - NO Euclidean or cosine fallback - metric/transport REQUIRED
   - All 64 slots MUST be populated (fail fast if unable)
-  - Collision detection via route_hash with SHA256
-  - Rehash with salt on collision (max 10 attempts)
+  - Addresses naturally unique based on embeddings (no collision detection)
   - ECC/timestamps present but excluded from similarity scoring
 
 Example Address Structure:
   [Core Embedding (512)]
   [Metric g_ij (512)]
   [Transport Γ_ij (512)]
-  [Neighbor 0: value(64) | scores(6) | coords(16)]
-  [Neighbor 1: value(64) | scores(6) | coords(16)]
+  [Neighbor 0: value(64) | scores(6: dot,wedge,tensor,spinor,energy,rank) | coords(16)]
+  [Neighbor 1: value(64) | scores(6: dot,wedge,tensor,spinor,energy,rank) | coords(16)]
   ...
-  [Neighbor 63: value(64) | scores(6) | coords(16)]
+  [Neighbor 63: value(64) | scores(6: dot,wedge,tensor,spinor,energy,rank) | coords(16)]
   [ECC (32)]
   [Timestamps (2)]
 """

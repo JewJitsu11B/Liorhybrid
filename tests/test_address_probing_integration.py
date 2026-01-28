@@ -32,7 +32,7 @@ class TestAddressProbingIntegration:
         
         # Create address with 64 neighbors
         config = AddressConfig(d=d_model)
-        builder = AddressBuilder(config=config, enable_collision_check=False)
+        builder = AddressBuilder(config=config)
         
         embedding = torch.randn(batch_size, config.d)
         candidate_embeddings = torch.randn(batch_size, 128, config.d)
@@ -119,7 +119,7 @@ class TestAddressProbingIntegration:
         
         # Create address with 64 neighbors
         config = AddressConfig(d=d_model)
-        builder = AddressBuilder(config=config, enable_collision_check=False)
+        builder = AddressBuilder(config=config)
         
         embedding = torch.randn(batch_size, config.d)
         candidate_embeddings = torch.randn(batch_size, 128, config.d)
@@ -242,7 +242,7 @@ class TestAddressProbingIntegration:
         
         # Create address with 64 neighbors
         config = AddressConfig(d=d_model)
-        builder = AddressBuilder(config=config, enable_collision_check=False)
+        builder = AddressBuilder(config=config)
         
         embedding = torch.randn(batch_size, config.d)
         candidate_embeddings = torch.randn(batch_size, 128, config.d)

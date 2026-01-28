@@ -22,8 +22,6 @@ from ..inference.address import (
     Address,
     AddressBuilder,
     NeighborSelector,
-    AddressRegistry,
-    get_address_registry,
 )
 
 
@@ -350,74 +348,6 @@ class TestAddressBuilder:
                 candidate_embeddings=candidate_embeddings,
                 enable_probing=True
             )
-
-
-class TestCollisionDetection:
-    """Test collision detection with route_hash."""
-    
-    def test_unique_hashes(self):
-        """Generate unique hashes for different embeddings."""
-        registry = AddressRegistry()
-        registry.clear()
-        
-        d = 512
-        embedding1 = torch.randn(d)
-        embedding2 = torch.randn(d)
-        
-        hash1, salt1 = registry.check_and_register(embedding1)
-        hash2, salt2 = registry.check_and_register(embedding2)
-        
-        # Hashes should be different
-        assert hash1 != hash2
-        # Both should have salt 0 (no collision)
-        assert salt1 == 0
-        assert salt2 == 0
-    
-    def test_collision_rehash(self):
-        """Detect collision and rehash with salt."""
-        registry = AddressRegistry()
-        registry.clear()
-        
-        d = 512
-        embedding = torch.randn(d)
-        
-        # Register once
-        hash1, salt1 = registry.check_and_register(embedding)
-        assert salt1 == 0
-        
-        # Try to register same embedding again
-        # Should detect collision and rehash
-        with pytest.raises(RuntimeError, match="Failed to find unique route_hash"):
-            # Same embedding will produce same hash with salt=0
-            # But it's already in registry, so will try salt=1, 2, ...
-            # However, the hash function is deterministic, so same embedding
-            # will always produce same hash for given salt.
-            # This test might need adjustment based on actual collision behavior.
-            registry.check_and_register(embedding)
-    
-    def test_max_rehash_attempts(self):
-        """Fail after max rehash attempts."""
-        # This test is tricky because we'd need to engineer a collision
-        # For now, just verify the mechanism exists
-        registry = AddressRegistry()
-        assert registry.collision_count == 0
-    
-    def test_collision_count_tracking(self):
-        """Track collision count."""
-        registry = AddressRegistry()
-        registry.clear()
-        
-        # Start with 0 collisions
-        assert registry.collision_count == 0
-        
-        # After successful registrations, still 0
-        embedding1 = torch.randn(512)
-        embedding2 = torch.randn(512)
-        
-        registry.check_and_register(embedding1)
-        registry.check_and_register(embedding2)
-        
-        assert registry.collision_count == 0
 
 
 class TestAddressStructure:
