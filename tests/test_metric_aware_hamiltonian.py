@@ -55,11 +55,11 @@ def test_metric_aware_hamiltonian_with_none():
 
 
 def test_metric_aware_hamiltonian_with_metric():
-    """Test that metric-aware Hamiltonian respects non-trivial metric."""
+    """Test that metric-aware Hamiltonian respects non-trivial isotropic metric."""
     config = FAST_TEST_CONFIG
     field = CognitiveTensorField(config)
     
-    # Create a non-trivial metric (scaled identity)
+    # Create an isotropic metric (all components equal)
     D = config.tensor_dim
     g_inv_diag = torch.ones(D, device=config.device, dtype=torch.float32) * 2.0
     
@@ -81,16 +81,84 @@ def test_metric_aware_hamiltonian_with_metric():
     assert not torch.allclose(H_flat, H_metric, atol=1e-6), \
         "Metric-aware with non-trivial metric should differ from flat-space"
     
-    # The kinetic term should be scaled by the metric
-    # With g_inv_diag = 2.0 * ones, the Laplacian is scaled by 2.0
-    # So H_metric should be approximately 2.0 * H_flat (for kinetic term)
-    # Since potential is zero, this should hold
+    # For isotropic metric (g_xx = g_yy = 2.0), should scale by 2.0
+    # H_metric ≈ 2.0 * H_flat
     ratio = torch.abs(H_metric / (H_flat + 1e-10))
     mean_ratio = ratio[torch.isfinite(ratio)].mean()
     
     # Mean ratio should be close to 2.0 (the metric scale)
     assert torch.abs(mean_ratio - 2.0) < 0.5, \
-        f"Metric should scale Hamiltonian by ~2.0, got {mean_ratio:.2f}"
+        f"Isotropic metric should scale Hamiltonian by ~2.0, got {mean_ratio:.2f}"
+
+
+def test_anisotropic_metric():
+    """Test that anisotropic metric produces directionally different effects."""
+    config = FAST_TEST_CONFIG
+    field = CognitiveTensorField(config)
+    
+    # Create strongly anisotropic metric: x-direction 10x stronger than y
+    D = config.tensor_dim
+    g_inv_diag = torch.ones(D, device=config.device, dtype=torch.float32)
+    g_inv_diag[0] = 10.0  # x-direction: g^xx = 10.0
+    g_inv_diag[1] = 1.0   # y-direction: g^yy = 1.0
+    
+    # Compute Hamiltonians
+    H_flat = hamiltonian_evolution(
+        field.T,
+        hbar_cog=config.hbar_cog,
+        m_cog=config.m_cog
+    )
+    
+    H_aniso = hamiltonian_evolution_with_metric(
+        field.T,
+        hbar_cog=config.hbar_cog,
+        m_cog=config.m_cog,
+        g_inv_diag=g_inv_diag
+    )
+    
+    # Anisotropic should differ from flat space
+    assert not torch.allclose(H_flat, H_aniso, atol=1e-6), \
+        "Anisotropic metric should differ from flat space"
+    
+    # With g^xx=10, g^yy=1, the scaling is not uniform
+    # The ratio should be between 1.0 and 10.0 (average weighted by derivatives)
+    ratio = torch.abs(H_aniso / (H_flat + 1e-10))
+    mean_ratio = ratio[torch.isfinite(ratio)].mean()
+    
+    assert 1.0 < mean_ratio < 10.0, \
+        f"Anisotropic ratio should be between 1.0 and 10.0, got {mean_ratio:.2f}"
+    
+    print(f"Anisotropic scaling factor: {mean_ratio:.2f} (expected between 1-10)")
+
+
+def test_anisotropic_vs_isotropic():
+    """Test that anisotropic and isotropic produce different results."""
+    config = FAST_TEST_CONFIG
+    field = CognitiveTensorField(config)
+    
+    # Anisotropic metric
+    D = config.tensor_dim
+    g_aniso = torch.ones(D, device=config.device, dtype=torch.float32)
+    g_aniso[0] = 5.0   # x-direction
+    g_aniso[1] = 1.0   # y-direction
+    
+    # Isotropic metric (average of anisotropic)
+    g_iso = torch.ones(D, device=config.device, dtype=torch.float32) * 3.0  # (5+1)/2 = 3
+    
+    H_aniso = hamiltonian_evolution_with_metric(
+        field.T, config.hbar_cog, config.m_cog, g_inv_diag=g_aniso
+    )
+    
+    H_iso = hamiltonian_evolution_with_metric(
+        field.T, config.hbar_cog, config.m_cog, g_inv_diag=g_iso
+    )
+    
+    # They should be different (anisotropic preserves directional structure)
+    difference = torch.norm(H_aniso - H_iso)
+    assert difference > 1e-6, \
+        f"Anisotropic and isotropic should differ, difference: {difference:.6f}"
+    
+    print(f"Anisotropic vs isotropic difference: {difference:.6f}")
 
 
 def test_evolve_step_with_metric():

@@ -60,6 +60,94 @@ def spatial_laplacian(T: torch.Tensor, dx: float = 1.0) -> torch.Tensor:
     return laplacian
 
 
+def spatial_laplacian_x(T: torch.Tensor, dx: float = 1.0) -> torch.Tensor:
+    """
+    Compute second derivative in x-direction: ∂²T/∂x²
+    
+    Uses finite differences: (T[x+1,y] - 2T[x,y] + T[x-1,y]) / dx²
+    
+    Args:
+        T: Tensor field of shape (N_x, N_y, D, D)
+        dx: Grid spacing (default 1.0)
+    
+    Returns:
+        Second derivative in x (same shape as T)
+    """
+    N_x, N_y, D, D_out = T.shape
+    
+    # Reshape for 2D convolution: (1, D*D, N_x, N_y)
+    T_reshaped = T.permute(2, 3, 0, 1).reshape(1, D*D_out, N_x, N_y)
+    
+    # Second derivative kernel in x-direction: [1, -2, 1] horizontally
+    kernel = torch.tensor(
+        [[0, 0, 0],
+         [1, -2, 1],
+         [0, 0, 0]],
+        dtype=T.dtype,
+        device=T.device
+    ).reshape(1, 1, 3, 3) / dx**2
+    
+    # Expand kernel for all channels
+    kernel = kernel.repeat(D*D_out, 1, 1, 1)
+    
+    # Apply convolution
+    d2_dx2 = F.conv2d(
+        T_reshaped,
+        kernel,
+        padding='same',
+        groups=D*D_out
+    )
+    
+    # Reshape back: (N_x, N_y, D, D)
+    d2_dx2 = d2_dx2.reshape(D, D_out, N_x, N_y).permute(2, 3, 0, 1)
+    
+    return d2_dx2
+
+
+def spatial_laplacian_y(T: torch.Tensor, dy: float = 1.0) -> torch.Tensor:
+    """
+    Compute second derivative in y-direction: ∂²T/∂y²
+    
+    Uses finite differences: (T[x,y+1] - 2T[x,y] + T[x,y-1]) / dy²
+    
+    Args:
+        T: Tensor field of shape (N_x, N_y, D, D)
+        dy: Grid spacing (default 1.0)
+    
+    Returns:
+        Second derivative in y (same shape as T)
+    """
+    N_x, N_y, D, D_out = T.shape
+    
+    # Reshape for 2D convolution: (1, D*D, N_x, N_y)
+    T_reshaped = T.permute(2, 3, 0, 1).reshape(1, D*D_out, N_x, N_y)
+    
+    # Second derivative kernel in y-direction: [1, -2, 1] vertically
+    kernel = torch.tensor(
+        [[0, 1, 0],
+         [0, -2, 0],
+         [0, 1, 0]],
+        dtype=T.dtype,
+        device=T.device
+    ).reshape(1, 1, 3, 3) / dy**2
+    
+    # Expand kernel for all channels
+    kernel = kernel.repeat(D*D_out, 1, 1, 1)
+    
+    # Apply convolution
+    d2_dy2 = F.conv2d(
+        T_reshaped,
+        kernel,
+        padding='same',
+        groups=D*D_out
+    )
+    
+    # Reshape back: (N_x, N_y, D, D)
+    d2_dy2 = d2_dy2.reshape(D, D_out, N_x, N_y).permute(2, 3, 0, 1)
+    
+    return d2_dy2
+
+
 def hamiltonian_evolution(
     T: torch.Tensor,
     hbar_cog: float = 0.1,
@@ -105,8 +193,8 @@ def hamiltonian_evolution_with_metric(
     """
     Metric-aware Hamiltonian: H[T] = -(ℏ²/2m)∇²_g T + V·T
     
-    For diagonal metric g_ij = diag(λ₁, λ₂, ..., λₙ):
-        ∇²_g T = Σ_i (1/λᵢ) ∂²T/∂x_i²
+    For diagonal spatial metric g_ij = diag(g_xx, g_yy):
+        ∇²_g T = g^xx ∂²T/∂x² + g^yy ∂²T/∂y²
     
     This ensures field evolution respects the learned Riemannian geometry
     instead of assuming flat (Euclidean) space.
@@ -115,7 +203,8 @@ def hamiltonian_evolution_with_metric(
         T: Tensor field (N_x, N_y, D, D) complex
         hbar_cog: Cognitive Planck constant ℏ_cog
         m_cog: Effective mass m_cog
-        g_inv_diag: Inverse metric diagonal (D,) or None
+        g_inv_diag: Inverse metric diagonal (n,) where n >= 2
+                    First two components used for spatial directions (x, y)
                     If None, falls back to flat-space evolution
         V: Optional potential V(x,y) of same shape as T
     
@@ -127,45 +216,42 @@ def hamiltonian_evolution_with_metric(
         In curved space with metric g_ij, the Laplacian becomes:
             ∇²_g = (1/√g) ∂_i(√g g^ij ∂_j)
         
-        For DIAGONAL metric, this simplifies to:
-            ∇²_g T ≈ (1/λ_avg) ∇²T
-        where λ_avg = mean(g^ii) is the average inverse metric.
+        For DIAGONAL metric in 2D spatial coordinates:
+            ∇²_g T = g^xx ∂²T/∂x² + g^yy ∂²T/∂y²
     
-    Current Implementation: ISOTROPIC SCALING
-        - Uses λ_avg = mean(g^{11}, g^{22}, ..., g^{DD})
-        - Applies uniformly: metric_scale * ∇²T
-        - Treats all directions equally (no anisotropy)
-        - Good approximation for nearly isotropic metrics
+    Current Implementation: ANISOTROPIC SCALING
+        - Uses g^xx for x-direction: g^xx * ∂²T/∂x²
+        - Uses g^yy for y-direction: g^yy * ∂²T/∂y²
+        - Respects directional differences in geometry
+        - Reduces to isotropic when g^xx = g^yy
         - See METRIC_SCALING_DOCUMENTATION.md for details
     """
     if g_inv_diag is None:
         # No metric provided: use flat-space (Euclidean)
         return hamiltonian_evolution(T, hbar_cog, m_cog, V)
     
-    # Compute standard Laplacian (flat-space)
-    lap_T = spatial_laplacian(T, dx=1.0)
+    # === ANISOTROPIC METRIC SCALING ===
+    # Compute directional second derivatives
+    d2_dx2 = spatial_laplacian_x(T, dx=1.0)  # ∂²T/∂x²
+    d2_dy2 = spatial_laplacian_y(T, dy=1.0)  # ∂²T/∂y²
     
-    # === ISOTROPIC METRIC SCALING ===
-    # Current implementation uses isotropic (uniform) scaling:
-    # - Takes mean of all diagonal metric components
-    # - Applies as single scalar to entire Laplacian
-    # - Does NOT preserve anisotropic (directional) structure
-    # For anisotropic scaling, see METRIC_SCALING_DOCUMENTATION.md
-    
-    # Weight by inverse metric
-    # For diagonal metric: scale Laplacian by average metric component
-    if g_inv_diag.dim() == 1:
-        # g_inv_diag is (D,) - take mean as isotropic scaling
-        metric_scale = g_inv_diag.mean().item()
+    # Extract metric components for spatial directions (x, y)
+    if g_inv_diag.dim() == 1 and g_inv_diag.shape[0] >= 2:
+        # Use first two components for x and y directions
+        g_xx = g_inv_diag[0].item()  # Inverse metric for x-direction
+        g_yy = g_inv_diag[1].item()  # Inverse metric for y-direction
+    elif g_inv_diag.dim() == 1 and g_inv_diag.shape[0] == 1:
+        # Only one component: use isotropically
+        g_xx = g_yy = g_inv_diag[0].item()
     else:
-        # Shouldn't happen, but handle gracefully
-        metric_scale = 1.0
+        # Fallback: use flat space
+        g_xx = g_yy = 1.0
     
-    # Metric-weighted Laplacian (isotropic)
-    lap_T_metric = metric_scale * lap_T
+    # Anisotropic Laplacian: ∇²_g T = g^xx ∂²T/∂x² + g^yy ∂²T/∂y²
+    lap_T_aniso = g_xx * d2_dx2 + g_yy * d2_dy2
     
     # Kinetic term (metric-aware)
-    kinetic = -(hbar_cog**2 / (2 * m_cog)) * lap_T_metric
+    kinetic = -(hbar_cog**2 / (2 * m_cog)) * lap_T_aniso
     
     # Potential term (unchanged by metric)
     potential = V * T if V is not None else 0.0
