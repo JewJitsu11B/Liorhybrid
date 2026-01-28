@@ -81,3 +81,5 @@ checkpoints/
 *.pt
 *.pth
 data/
+!data/sample/
+data/sample/*.txt
