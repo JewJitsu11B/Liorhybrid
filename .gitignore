@@ -83,3 +83,10 @@ checkpoints/
 data/
 !data/sample/
 data/sample/*.txt
+
+# Generated visualizations
+*prime*.png
+*spectral*.png
+*level*.png
+alpha_interpolation.png
+associator_magnitude.png
