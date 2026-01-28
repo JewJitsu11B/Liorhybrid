@@ -130,6 +130,13 @@ def hamiltonian_evolution_with_metric(
         For DIAGONAL metric, this simplifies to:
             ∇²_g T ≈ (1/λ_avg) ∇²T
         where λ_avg = mean(g^ii) is the average inverse metric.
+    
+    Current Implementation: ISOTROPIC SCALING
+        - Uses λ_avg = mean(g^{11}, g^{22}, ..., g^{DD})
+        - Applies uniformly: metric_scale * ∇²T
+        - Treats all directions equally (no anisotropy)
+        - Good approximation for nearly isotropic metrics
+        - See METRIC_SCALING_DOCUMENTATION.md for details
     """
     if g_inv_diag is None:
         # No metric provided: use flat-space (Euclidean)
@@ -137,6 +144,13 @@ def hamiltonian_evolution_with_metric(
     
     # Compute standard Laplacian (flat-space)
     lap_T = spatial_laplacian(T, dx=1.0)
+    
+    # === ISOTROPIC METRIC SCALING ===
+    # Current implementation uses isotropic (uniform) scaling:
+    # - Takes mean of all diagonal metric components
+    # - Applies as single scalar to entire Laplacian
+    # - Does NOT preserve anisotropic (directional) structure
+    # For anisotropic scaling, see METRIC_SCALING_DOCUMENTATION.md
     
     # Weight by inverse metric
     # For diagonal metric: scale Laplacian by average metric component
@@ -147,7 +161,7 @@ def hamiltonian_evolution_with_metric(
         # Shouldn't happen, but handle gracefully
         metric_scale = 1.0
     
-    # Metric-weighted Laplacian
+    # Metric-weighted Laplacian (isotropic)
     lap_T_metric = metric_scale * lap_T
     
     # Kinetic term (metric-aware)

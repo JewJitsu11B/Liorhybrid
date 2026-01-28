@@ -72,3 +72,5 @@
 - `2026-01-28T05:54:53.107241+00:00` | `kernel_fractional_memory_weight` | `kernels/fractional_memory.py` | `kernels`
 - `2026-01-28T05:59:27.569658+00:00` | `field_evolve_step` | `core/tensor_field.py` | `core`
 - `2026-01-28T05:59:27.582874+00:00` | `kernel_fractional_memory_weight` | `kernels/fractional_memory.py` | `kernels`
+- `2026-01-28T07:24:08.124585+00:00` | `field_evolve_step` | `core/tensor_field.py` | `core`
+- `2026-01-28T07:24:08.138405+00:00` | `kernel_fractional_memory_weight` | `kernels/fractional_memory.py` | `kernels`
