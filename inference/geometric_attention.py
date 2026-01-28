@@ -382,6 +382,10 @@ class GeometricAttention(nn.Module):
         else:
             self.field_contractor = None
             self.field_alpha = None
+        
+        # Option 6 Extended: Projection for neighbor values (d_prime -> d_model)
+        # This is used in probe_address_neighbors to project neighbor values
+        self.neighbor_value_proj = nn.Linear(64, d_model)  # d_prime=64 by default
 
     def _project_q(self, Q_input: torch.Tensor) -> torch.Tensor:
         if self.W_q is not None:
@@ -515,27 +519,19 @@ class GeometricAttention(nn.Module):
         combined_scores = combined_scores * role_weights.unsqueeze(0)
         
         # Compute attention weights with Born × Gibbs × Softmax
+        # Note: We normalize after combining to ensure weights sum to 1
         tau = self.temperature.clamp(min=1e-8)
         born = combined_scores.pow(2)
         gibbs = torch.exp(-combined_scores.abs() / tau)
         soft = torch.softmax(combined_scores / tau, dim=-1)
         weights = born * gibbs * soft  # (batch, 64)
         
-        # Project neighbor values to d_model for output
-        # neighbor_values: (batch, 64, d') where d' = 64
-        # Need to project to d_model
-        d_prime = neighbor_values.shape[-1]
-        d_model = self.d_model
+        # Renormalize to ensure sum to 1 (Born × Gibbs may have broken normalization)
+        weights = weights / (weights.sum(dim=-1, keepdim=True) + 1e-8)  # (batch, 64)
         
-        if d_prime != d_model:
-            # Simple linear projection (could be learned)
-            neighbor_values_proj = F.linear(
-                neighbor_values,
-                weight=self.W_o.weight[:, :d_prime],
-                bias=None
-            )  # (batch, 64, d_model)
-        else:
-            neighbor_values_proj = neighbor_values
+        # Project neighbor values to d_model for output using dedicated projection
+        # neighbor_values: (batch, 64, d') where d' = 64
+        neighbor_values_proj = self.neighbor_value_proj(neighbor_values)  # (batch, 64, d_model)
         
         # Weighted combination
         # weights: (batch, 64) @ neighbor_values_proj: (batch, 64, d_model)
@@ -554,8 +550,6 @@ class GeometricAttention(nn.Module):
         
         # Expand weights for compatibility
         weights = weights.unsqueeze(1)  # (batch, 1, 64)
-
-        return output, weights
 
         return output, weights
 

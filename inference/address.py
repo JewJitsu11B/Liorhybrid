@@ -501,16 +501,9 @@ class AddressBuilder(nn.Module):
             cosine_sim = torch.einsum('bd,bnd->bn', query_norm, neighbor_norm).unsqueeze(-1)  # (batch, N, 1)
         
         # Scores 1-5: Learned similarity metrics
-        # Project both query and neighbors, then compute interaction
-        query_feats = self.similarity_proj(query_embedding)  # (batch, 5)
+        # Use the neighbor features directly for diversity (simpler approach)
         neighbor_feats = self.similarity_proj(neighbor_embeddings)  # (batch, N, 5)
-        
-        # Learned scores as dot products in projected spaces
-        learned_scores = torch.einsum('bf,bnf->bn', query_feats, neighbor_feats)  # (batch, N)
-        learned_scores = learned_scores.unsqueeze(-1).expand(-1, -1, 5)  # (batch, N, 5)
-        
-        # Alternatively, use the neighbor features directly for diversity
-        learned_scores = neighbor_feats  # (batch, N, 5) - simpler approach
+        learned_scores = neighbor_feats  # (batch, N, 5)
         
         # Concatenate all 6 scores
         all_scores = torch.cat([cosine_sim, learned_scores], dim=-1)  # (batch, N, 6)
@@ -759,18 +752,18 @@ def compute_address_uniqueness_score(addresses: Address) -> float:
 # =============================================================================
 
 ADDRESS_SCHEMA = """
-Linearized Address Layout (D = 7330 for d=512, updated with neighbor metric/transport):
+Linearized Address Layout (D = 9122 for d=512, updated with neighbor metric/transport):
 
 Offset    Size    Field
 ------    ----    -----
 0         512     core (embedding)
 512       512     metric (diagonal)
 1024      512     transport (diagonal)
-1536      7072    neighbors (64 × 116)
-8608      32      ecc (collision hash)
-8640      2       timestamps
+1536      7552    neighbors (64 × 118)
+9088      32      ecc (collision hash)
+9120      2       timestamps
 
-Per-neighbor block (116 floats):
+Per-neighbor block (118 floats):
   Offset  Size  Field
   ------  ----  -----
   0       64    value (d', interaction output)

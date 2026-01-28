@@ -250,14 +250,14 @@
     "last_called": "2026-01-27T22:53:12.440713"
   },
   "test_address_attention_integration.py": {
-    "call_count": 2,
+    "call_count": 3,
     "first_called": "2026-01-28T14:50:55.136150",
-    "last_called": "2026-01-28T14:51:10.134617"
+    "last_called": "2026-01-28T14:55:31.415863"
   },
   "test_address_standalone.py": {
-    "call_count": 1,
+    "call_count": 2,
     "first_called": "2026-01-28T14:47:47.137267",
-    "last_called": "2026-01-28T14:47:47.137267"
+    "last_called": "2026-01-28T14:55:24.173608"
   },
   "test_file.py": {
     "call_count": 1,

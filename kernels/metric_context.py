@@ -131,7 +131,14 @@ def metric_context(
         MetricContext instance
     """
     ctx = MetricContext(g_inv_diag, validate, track_perf)
+    exc_info = None
     try:
         yield ctx.__enter__()
+    except Exception as e:
+        exc_info = (type(e), e, e.__traceback__)
+        raise
     finally:
-        ctx.__exit__(None, None, None)
+        if exc_info is None:
+            ctx.__exit__(None, None, None)
+        else:
+            ctx.__exit__(*exc_info)
