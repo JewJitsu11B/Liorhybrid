@@ -95,6 +95,70 @@ def hamiltonian_evolution(
     return kinetic + potential
 
 
+def hamiltonian_evolution_with_metric(
+    T: torch.Tensor,
+    hbar_cog: float,
+    m_cog: float,
+    g_inv_diag: torch.Tensor = None,
+    V: torch.Tensor = None
+) -> torch.Tensor:
+    """
+    Metric-aware Hamiltonian: H[T] = -(ℏ²/2m)∇²_g T + V·T
+    
+    For diagonal metric g_ij = diag(λ₁, λ₂, ..., λₙ):
+        ∇²_g T = Σ_i (1/λᵢ) ∂²T/∂x_i²
+    
+    This ensures field evolution respects the learned Riemannian geometry
+    instead of assuming flat (Euclidean) space.
+    
+    Args:
+        T: Tensor field (N_x, N_y, D, D) complex
+        hbar_cog: Cognitive Planck constant ℏ_cog
+        m_cog: Effective mass m_cog
+        g_inv_diag: Inverse metric diagonal (D,) or None
+                    If None, falls back to flat-space evolution
+        V: Optional potential V(x,y) of same shape as T
+    
+    Returns:
+        H[T]: Hamiltonian evolution term (same shape as T)
+    
+    Physics:
+        Standard Hamiltonian assumes Euclidean metric (dx² + dy²).
+        In curved space with metric g_ij, the Laplacian becomes:
+            ∇²_g = (1/√g) ∂_i(√g g^ij ∂_j)
+        
+        For DIAGONAL metric, this simplifies to:
+            ∇²_g T ≈ (1/λ_avg) ∇²T
+        where λ_avg = mean(g^ii) is the average inverse metric.
+    """
+    if g_inv_diag is None:
+        # No metric provided: use flat-space (Euclidean)
+        return hamiltonian_evolution(T, hbar_cog, m_cog, V)
+    
+    # Compute standard Laplacian (flat-space)
+    lap_T = spatial_laplacian(T, dx=1.0)
+    
+    # Weight by inverse metric
+    # For diagonal metric: scale Laplacian by average metric component
+    if g_inv_diag.dim() == 1:
+        # g_inv_diag is (D,) - take mean as isotropic scaling
+        metric_scale = g_inv_diag.mean().item()
+    else:
+        # Shouldn't happen, but handle gracefully
+        metric_scale = 1.0
+    
+    # Metric-weighted Laplacian
+    lap_T_metric = metric_scale * lap_T
+    
+    # Kinetic term (metric-aware)
+    kinetic = -(hbar_cog**2 / (2 * m_cog)) * lap_T_metric
+    
+    # Potential term (unchanged by metric)
+    potential = V * T if V is not None else 0.0
+    
+    return kinetic + potential
+
+
 def create_potential(
     spatial_size: tuple,
     tensor_dim: int,
