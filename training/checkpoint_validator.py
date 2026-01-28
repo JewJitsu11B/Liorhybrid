@@ -25,13 +25,14 @@ def validate_checkpoint_schema(
     
     Args:
         checkpoint: Loaded checkpoint dictionary
-        expected_vocab_size: Expected vocabulary size (optional)
-        expected_d_model: Expected model dimension (optional)
+        expected_vocab_size: Expected vocabulary size (must be positive if provided)
+        expected_d_model: Expected model dimension (must be positive if provided)
         strict: If True, raises exception on validation failure.
                 If False, only prints warnings.
     
     Raises:
         CheckpointValidationError: If strict=True and validation fails
+        ValueError: If expected_vocab_size or expected_d_model are invalid
     
     Required checkpoint keys:
         - model_state_dict: Main model parameters
@@ -39,6 +40,12 @@ def validate_checkpoint_schema(
         - input_embedding_state_dict: Input embedding parameters
         - lm_head_state_dict: Language model head parameters
     """
+    # Validate input parameters
+    if expected_vocab_size is not None and expected_vocab_size <= 0:
+        raise ValueError(f"expected_vocab_size must be positive, got {expected_vocab_size}")
+    if expected_d_model is not None and expected_d_model <= 0:
+        raise ValueError(f"expected_d_model must be positive, got {expected_d_model}")
+    
     errors = []
     warnings = []
     
@@ -259,12 +266,16 @@ def validate_checkpoint_compatibility(
     # Check for missing keys in checkpoint
     missing_in_checkpoint = set(model_params.keys()) - set(model_state.keys())
     if missing_in_checkpoint:
-        issues.append(f"Missing in checkpoint: {list(missing_in_checkpoint)[:5]}...")
+        missing_list = list(missing_in_checkpoint)[:5]
+        truncated = " (and more...)" if len(missing_in_checkpoint) > 5 else ""
+        issues.append(f"Missing in checkpoint: {missing_list}{truncated}")
     
     # Check for unexpected keys in checkpoint
     unexpected_in_checkpoint = set(model_state.keys()) - set(model_params.keys())
     if unexpected_in_checkpoint and strict:
-        issues.append(f"Unexpected in checkpoint: {list(unexpected_in_checkpoint)[:5]}...")
+        unexpected_list = list(unexpected_in_checkpoint)[:5]
+        truncated = " (and more...)" if len(unexpected_in_checkpoint) > 5 else ""
+        issues.append(f"Unexpected in checkpoint: {unexpected_list}{truncated}")
     
     # Check shape compatibility for common keys
     common_keys = set(model_params.keys()) & set(model_state.keys())
@@ -276,7 +287,8 @@ def validate_checkpoint_compatibility(
             )
     
     if shape_mismatches:
-        issues.append(f"Shape mismatches: {shape_mismatches[:3]}...")
+        truncated = " (and more...)" if len(shape_mismatches) > 3 else ""
+        issues.append(f"Shape mismatches: {shape_mismatches[:3]}{truncated}")
     
     is_compatible = len(issues) == 0 or (not strict and len(shape_mismatches) == 0)
     

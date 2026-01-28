@@ -13,8 +13,8 @@ from pathlib import Path
 
 # Add repo root to path for imports
 repo_root = Path(__file__).resolve().parent
-if str(repo_root.parent) not in sys.path:
-    sys.path.insert(0, str(repo_root.parent))
+if str(repo_root) not in sys.path:
+    sys.path.insert(0, str(repo_root))
 
 
 def train_entrypoint():

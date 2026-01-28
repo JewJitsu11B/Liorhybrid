@@ -272,7 +272,7 @@ class TrainConfig:
     telemetry_jsonl_filename: str = "telemetry.jsonl"
 
     # Reproducibility
-    seed: int = 42                # Random seed for reproducibility
+    seed: int = 42                # Random seed for reproducibility (Python, NumPy, PyTorch)
 
     # Timing and debugging
     timing_debug: bool = False

@@ -195,6 +195,8 @@ Liorhybrid checkpoints follow a specific schema for compatibility:
 
 The checkpoint validator automatically checks for these keys during loading and provides clear error messages if any are missing or have incompatible shapes.
 
+**Security Note:** Only load checkpoints from trusted sources. Checkpoint loading uses pickle which can execute arbitrary code. Never load checkpoints from untrusted or unknown sources.
+
 ### Deterministic Training
 
 For reproducible training results, set the random seed in your config:
