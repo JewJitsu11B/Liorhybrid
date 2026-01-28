@@ -438,18 +438,8 @@ class GeometricAttention(nn.Module):
         # Scale by sqrt(d_model) for stability
         similarity = similarity / (d_model ** 0.5)
 
-        # Apply role-typed weighting
-        # Nearest (0-31): weight = 1.0 (similarity grounding)
-        # Attractors (32-47): weight = 1.5 (boosted positive - reinforcing evidence)
-        # Repulsors (48-63): weight = -0.5 (negative - contrastive evidence)
-        role_weights = torch.ones(n_neighbors, device=Q.device, dtype=Q.dtype)
-        role_weights[32:48] = 1.5   # Attractors boosted
-        role_weights[48:64] = -0.5  # Repulsors contrastive
-
-        # Apply role weights: (batch, seq_len, 64) * (64,)
-        similarity = similarity * role_weights.unsqueeze(0).unsqueeze(0)
-
         # All three gates combined: Born × Gibbs × Softmax
+        # Note: No role-based weighting - scores already rank neighbors
         tau = self.temperature.clamp(min=1e-8)
         born = similarity.pow(2)                          # |ψ|² amplitude
         gibbs = torch.exp(-similarity.abs() / tau)        # exp(-E/T) cost
@@ -510,16 +500,8 @@ class GeometricAttention(nn.Module):
         learned_scores = neighbor_scores[..., 1:].mean(dim=-1)  # Average learned scores
         combined_scores = primary_scores + 0.1 * learned_scores  # Weighted combination
         
-        # Apply role-typed weighting
-        n_neighbors = 64
-        role_weights = torch.ones(n_neighbors, device=combined_scores.device, dtype=combined_scores.dtype)
-        role_weights[32:48] = 1.5   # Attractors boosted
-        role_weights[48:64] = -0.5  # Repulsors contrastive
-        
-        combined_scores = combined_scores * role_weights.unsqueeze(0)
-        
         # Compute attention weights with Born × Gibbs × Softmax
-        # Note: We normalize after combining to ensure weights sum to 1
+        # Note: No role-based weighting - scores already rank neighbors
         tau = self.temperature.clamp(min=1e-8)
         born = combined_scores.pow(2)
         gibbs = torch.exp(-combined_scores.abs() / tau)
