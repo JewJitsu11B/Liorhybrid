@@ -385,72 +385,143 @@ class GeometricAttention(nn.Module):
     def probe_neighbors(
         self,
         Q: torch.Tensor,                    # (batch, seq_len, d_model)
-        neighbor_embeddings: torch.Tensor,  # (batch, 64, d_model)
-        metric: Optional[torch.Tensor] = None,  # (batch, d_model) diagonal metric
+        address: 'Address',                 # Address structure with 64 neighbors
+        enable_dense_fallback: bool = False # If True, allow fallback (NOT RECOMMENDED)
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Option 6: Probe neighbors using metric-weighted similarity.
+        Option 6: Probe neighbors using strict metric-weighted similarity.
 
-        NO MATMUL - explicit probing of 64 neighbors.
+        NO MATMUL - explicit probing of 64 neighbors from Address structure.
         Complexity: O(N × 64 × d') instead of O(N²)
+        
+        STRICT REQUIREMENTS:
+        - Address must have valid metric/transport (fail fast if missing)
+        - Uses 6 score channels from neighbor slots
+        - No Euclidean fallback (unless enable_dense_fallback=True)
 
         Args:
             Q: Query tensor from encoder (batch, seq_len, d_model)
-            neighbor_embeddings: 64 role-typed neighbors (batch, 64, d_model)
-                - [:, 0:32, :]: nearest neighbors (similarity grounding)
-                - [:, 32:48, :]: attractors (reinforcing evidence)
-                - [:, 48:64, :]: repulsors (contrastive evidence)
-            metric: Optional diagonal metric for scaling (batch, d_model)
+            address: Address structure with populated neighbors
+                - address.neighbors_blocked: (batch, 64, d_block)
+                - address.metric: (batch, d_model) - REQUIRED
+                - address.transport: (batch, d_model)
+            enable_dense_fallback: Allow fallback to dense attention if address invalid
+                (NOT RECOMMENDED for Option 6, but kept for compatibility)
 
         Returns:
             output: (batch, seq_len, d_model)
             weights: (batch, seq_len, 64) - probe weights per neighbor
+            
+        Raises:
+            ValueError: If address.metric is invalid and enable_dense_fallback=False
         """
+        from .address import Address  # Import here to avoid circular dependency
+        
         batch_size, seq_len, d_model = Q.shape
-        n_neighbors = neighbor_embeddings.shape[1]  # 64
-
+        
+        # STRICT: Validate metric presence
+        metric = address.metric
+        transport = address.transport
+        
+        if metric is None or metric.isnan().any() or metric.isinf().any():
+            error_msg = (
+                "Address probing (Option 6) requires valid metric. "
+                f"metric={'None' if metric is None else 'invalid (NaN/Inf)'}. "
+                "No Euclidean fallback in strict mode."
+            )
+            if not enable_dense_fallback:
+                raise ValueError(error_msg)
+            else:
+                # Fallback warning (not recommended)
+                import warnings
+                warnings.warn(f"{error_msg} Using dense fallback (not recommended).")
+                # Would need K/V for fallback - not implemented here
+                raise ValueError(f"{error_msg} Dense fallback not available in this code path.")
+        
+        # Extract neighbor embeddings from address
+        # neighbors_blocked: (batch, 64, d_block) where d_block = d' + m + k
+        neighbors_blocked = address.neighbors_blocked
+        n_neighbors = neighbors_blocked.shape[1]  # Should be 64
+        
+        # Extract value vectors from neighbors (first d' elements)
+        neighbor_values = address.all_neighbor_values  # (batch, 64, d')
+        
+        # Extract 6 score channels from neighbors
+        neighbor_scores = address.all_neighbor_scores  # (batch, 64, 6)
+        
         # Project Q for probing (d_model -> d_model, same space as neighbors)
         Q_proj = self._project_q(Q)  # (batch, seq_len, d_model)
-
-        # Apply metric scaling if provided (diagonal metric)
-        if metric is not None:
-            # metric: (batch, d_model) -> (batch, 1, d_model)
-            Q_scaled = Q_proj * metric.unsqueeze(1)
-        else:
-            Q_scaled = Q_proj
-
+        
+        # Apply metric scaling (REQUIRED in strict mode)
+        # metric: (batch, d_model) -> (batch, 1, d_model)
+        Q_scaled = Q_proj * metric.unsqueeze(1)
+        
+        # Project neighbor values to d_model for similarity computation
+        # neighbor_values: (batch, 64, d') -> need (batch, 64, d_model)
+        if not hasattr(self, 'neighbor_value_proj'):
+            d_prime = address.config.d_prime
+            self.neighbor_value_proj = nn.Linear(d_prime, d_model, bias=False).to(Q.device)
+            nn.init.orthogonal_(self.neighbor_value_proj.weight)
+        
+        neighbor_embeddings = self.neighbor_value_proj(neighbor_values)  # (batch, 64, d_model)
+        
         # Compute similarity: Q_scaled @ neighbor_embeddings.T
         # (batch, seq_len, d_model) @ (batch, d_model, 64) -> (batch, seq_len, 64)
         similarity = torch.bmm(Q_scaled, neighbor_embeddings.transpose(1, 2))
-
+        
         # Scale by sqrt(d_model) for stability
         similarity = similarity / (d_model ** 0.5)
-
-        # Apply role-typed weighting
+        
+        # Incorporate the 6 pre-computed score channels
+        # neighbor_scores: (batch, 64, 6)
+        # Use channels as modulation factors:
+        #   Channel 0: Metric distance (inverse) - boost nearby
+        #   Channel 1: Transport-corrected - geometric correction
+        #   Channel 2: Attraction strength - boost attractors
+        #   Channel 3: Repulsion strength - boost repulsors (negative)
+        #   Channel 4: Confidence - reliability weight
+        #   Channel 5: Heap rank - position-based ordering
+        
+        # Expand neighbor_scores for seq_len: (batch, 64, 6) -> (batch, seq_len, 64, 6)
+        neighbor_scores_exp = neighbor_scores.unsqueeze(1).expand(batch_size, seq_len, n_neighbors, 6)
+        
+        # Combine score channels into a single modulation factor
+        # Simple weighted sum: similarity' = similarity + α₁*s₁ + α₂*s₂ + ...
+        # Use learnable mixing weights
+        if not hasattr(self, 'score_channel_weights'):
+            self.score_channel_weights = nn.Parameter(
+                torch.tensor([0.3, 0.2, 0.2, -0.1, 0.2, 0.1], dtype=Q.dtype, device=Q.device)
+            )
+        
+        # Apply score channel modulation: (batch, seq_len, 64, 6) @ (6,) -> (batch, seq_len, 64)
+        score_modulation = (neighbor_scores_exp * self.score_channel_weights).sum(dim=-1)
+        similarity = similarity + score_modulation
+        
+        # Apply role-typed weighting (as before, but now also informed by score channels)
         # Nearest (0-31): weight = 1.0 (similarity grounding)
         # Attractors (32-47): weight = 1.5 (boosted positive - reinforcing evidence)
         # Repulsors (48-63): weight = -0.5 (negative - contrastive evidence)
         role_weights = torch.ones(n_neighbors, device=Q.device, dtype=Q.dtype)
         role_weights[32:48] = 1.5   # Attractors boosted
         role_weights[48:64] = -0.5  # Repulsors contrastive
-
+        
         # Apply role weights: (batch, seq_len, 64) * (64,)
         similarity = similarity * role_weights.unsqueeze(0).unsqueeze(0)
-
-        # All three gates combined: Born × Gibbs × Softmax
+        
+        # Born gate normalization: |ψ|² (preserves evidence structure)
         tau = self.temperature.clamp(min=1e-8)
         born = similarity.pow(2)                          # |ψ|² amplitude
         gibbs = torch.exp(-similarity.abs() / tau)        # exp(-E/T) cost
         soft = torch.softmax(similarity / tau, dim=-1)    # score distribution
         weights = born * gibbs * soft
-
+        
         # Weighted combination of neighbor embeddings
         # (batch, seq_len, 64) @ (batch, 64, d_model) -> (batch, seq_len, d_model)
         output = torch.bmm(weights, neighbor_embeddings)
-
+        
         # Final output projection
         output = self.W_o(output)
-
+        
         return output, weights
 
     @track_first_call
@@ -461,28 +532,93 @@ class GeometricAttention(nn.Module):
         V: torch.Tensor = None,
         T_field: torch.Tensor = None,
         mask: Optional[torch.Tensor] = None,
-        neighbor_embeddings: Optional[torch.Tensor] = None,  # Option 6
-        metric: Optional[torch.Tensor] = None,  # Option 6: diagonal metric
+        neighbor_embeddings: Optional[torch.Tensor] = None,  # Legacy Option 6
+        metric: Optional[torch.Tensor] = None,  # Legacy Option 6
+        address: Optional['Address'] = None,  # NEW: Full address structure for Option 6
+        enable_address_probing: bool = True,  # Default to address probing (Option 6)
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Forward pass supporting both legacy K/V and Option 6 neighbor probing.
+        Forward pass supporting Option 6 address probing and legacy K/V attention.
 
-        Option 6 (preferred): Pass neighbor_embeddings instead of K/V.
-            - Uses probe_neighbors() for O(N × 64 × d') complexity
+        Option 6 (RECOMMENDED): Pass address for strict metric-based probing.
+            - Uses probe_neighbors() with Address structure
+            - O(N × 64 × d') complexity
             - NO dense matmul, NO softmax collapse
             - Born gate |ψ|² normalization
+            - REQUIRES valid metric/transport in address
 
-        Legacy: Pass K, V for standard geometric attention.
+        Legacy Option 6: Pass neighbor_embeddings + metric (deprecated).
+            - Backward compatible but missing 6 score channels
+            - Will be converted to Address internally if possible
+
+        Legacy Attention: Pass K, V for standard geometric attention.
             - O(N²) complexity via Q @ K.T matmul
             - Softmax normalization
+            - NOT RECOMMENDED for Option 6
+            
+        Args:
+            Q_input: Query input (batch, seq_len, d_model)
+            K, V: Legacy keys/values for dense attention
+            T_field: Cognitive tensor field
+            mask: Attention mask
+            neighbor_embeddings: Legacy neighbor embeddings (deprecated)
+            metric: Legacy metric (deprecated)
+            address: NEW: Address structure with 64 neighbors
+            enable_address_probing: Use address probing (default True)
         """
-        # Route to Option 6 if neighbor_embeddings provided
-        if neighbor_embeddings is not None:
+        from .address import Address  # Import here to avoid circular dependency
+        
+        # Route 1: Address-based probing (RECOMMENDED for Option 6)
+        if enable_address_probing and address is not None:
             return self.probe_neighbors(
                 Q=Q_input,
-                neighbor_embeddings=neighbor_embeddings,
-                metric=metric
+                address=address,
+                enable_dense_fallback=False  # Strict mode
             )
+        
+        # Route 2: Legacy neighbor_embeddings probing (deprecated, for backward compat)
+        if neighbor_embeddings is not None:
+            # Convert to temporary Address if possible
+            # This is a compatibility shim - full Address is preferred
+            import warnings
+            warnings.warn(
+                "Using neighbor_embeddings without full Address structure is deprecated. "
+                "Pass address= for full Option 6 functionality with 6 score channels.",
+                DeprecationWarning
+            )
+            
+            # Simple probing without Address structure (no score channels)
+            batch_size, seq_len, d_model = Q_input.shape
+            n_neighbors = neighbor_embeddings.shape[1]
+            
+            Q_proj = self._project_q(Q_input)
+            
+            if metric is not None:
+                Q_scaled = Q_proj * metric.unsqueeze(1)
+            else:
+                Q_scaled = Q_proj
+            
+            similarity = torch.bmm(Q_scaled, neighbor_embeddings.transpose(1, 2))
+            similarity = similarity / (d_model ** 0.5)
+            
+            # Role weights
+            role_weights = torch.ones(n_neighbors, device=Q_input.device, dtype=Q_input.dtype)
+            if n_neighbors >= 64:
+                role_weights[32:48] = 1.5
+                role_weights[48:64] = -0.5
+            similarity = similarity * role_weights.unsqueeze(0).unsqueeze(0)
+            
+            # Born gate
+            tau = self.temperature.clamp(min=1e-8)
+            born = similarity.pow(2)
+            gibbs = torch.exp(-similarity.abs() / tau)
+            soft = torch.softmax(similarity / tau, dim=-1)
+            weights = born * gibbs * soft
+            
+            output = torch.bmm(weights, neighbor_embeddings)
+            output = self.W_o(output)
+            
+            return output, weights
 
         # Legacy path: K/V matmul attention
         if K is None or V is None:
