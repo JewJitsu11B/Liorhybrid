@@ -161,8 +161,10 @@ def to_device(batch: Any, device: torch.device = DEVICE) -> Any:
     return batch
 
 
-def gpu_sync_for_timing() -> None:
-    torch.cuda.synchronize()
+def gpu_sync_for_timing(cfg: Optional["TrainConfig"] = None) -> None:
+    """Synchronize GPU only if timing_debug is enabled."""
+    if cfg is None or getattr(cfg, 'timing_debug', False):
+        torch.cuda.synchronize()
 
 
 def assert_cuda_tensor(x: Any, name: str) -> None:

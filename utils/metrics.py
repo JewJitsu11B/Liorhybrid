@@ -10,7 +10,8 @@ Paper References:
 
 import torch
 import numpy as np
-from typing import List
+import warnings
+from typing import List, Optional, Tuple
 
 
 def compute_norm_conservation(history: List[torch.Tensor]) -> torch.Tensor:
@@ -39,6 +40,10 @@ def compute_norm_conservation(history: List[torch.Tensor]) -> torch.Tensor:
 def compute_entropy(T: torch.Tensor, epsilon: float = 1e-12) -> float:
     """
     Compute von Neumann-like entropy of the field.
+    
+    DEPRECATED: Use compute_variable_order_entropy() instead.
+    This function uses standard von Neumann entropy, not the variable-order
+    entropy from the paper definition.
 
     Formula:
         S = -Tr(ρ log ρ)
@@ -59,6 +64,14 @@ def compute_entropy(T: torch.Tensor, epsilon: float = 1e-12) -> float:
     Implementation: Vectorized for efficiency - computes all spatial
     points in parallel using batch eigenvalue decomposition.
     """
+    warnings.warn(
+        "compute_entropy() is deprecated. Use compute_variable_order_entropy() instead. "
+        "This function uses standard von Neumann entropy, not the variable-order entropy "
+        "from the paper definition.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    
     N_x, N_y, D, _ = T.shape
 
     # Reshape to batch all spatial points: (N_x*N_y, D, D)
@@ -250,3 +263,177 @@ def compute_effective_dimension(eigenvalues: torch.Tensor) -> float:
     D_eff = (sum_eig ** 2) / sum_eig_sq
 
     return D_eff.item()
+
+
+def compute_variable_order_entropy(
+    Psi: torch.Tensor,
+    nu: torch.Tensor,
+    g: Optional[torch.Tensor] = None,
+    phi_kernel: str = 'gaussian',
+    kernel_scale: float = 2.0,
+    x_observer: Optional[Tuple[int, int]] = None
+) -> torch.Tensor:
+    """
+    Compute variable-order entropy H^{(ν(x))}[Ψ].
+    
+    Paper definition:
+        H^{(ν(x))}[Ψ] = ∫_M |Ψ(y)|^{2ν(x)} φ(x,y) √det(g) dV_y
+    
+    Args:
+        Psi: Field tensor (N_x, N_y, D, D) complex
+        nu: Variable order field (N_x, N_y) - observer sensitivity
+        g: Metric tensor (N_x, N_y, n, n) for Riemannian volume
+        phi_kernel: 'gaussian', 'local', or 'uniform'
+        kernel_scale: σ for Gaussian kernel
+        x_observer: Observer location (i, j). If None, average over all.
+    
+    Returns:
+        H: Entropy functional (scalar)
+    
+    Physics:
+        - ν(x) depends on OBSERVER position x (belief state perception)
+        - φ(x,y) couples spatial entropy (information propagation)
+        - √det(g) gives proper Riemannian volume element
+    """
+    N_x, N_y, D, _ = Psi.shape
+    device = Psi.device
+    
+    # Compute |Ψ(y)|² for all field points
+    Psi_norm_sq = torch.sum(torch.abs(Psi) ** 2, dim=(-2, -1))  # (N_x, N_y)
+    
+    # Build spatial kernel φ(x,y)
+    if x_observer is None:
+        # Average over all observers
+        H_total = 0.0
+        for i in range(N_x):
+            for j in range(N_y):
+                H_total += _compute_entropy_at_observer(
+                    Psi_norm_sq, nu, g, (i, j), phi_kernel, kernel_scale
+                )
+        return H_total / (N_x * N_y)
+    else:
+        return _compute_entropy_at_observer(
+            Psi_norm_sq, nu, g, x_observer, phi_kernel, kernel_scale
+        )
+
+
+def _compute_entropy_at_observer(
+    Psi_norm_sq: torch.Tensor,
+    nu: torch.Tensor,
+    g: Optional[torch.Tensor],
+    x_obs: Tuple[int, int],
+    phi_kernel: str,
+    kernel_scale: float
+) -> torch.Tensor:
+    """Compute entropy from perspective of observer at x_obs."""
+    N_x, N_y = Psi_norm_sq.shape
+    i_obs, j_obs = x_obs
+    
+    # Observer's perception exponent
+    nu_x = nu[i_obs, j_obs]
+    
+    # Variable-order scaling: |Ψ(y)|^{2ν(x)}
+    Psi_scaled = Psi_norm_sq ** nu_x  # (N_x, N_y)
+    
+    # Build spatial kernel φ(x,y)
+    if phi_kernel == 'local':
+        # φ(x,y) = δ(x-y) - only observe at own location
+        phi_weights = torch.zeros_like(Psi_norm_sq)
+        phi_weights[i_obs, j_obs] = 1.0
+    
+    elif phi_kernel == 'gaussian':
+        # φ(x,y) = exp(-|x-y|²/σ²)
+        i_grid = torch.arange(N_x, device=Psi_norm_sq.device).view(-1, 1)
+        j_grid = torch.arange(N_y, device=Psi_norm_sq.device).view(1, -1)
+        
+        dist_sq = (i_grid - i_obs) ** 2 + (j_grid - j_obs) ** 2
+        phi_weights = torch.exp(-dist_sq / (2 * kernel_scale ** 2))
+        phi_weights = phi_weights / phi_weights.sum()  # Normalize
+    
+    elif phi_kernel == 'uniform':
+        # φ(x,y) = 1 - all field points weighted equally
+        phi_weights = torch.ones_like(Psi_norm_sq) / (N_x * N_y)
+    
+    else:
+        raise ValueError(f"Unknown kernel: {phi_kernel}")
+    
+    # Riemannian volume element: √det(g)
+    if g is not None:
+        # g is (N_x, N_y, n, n) metric tensor
+        # Compute determinant at each spatial point
+        det_g = torch.linalg.det(g)  # (N_x, N_y)
+        sqrt_det_g = torch.sqrt(torch.abs(det_g) + 1e-8)
+    else:
+        # Flat space: √det(g) = 1
+        sqrt_det_g = torch.ones_like(Psi_norm_sq)
+    
+    # Integration: ∫ |Ψ|^{2ν} φ(x,y) √det(g) dV
+    H = torch.sum(Psi_scaled * phi_weights * sqrt_det_g)
+    
+    return H
+
+
+def compute_entropy_gradient_wrt_nu(
+    Psi: torch.Tensor,
+    nu: torch.Tensor,
+    g: Optional[torch.Tensor] = None,
+    phi_kernel: str = 'gaussian',
+    kernel_scale: float = 2.0,
+    x_observer: Optional[Tuple[int, int]] = None,
+    eps: float = 1e-12
+) -> torch.Tensor:
+    """
+    Compute ∂H^{(ν)}/∂ν for adaptive dynamics.
+    
+    Derivative:
+        ∂H/∂ν(x) = ∫ |Ψ(y)|^{2ν(x)} log|Ψ(y)|² φ(x,y) √det(g) dV_y
+    
+    Args:
+        Same as compute_variable_order_entropy
+        
+    Returns:
+        grad_nu: Gradient (N_x, N_y) for adaptive update
+    
+    Used in:
+        dν/dt = -η ∂H/∂ν  (minimize entropy, maximize info extraction)
+    """
+    N_x, N_y, D, _ = Psi.shape
+    
+    # Compute |Ψ(y)|²
+    Psi_norm_sq = torch.sum(torch.abs(Psi) ** 2, dim=(-2, -1))  # (N_x, N_y)
+    log_Psi_sq = torch.log(Psi_norm_sq + eps)
+    
+    # Compute gradient at each observer location
+    grad_nu = torch.zeros_like(nu)
+    
+    for i in range(N_x):
+        for j in range(N_y):
+            nu_ij = nu[i, j]
+            
+            # |Ψ|^{2ν} * log|Ψ|²
+            Psi_scaled = (Psi_norm_sq ** nu_ij) * log_Psi_sq
+            
+            # Build kernel for this observer
+            if phi_kernel == 'gaussian':
+                i_grid = torch.arange(N_x, device=Psi.device).view(-1, 1)
+                j_grid = torch.arange(N_y, device=Psi.device).view(1, -1)
+                dist_sq = (i_grid - i) ** 2 + (j_grid - j) ** 2
+                phi_weights = torch.exp(-dist_sq / (2 * kernel_scale ** 2))
+                phi_weights = phi_weights / phi_weights.sum()
+            elif phi_kernel == 'local':
+                phi_weights = torch.zeros_like(Psi_norm_sq)
+                phi_weights[i, j] = 1.0
+            else:
+                phi_weights = torch.ones_like(Psi_norm_sq) / (N_x * N_y)
+            
+            # Riemannian volume
+            if g is not None:
+                det_g = torch.linalg.det(g)
+                sqrt_det_g = torch.sqrt(torch.abs(det_g) + eps)
+            else:
+                sqrt_det_g = torch.ones_like(Psi_norm_sq)
+            
+            # Integrate
+            grad_nu[i, j] = torch.sum(Psi_scaled * phi_weights * sqrt_det_g)
+    
+    return grad_nu

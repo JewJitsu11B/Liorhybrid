@@ -254,8 +254,16 @@ class StreamingTextDataset(IterableDataset):
                         data = json.loads(line)
                         text_content = data.get('text', data.get('content', ''))
                         if text_content and len(text_content) >= 10:
-                            token_ids = self.tokenizer.encode(text_content, max_length=self.max_length)
-                            if len(token_ids) >= 5:
+                            token_ids = self.tokenizer.encode(text_content, max_length=self.max_length * 2)  # Allow longer for sliding window
+                            
+                            # Handle long sequences with sliding window
+                            if len(token_ids) > self.max_length:
+                                stride = self.max_length // 2
+                                for i in range(0, len(token_ids) - self.max_length + 1, stride):
+                                    window_tokens = token_ids[i:i + self.max_length]
+                                    if len(window_tokens) >= 5:
+                                        yield self._make_example(window_tokens)
+                            elif len(token_ids) >= 5:
                                 yield self._make_example(token_ids)
                     except json.JSONDecodeError:
                         continue
@@ -263,8 +271,16 @@ class StreamingTextDataset(IterableDataset):
                 for line in text.split('\n'):
                     line = line.strip()
                     if line and len(line) >= 10:
-                        token_ids = self.tokenizer.encode(line, max_length=self.max_length)
-                        if len(token_ids) >= 5:
+                        token_ids = self.tokenizer.encode(line, max_length=self.max_length * 2)  # Allow longer for sliding window
+                        
+                        # Handle long sequences with sliding window
+                        if len(token_ids) > self.max_length:
+                            stride = self.max_length // 2
+                            for i in range(0, len(token_ids) - self.max_length + 1, stride):
+                                window_tokens = token_ids[i:i + self.max_length]
+                                if len(window_tokens) >= 5:
+                                    yield self._make_example(window_tokens)
+                        elif len(token_ids) >= 5:
                             yield self._make_example(token_ids)
         except Exception as e:
             print(f"[StreamingTextDataset] Error reading {file_path}: {e}")

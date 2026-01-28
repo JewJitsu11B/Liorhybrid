@@ -88,6 +88,13 @@ class TrainingMetrics:
     # Moving averages (for smoothing)
     avg_loss: float = 0.0
     avg_batch_time: float = 0.0
+    
+    # Symplectic integrator diagnostics
+    kinetic_energy: float = 0.0
+    potential_energy: float = 0.0
+    total_hamiltonian_energy: float = 0.0
+    energy_drift: float = 0.0  # Drift from initial energy
+    energy_drift_percent: float = 0.0
 
 
 class MetricsLogger:
