@@ -7,7 +7,7 @@ Three “agents” per main folder:
 
 ## core/
 - SOTA Attention: Lacks field-theoretic state; attention O(N²) token similarity vs core’s cognitive tensor field with geometric evolution and fractional memory.
-- JAMBA: Jamba SSM is empirical O(N) state expansion; core uses physics-grounded field dynamics with constant-memory recurrence.
+- JAMBA: JAMBA SSM is empirical O(N) state expansion; core uses physics-grounded field dynamics with constant-memory recurrence.
 - Real-World Value: Provides physically consistent state evolution for reasoning/simulation domains (science, robotics), not just text.
 
 ## kernels/
@@ -21,13 +21,13 @@ Three “agents” per main folder:
 - Real-World Value: Supports structured reasoning and multimodal alignment under one metric, aiding scientific and spatial tasks.
 
 ## training/
-- SOTA Attention: Typical trainers focus on loss/optimizer; this folder enforces device invariants, geometric costs, and free-phase to nudged-phase contrastive physics loops.
+- SOTA Attention: Typical trainers focus on loss/optimizer; this folder enforces device invariants, geometric costs, and free-to-nudged-phase contrastive physics loops.
 - JAMBA: Training is tuned for hybrid blocks; here training keeps geometry intact (frames, curvature, rotors) rather than attention/SSM heuristics.
 - Real-World Value: Stable physics-aware training reduces drift and improves interpretability for regulated or safety-critical workflows.
 
 ## inference/
 - SOTA Attention: Inference mirrors training but often diverges for efficiency; inference/ keeps O(N) geometric stack consistent with training kernels.
-- JAMBA: Jamba compresses into SSM for inference; here the same fractional/geometry stack is reused to avoid train/infer mismatch.
+- JAMBA: JAMBA compresses into SSM for inference; here the same fractional/geometry stack is reused to avoid train/infer mismatch.
 - Real-World Value: Predictable deployment behavior with the same manifold and memory properties as training, simplifying validation.
 
 ## multimodal_heads/
