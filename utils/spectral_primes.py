@@ -83,7 +83,7 @@ def von_mangoldt(n: int, primes: Optional[np.ndarray] = None) -> float:
     
     Args:
         n: Input integer
-        primes: Optional precomputed primes array
+        primes: Optional precomputed primes array (unused, kept for API compatibility)
         
     Returns:
         Λ(n)
@@ -92,11 +92,9 @@ def von_mangoldt(n: int, primes: Optional[np.ndarray] = None) -> float:
         return 0.0
         
     factors = prime_factors(n)
-    if len(factors) == 0:
-        return 0.0
         
-    # Check if all factors are the same (i.e., n = p^k)
-    if len(set(factors)) == 1:
+    # Check if all factors are the same (i.e., n = p^k for prime p, k ≥ 1)
+    if len(factors) > 0 and len(set(factors)) == 1:
         return np.log(factors[0])
     else:
         return 0.0
@@ -178,9 +176,6 @@ def encode_primes_to_field(
                 # Encode prime p at position (i+1, i+1)
                 T[n, i+1, i+1] = np.log(p)
                 
-        # Add small random perturbation for full-rank (optional)
-        # T[n] += 0.01 * torch.randn(d_field, d_field, dtype=torch.complex64, device=device)
-                
     return T
 
 
@@ -221,7 +216,11 @@ def spectral_decomposition(
         try:
             eigs = torch.linalg.eigvalsh(T_herm)
             eigs = torch.sort(torch.abs(eigs), descending=True)[0]
-        except:
+        except (RuntimeError, torch.linalg.LinAlgError) as e:
+            # Log warning if eigenvalue computation fails
+            if n % 100 == 0:  # Only log every 100th failure to avoid spam
+                import warnings
+                warnings.warn(f"Eigenvalue computation failed at n={n}: {e}")
             eigs = torch.zeros(d_field, device=device)
             
         eigenvalues_list.append(eigs)
@@ -230,7 +229,11 @@ def spectral_decomposition(
         try:
             U, S, Vh = torch.linalg.svd(T_n, full_matrices=False)
             singular_values_list.append(S)
-        except:
+        except (RuntimeError, torch.linalg.LinAlgError) as e:
+            # Log warning if SVD fails
+            if n % 100 == 0:  # Only log every 100th failure to avoid spam
+                import warnings
+                warnings.warn(f"SVD computation failed at n={n}: {e}")
             singular_values_list.append(torch.zeros(d_field, device=device))
         
     eigenvalues = torch.stack(eigenvalues_list)  # [n_max, d_field]
@@ -347,6 +350,11 @@ def gue_distribution(s: torch.Tensor) -> torch.Tensor:
     
     P_GUE(s) = (32/π²) s² exp(-4s²/π)
     
+    This is the Wigner surmise for GUE (random Hermitian matrices).
+    The constant 32/π² ensures normalization: ∫₀^∞ P(s) ds = 1
+    
+    Reference: Mehta, M.L. (2004) "Random Matrices", Section 2.5
+    
     Args:
         s: Normalized spacing values
         
@@ -386,9 +394,10 @@ def visualize_prime_field(
     cumulative = np.cumsum(real_part)
     
     # Theoretical π(n) ~ n / log(n) (Prime Number Theorem)
-    n_range = np.arange(2, n_max + 1)
-    theoretical = n_range / np.log(n_range)
-    theoretical_cumsum = np.cumsum(np.concatenate([[0], theoretical[:-1]]))
+    # Create array of expected prime counts at each n
+    theoretical_cumsum = np.zeros(n_max)
+    for i in range(2, n_max):
+        theoretical_cumsum[i] = i / np.log(i)
     
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     

@@ -130,8 +130,9 @@ def demo_zeta_modes(n_max=5000, d_field=16):
         period = 1 / abs(freq) if abs(freq) > 1e-10 else float('inf')
         print(f"{i+1:<6} {freq:<15.6f} {amp:<15.2f} {period:<15.2f}")
     
-    # Compare to known zeta zeros (first few imaginary parts)
-    # Source: https://www.lmfdb.org/zeros/zeta/
+    # Compare to known zeta zeros (first 10 imaginary parts, truncated list)
+    # Full list available at: https://www.lmfdb.org/zeros/zeta/
+    # Note: This is only a small sample for demonstration purposes
     known_zeta_zeros = [14.134725, 21.022040, 25.010858, 30.424876, 32.935062,
                         37.586178, 40.918719, 43.327073, 48.005151, 49.773832]
     
