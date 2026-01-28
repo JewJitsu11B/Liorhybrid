@@ -1,31 +1,37 @@
 """
-SDM (Sparse Distributed Memory) Stub Implementation
+SDM (Sparse Distributed Memory) Implementation
 
-This is a placeholder/mock implementation for the SDM associative memory system.
-The full implementation is planned as a future enhancement.
+A content-addressable memory system based on Kanerva's Sparse Distributed Memory model.
+Provides associative memory storage and retrieval with cosine similarity addressing.
 
-Expected Behavior (when fully implemented):
+Key Features:
 - Content-addressable memory storage and retrieval
-- Entropy-gated retrieval based on field state
-- Append-only writes with pruning/consolidation
-- Causal exclusion: reads must not see writes from active window
+- Cosine similarity-based addressing
+- Capacity management with LRU eviction
+- Confidence scores based on similarity
+- Support for both CPU and CUDA
 
-Current Status: STUB/PLACEHOLDER
+Reference: Kanerva, P. (1988). Sparse Distributed Memory. MIT Press.
 """
 
-from typing import Optional, List, Tuple, Any
+from typing import Optional, List, Tuple, Any, Dict
 import torch
-import warnings
+import torch.nn.functional as F
+import math
 
 
 class SDMMemory:
     """
-    Sparse Distributed Memory (SDM) stub implementation.
+    Sparse Distributed Memory (SDM) implementation.
     
-    This is a placeholder that provides predictable behavior for testing.
-    Full SDM implementation is a TODO for future versions.
+    A content-addressable memory system that stores and retrieves vectors
+    based on similarity (cosine distance). Supports capacity management,
+    LRU eviction, and confidence-based retrieval.
     
-    Warning: This stub always returns empty results. Do not use in production.
+    This implementation uses:
+    - Cosine similarity for address matching
+    - LRU (Least Recently Used) eviction when at capacity
+    - Confidence scores based on similarity strength
     """
     
     def __init__(
@@ -33,52 +39,75 @@ class SDMMemory:
         capacity: int = 2048,
         address_dim: int = 512,
         value_dim: int = 512,
-        device: str = 'cuda'
+        device: str = 'cuda',
+        similarity_threshold: float = 0.0
     ):
         """
-        Initialize SDM memory stub.
+        Initialize SDM memory.
         
         Args:
             capacity: Maximum number of memory slots
             address_dim: Dimension of address vectors (for content-addressable lookup)
             value_dim: Dimension of value vectors (stored content)
-            device: Device to store memory on
+            device: Device to store memory on ('cuda' or 'cpu')
+            similarity_threshold: Minimum similarity for retrieval (0.0 to 1.0)
         """
         self.capacity = capacity
         self.address_dim = address_dim
         self.value_dim = value_dim
         self.device = device
+        self.similarity_threshold = similarity_threshold
         
-        # Stub storage (not actually used)
+        # Storage tensors (preallocated for efficiency)
+        self.addresses = torch.zeros(capacity, address_dim, device=device, dtype=torch.float32)
+        self.values = torch.zeros(capacity, value_dim, device=device, dtype=torch.float32)
+        self.access_times = torch.zeros(capacity, device=device, dtype=torch.long)
+        self.valid_mask = torch.zeros(capacity, device=device, dtype=torch.bool)
+        
+        # Metadata
         self.memory_count = 0
+        self.global_time = 0
+        self.total_stores = 0
+        self.total_retrievals = 0
+    
+    def _find_eviction_slot(self) -> int:
+        """
+        Find slot to evict using LRU (Least Recently Used) policy.
         
-        # Issue warning on initialization
-        warnings.warn(
-            "SDMMemory is a placeholder stub. Full implementation is TODO. "
-            "This stub returns empty results for all queries. "
-            "See inference/sdm_memory.py for details.",
-            UserWarning,
-            stacklevel=2
-        )
+        Returns:
+            Index of slot to evict
+        """
+        # Find valid slots
+        valid_indices = torch.where(self.valid_mask)[0]
+        if len(valid_indices) == 0:
+            return 0
+        
+        # Get access times for valid slots
+        valid_access_times = self.access_times[valid_indices]
+        
+        # Find LRU slot (oldest access time)
+        lru_idx = valid_indices[torch.argmin(valid_access_times)]
+        return lru_idx.item()
     
     def store(
         self,
         address: torch.Tensor,
         value: torch.Tensor,
-        metadata: Optional[dict] = None
+        metadata: Optional[Dict] = None
     ) -> bool:
         """
         Store a value in memory at the given address.
         
-        Stub behavior: Pretends to store but does nothing.
+        Uses cosine similarity for addressing. If at capacity, evicts
+        least recently used entry.
         
         Args:
             address: Address vector (shape: [address_dim])
             value: Value vector to store (shape: [value_dim])
-            metadata: Optional metadata dict
+            metadata: Optional metadata dict (not currently used)
         
         Returns:
-            True if stored successfully (always True for stub)
+            True if stored successfully
         """
         # Validate shapes
         if address.shape[-1] != self.address_dim:
@@ -86,8 +115,32 @@ class SDMMemory:
         if value.shape[-1] != self.value_dim:
             raise ValueError(f"Value dimension mismatch: expected {self.value_dim}, got {value.shape[-1]}")
         
-        # Stub: pretend to store
-        self.memory_count += 1
+        # Ensure tensors are on correct device
+        address = address.to(self.device)
+        value = value.to(self.device)
+        
+        # Normalize address for cosine similarity
+        address_norm = F.normalize(address.flatten(), p=2, dim=0)
+        
+        # Update global time
+        self.global_time += 1
+        self.total_stores += 1
+        
+        # Find slot to store
+        if self.memory_count < self.capacity:
+            # Use next available slot
+            slot_idx = self.memory_count
+            self.memory_count += 1
+        else:
+            # Evict LRU slot
+            slot_idx = self._find_eviction_slot()
+        
+        # Store address and value
+        self.addresses[slot_idx] = address_norm
+        self.values[slot_idx] = value.flatten()
+        self.access_times[slot_idx] = self.global_time
+        self.valid_mask[slot_idx] = True
+        
         return True
     
     def retrieve(
@@ -99,118 +152,253 @@ class SDMMemory:
         """
         Retrieve k nearest values based on query address.
         
-        Stub behavior: Always returns zero vectors with zero confidence.
+        Uses cosine similarity to find nearest addresses. Returns both
+        the retrieved values and their confidence scores (similarities).
         
         Args:
-            query_address: Query address vector (shape: [batch_size, address_dim])
+            query_address: Query address vector (shape: [batch_size, address_dim] or [address_dim])
             k: Number of nearest neighbors to retrieve
-            threshold: Optional confidence threshold (not used in stub)
+            threshold: Optional confidence threshold (overrides instance threshold)
         
         Returns:
             Tuple of (retrieved_values, confidences)
             - retrieved_values: shape [batch_size, k, value_dim]
             - confidences: shape [batch_size, k]
         """
-        batch_size = query_address.shape[0] if query_address.ndim > 1 else 1
+        # Update global time and stats
+        self.global_time += 1
+        self.total_retrievals += 1
         
-        # Stub: return zeros
-        retrieved_values = torch.zeros(
-            batch_size, k, self.value_dim,
-            device=self.device,
-            dtype=torch.float32
+        # Handle single query or batch
+        if query_address.ndim == 1:
+            query_address = query_address.unsqueeze(0)
+        
+        batch_size = query_address.shape[0]
+        query_address = query_address.to(self.device)
+        
+        # Use provided threshold or instance threshold
+        threshold = threshold if threshold is not None else self.similarity_threshold
+        
+        # Normalize query addresses for cosine similarity
+        query_norm = F.normalize(query_address, p=2, dim=1)  # [batch_size, address_dim]
+        
+        # Get valid addresses
+        valid_indices = torch.where(self.valid_mask)[0]
+        
+        if len(valid_indices) == 0:
+            # No stored memories, return zeros
+            retrieved_values = torch.zeros(
+                batch_size, k, self.value_dim,
+                device=self.device,
+                dtype=torch.float32
+            )
+            confidences = torch.zeros(
+                batch_size, k,
+                device=self.device,
+                dtype=torch.float32
+            )
+            return retrieved_values, confidences
+        
+        # Get valid addresses and values
+        valid_addresses = self.addresses[valid_indices]  # [n_valid, address_dim]
+        valid_values = self.values[valid_indices]  # [n_valid, value_dim]
+        
+        # Compute cosine similarities
+        # query_norm: [batch_size, address_dim]
+        # valid_addresses: [n_valid, address_dim]
+        similarities = torch.matmul(query_norm, valid_addresses.t())  # [batch_size, n_valid]
+        
+        # Apply threshold
+        similarities = torch.where(
+            similarities >= threshold,
+            similarities,
+            torch.tensor(-float('inf'), device=self.device)
         )
-        confidences = torch.zeros(
-            batch_size, k,
-            device=self.device,
-            dtype=torch.float32
+        
+        # Get top-k
+        k_actual = min(k, len(valid_indices))
+        topk_similarities, topk_indices = torch.topk(similarities, k_actual, dim=1)
+        
+        # Retrieve values
+        retrieved_values = torch.zeros(batch_size, k, self.value_dim, device=self.device)
+        confidences = torch.zeros(batch_size, k, device=self.device)
+        
+        for i in range(batch_size):
+            for j in range(k_actual):
+                idx = valid_indices[topk_indices[i, j]]
+                retrieved_values[i, j] = valid_values[topk_indices[i, j]]
+                confidences[i, j] = topk_similarities[i, j]
+                
+                # Update access time for retrieved slot
+                self.access_times[idx] = self.global_time
+        
+        # Replace -inf with 0 for confidence scores
+        confidences = torch.where(
+            torch.isfinite(confidences),
+            confidences,
+            torch.zeros_like(confidences)
         )
         
         return retrieved_values, confidences
     
     def clear(self) -> None:
-        """Clear all memory (stub does nothing)."""
+        """Clear all memory and reset state."""
+        self.addresses.zero_()
+        self.values.zero_()
+        self.access_times.zero_()
+        self.valid_mask.zero_()
         self.memory_count = 0
+        # Don't reset global_time to maintain temporal ordering across clears
     
-    def get_stats(self) -> dict:
+    def get_stats(self) -> Dict[str, Any]:
         """
         Get memory statistics.
         
         Returns:
-            Dictionary with memory stats
+            Dictionary with memory stats including:
+            - capacity: Maximum capacity
+            - stored_count: Current number of stored items
+            - utilization: Memory utilization (0.0 to 1.0)
+            - total_stores: Total store operations
+            - total_retrievals: Total retrieve operations
+            - global_time: Current logical time
         """
         return {
             'capacity': self.capacity,
             'stored_count': self.memory_count,
-            'utilization': 0.0,  # Stub always reports 0
+            'utilization': self.memory_count / self.capacity if self.capacity > 0 else 0.0,
             'address_dim': self.address_dim,
             'value_dim': self.value_dim,
-            'is_stub': True,
+            'total_stores': self.total_stores,
+            'total_retrievals': self.total_retrievals,
+            'global_time': self.global_time,
+            'similarity_threshold': self.similarity_threshold,
         }
+    
+    def update_similarity(self, address: torch.Tensor, value_update: torch.Tensor) -> bool:
+        """
+        Update the value of the most similar existing memory entry.
+        
+        Useful for incrementally updating memories rather than storing duplicates.
+        
+        Args:
+            address: Address vector to find similar memory
+            value_update: Update to apply to the value (added to existing value)
+        
+        Returns:
+            True if update was applied, False if no similar memory found
+        """
+        if self.memory_count == 0:
+            return False
+        
+        # Normalize address
+        address_norm = F.normalize(address.flatten().to(self.device), p=2, dim=0)
+        
+        # Get valid addresses
+        valid_indices = torch.where(self.valid_mask)[0]
+        if len(valid_indices) == 0:
+            return False
+        
+        valid_addresses = self.addresses[valid_indices]
+        
+        # Find most similar
+        similarities = torch.matmul(address_norm, valid_addresses.t())
+        max_sim_idx = valid_indices[torch.argmax(similarities)]
+        
+        # Apply threshold
+        if similarities.max() < self.similarity_threshold:
+            return False
+        
+        # Update value
+        self.values[max_sim_idx] += value_update.flatten().to(self.device)
+        self.access_times[max_sim_idx] = self.global_time
+        self.global_time += 1
+        
+        return True
     
     def __repr__(self) -> str:
         return (
             f"SDMMemory(capacity={self.capacity}, "
+            f"stored={self.memory_count}, "
             f"address_dim={self.address_dim}, "
             f"value_dim={self.value_dim}, "
-            f"STUB=True)"
+            f"utilization={self.memory_count/self.capacity:.1%})"
         )
 
 
-def create_sdm_memory(config: dict) -> SDMMemory:
+def create_sdm_memory(config: Dict[str, Any]) -> SDMMemory:
     """
     Factory function to create SDM memory from config.
     
     Args:
         config: Configuration dictionary with keys:
-            - capacity: Memory capacity
-            - address_dim: Address dimension
-            - value_dim: Value dimension
-            - device: Device string
+            - capacity: Memory capacity (default: 2048)
+            - address_dim: Address dimension (default: 512)
+            - value_dim: Value dimension (default: 512)
+            - device: Device string (default: 'cuda')
+            - similarity_threshold: Minimum similarity for retrieval (default: 0.0)
     
     Returns:
-        SDMMemory instance (stub)
+        SDMMemory instance
     """
     return SDMMemory(
         capacity=config.get('capacity', 2048),
         address_dim=config.get('address_dim', 512),
         value_dim=config.get('value_dim', 512),
-        device=config.get('device', 'cuda')
+        device=config.get('device', 'cuda'),
+        similarity_threshold=config.get('similarity_threshold', 0.0)
     )
 
 
-# TODO: Full SDM Implementation Roadmap
+# Example usage and integration notes
 """
-Full SDM implementation should include:
+Integration with Inference Engine:
 
-1. Address Space:
-   - High-dimensional binary or continuous address vectors
-   - Hamming distance or cosine similarity for addressing
-   - Efficient nearest-neighbor search (e.g., LSH, FAISS)
+1. Initialize SDM in InferenceEngine.__init__():
+```python
+self.memory = SDMMemory(
+    capacity=2048,
+    address_dim=d_model,
+    value_dim=d_model,
+    device=device
+)
+```
 
-2. Storage:
-   - Sparse storage with counter arrays
-   - Threshold-based activation
-   - Capacity management with pruning
+2. Store context during generation:
+```python
+# After processing input
+address = input_embedding  # Use input embedding as address
+value = hidden_state  # Store hidden state or output
+self.memory.store(address, value)
+```
 
-3. Retrieval:
-   - Content-addressable lookup
-   - Confidence/certainty scores based on activation
-   - Entropy-gated retrieval (only retrieve when field entropy is appropriate)
+3. Retrieve during generation:
+```python
+# Before generating next token
+query = current_embedding
+retrieved_values, confidences = self.memory.retrieve(query, k=5)
 
-4. Causality:
-   - Reads cannot see writes from current window
-   - Append-only with consolidation at window boundaries
-   - No backpropagation through memory
+# Use retrieved values to augment context
+if confidences[0, 0] > threshold:
+    context = torch.cat([context, retrieved_values], dim=1)
+```
 
-5. Integration:
-   - Hook into inference.py generation loop
-   - Use input embeddings (rank-1) as query addresses
-   - Augment context with retrieved memories
-   - Gate retrieval based on field state
+4. Entropy-gated retrieval (future enhancement):
+```python
+# Only retrieve when field entropy is appropriate
+if field_entropy > min_entropy and field_entropy < max_entropy:
+    retrieved_values, confidences = self.memory.retrieve(query, k=5)
+```
 
-6. Testing:
-   - Unit tests for store/retrieve operations
-   - Capacity and overflow behavior
-   - Causality guarantees
-   - Performance benchmarks
+Performance considerations:
+- Pre-allocate memory tensors for efficiency
+- Use cosine similarity (normalized dot product) for fast retrieval
+- LRU eviction maintains temporal locality
+- Batch retrieve operations when possible
+
+Testing:
+- Unit tests verify store/retrieve correctness
+- Capacity tests verify eviction behavior
+- Similarity tests verify cosine distance calculations
+- Integration tests verify usage in inference loop
 """

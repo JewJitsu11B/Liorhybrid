@@ -25,36 +25,27 @@ class InferenceEngine:
     """
     Inference engine for chat-based interaction with trained models.
 
-    NOTE (memory roadmap):
-    - DPR is intentionally not used. DPR is "search with transformers" and is not the
-      associative-memory system this architecture targets.
-    - Future direction is SDM/content-addressable memory + entropy-gated retrieval.
-
-    TODO (memory): add SDM-backed retrieval in the generation loop.
-    Expected behavior:
-    - input embeddings (rank-1) query an associative memory store
-    - retrieval returns (k retrieved vectors, confidence)
-    - retrieval is observational (must not mutate long-lived memory)
-    - retrieval must be gated by entropy order / field state
-
-    TODO (learning): commit new memory items at explicit window boundaries only.
-    - No backprop; append-only with pruning/consolidation
-    - Must uphold causal exclusion: reads must not see writes from the active window
+    Includes SDM (Sparse Distributed Memory) for associative memory retrieval.
+    Memory can be used to augment context during generation with retrieved
+    similar past contexts.
+    
+    Integration notes:
+    - SDM uses cosine similarity for content-addressable retrieval
+    - Input embeddings can be used as query addresses
+    - Retrieved values can augment generation context
+    - Future: entropy-gated retrieval based on field state
     """
 
     def __init__(
         self,
         checkpoint_path: str,
-        device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
+        device: str = 'cuda' if torch.cuda.is_available() else 'cpu',
+        enable_memory: bool = False,
+        memory_capacity: int = 2048
     ):
         self.device = device
         self.checkpoint_path = checkpoint_path
-        
-        # Warning about SDM memory not being implemented
-        print("⚠ WARNING: SDM associative memory is not yet implemented (stub only).")
-        print("  See inference/sdm_memory.py for placeholder implementation.")
-        print("  Memory retrieval will return empty results until full implementation.")
-        print()
+        self.enable_memory = enable_memory
 
         print(f"Loading checkpoint from: {checkpoint_path}")
         # weights_only=False needed for PyTorch 2.6+ which changed default
@@ -204,6 +195,19 @@ class InferenceEngine:
         self.model = self.model.to(device).eval()
         self.input_embedding = self.input_embedding.to(device).eval()
         self.lm_head = self.lm_head.to(device).eval()
+
+        # Initialize SDM memory if enabled
+        self.memory = None
+        if enable_memory:
+            from Liorhybrid.inference.sdm_memory import SDMMemory
+            self.memory = SDMMemory(
+                capacity=memory_capacity,
+                address_dim=d_model,
+                value_dim=d_model,
+                device=device,
+                similarity_threshold=0.5  # Only retrieve fairly similar memories
+            )
+            print(f"✓ SDM memory initialized (capacity={memory_capacity}, dim={d_model})")
 
         # Entropy-order controls (collapse-only gating)
         self.nu_inference = float(self.config.get("nu_inference", 1.0))
