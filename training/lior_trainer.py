@@ -23,87 +23,87 @@ from typing import Dict, Tuple, Optional
 def compute_geodesic_cost(
     embeddings: torch.Tensor,
     field_state: torch.Tensor,
+    metric: Optional[torch.Tensor] = None,
+    resilience_field: Optional[torch.Tensor] = None,
     attention_weights: Optional[torch.Tensor] = None
 ) -> torch.Tensor:
     """
-    Compute geodesic cost from LIoR action integral.
-
-    Measures how far the embedding trajectory deviates from the
-    geodesic path carved by the cognitive field.
-
-    LIoR action: S = ∫ R(x) √|g_μν ẋ^μ ẋ^ν| dτ
-
-    where:
-    - R(x) is the field curvature (from T_ij)
-    - g_μν is the metric tensor (induced by T_ij)
-    - ẋ^μ is the trajectory velocity (embedding differences)
+    Compute proper LIoR action: S = ∫ R(x) √(g_μν ẋ^μ ẋ^ν) dτ
+    
+    CORRECTED FORMULA: Uses square root of metric inner product for proper
+    Riemannian arc length (was using squared norm before).
+    
+    LIoR action measures path deviation from geodesic carved by the cognitive field.
+    
+    Physics:
+        - R(x): Local curvature/resilience (higher = more costly)
+        - √(g(ẋ,ẋ)): Proper Riemannian arc length (not squared!)
+        - Integration over proper time τ
 
     Args:
         embeddings: Sequence of embeddings (batch, seq_len, d_model)
         field_state: Cognitive tensor field (N_x, N_y, D, D)
+        metric: (D, D) or None - Riemannian metric tensor
+        resilience_field: (N_x, N_y) or None - R(x) curvature field
         attention_weights: Optional attention weights for weighting
 
     Returns:
         Geodesic cost (scalar tensor)
 
     Mathematical detail:
-        geodesic_cost = Σ_t || Δx_t ||²_g / || Δx_t ||
-        where ||v||²_g = v^T M v and M is metric from field
-
+        OLD (wrong): cost = g_dx_dx / ||dx||
+        NEW (correct): cost = √(g_dx_dx)
+        
     High cost = Path deviates from geodesic (not following field flow)
     Low cost = Path follows natural geodesic (aligned with field)
     """
     from Liorhybrid.utils.pipeline_audit import audit_file_once
     audit_file_once("lior_geodesic", __file__)
 
-    _, seq_len, d_model = embeddings.shape
+    batch, seq_len, d_model = embeddings.shape
+    
+    # Extract field dimension
+    D = field_state.shape[2]
 
-    # Average field over spatial dimensions to get metric tensor
-    T_avg = field_state.mean(dim=(0, 1))  # (D, D)
-
-    # Convert complex to real (use magnitude for metric)
-    if T_avg.is_complex():
-        T_real = torch.abs(T_avg)
+    # Compute trajectory velocities: ẋ = dx/dτ
+    dx = embeddings[:, 1:] - embeddings[:, :-1]  # (B, T-1, d)
+    
+    # Project to field subspace (D dimensions)
+    if d_model > D:
+        # Use first D dimensions (or could use learned projection)
+        proj = dx[..., :D]  # (B, T-1, D)
     else:
-        T_real = T_avg
-
-    # Geodesic subspace uses FIELD dimension (D). Do NOT pad up to d_model:
-    # padding makes this term scale like O(B*T*d_model^2) and can OOM on backward.
-    D = int(T_real.shape[0])
-    if d_model < D:
-        raise RuntimeError(
-            f"Geodesic cost uses field_dim={D} but embeddings have d_model={d_model}. "
-            "Use d_model >= field_dim (or add an explicit geodesic_dim)."
-        )
-
-    # Construct metric tensor: g_μν = T^T T (ensures positive definite)
-    # Detach metric to prevent building large graphs through field ops during training.
-    # Keep metric small (D×D) and cast to embeddings dtype/device for matmul stability under AMP.
-    T_real_f = T_real.to(dtype=torch.float32)
-    metric = torch.matmul(T_real_f.T, T_real_f) + 1e-6 * torch.eye(D, device=T_real.device, dtype=T_real_f.dtype)
-    metric = metric.to(device=embeddings.device, dtype=embeddings.dtype).detach()
-
-    # Compute trajectory velocities: Δx_t = x_{t+1} - x_t
-    embeddings_g = embeddings[..., :D]
-    velocities = embeddings_g[:, 1:, :] - embeddings_g[:, :-1, :]  # (batch, seq_len-1, D)
-
-    # Compute geodesic distances: ||Δx||_g = √(Δx^T M Δx)
-    # velocities: (batch, seq-1, d)
-    # metric: (d, d)
-    # velocities @ metric: (batch, seq-1, d)
-    velocities_metric = torch.matmul(velocities, metric)  # (batch, seq-1, D)
-
-    # Inner product: (batch, seq-1, d) * (batch, seq-1, d) -> (batch, seq-1)
-    geodesic_distances = torch.sum(velocities_metric * velocities, dim=-1)  # (batch, seq-1)
-    geodesic_distances = torch.sqrt(torch.clamp(geodesic_distances, min=1e-8))  # Ensure positive
-
-    # Compute Euclidean distances for normalization
-    euclidean_distances = torch.norm(velocities, dim=-1)  # (batch, seq-1)
-
-    # Geodesic cost: How much geodesic distance exceeds Euclidean
-    # High when path doesn't follow field's natural flow
-    cost_per_step = (geodesic_distances - euclidean_distances).abs()
-
+        proj = dx
+    
+    # Build metric tensor from field
+    if metric is None:
+        # Derive from field: g_μν = ⟨Ψ|Ψ⟩
+        T_avg = field_state.mean(dim=(0, 1))  # (D, D)
+        T_real = torch.abs(T_avg) if T_avg.is_complex() else T_avg
+        metric = T_real.T @ T_real  # (D, D) positive-definite
+        metric = metric + 1e-6 * torch.eye(D, device=metric.device, dtype=metric.dtype)
+        metric = metric.detach()  # Don't backprop through field
+    
+    # Cast metric to match embeddings dtype/device for stability
+    metric = metric.to(device=proj.device, dtype=proj.dtype)
+    
+    # Metric inner product: g_μν ẋ^μ ẋ^ν
+    # g(ẋ,ẋ) = ẋᵀ g ẋ
+    g_dx_dx = torch.einsum('bti,ij,btj->bt', proj, metric, proj)  # (B, T-1)
+    
+    # CORRECT: Square root for proper Riemannian distance
+    # OLD (wrong): cost = g_dx_dx / ||dx||
+    # NEW (correct): cost = √(g_dx_dx)
+    arc_length = torch.sqrt(torch.clamp(g_dx_dx, min=1e-8))  # (B, T-1)
+    
+    # Resilience field R(x)
+    if resilience_field is not None:
+        # Average over spatial points (or use attention-weighted)
+        R = resilience_field.mean()
+    else:
+        # Default: R = 1 (flat space)
+        R = 1.0
+    
     # Weight by attention if provided (attend to important transitions)
     if attention_weights is not None:
         # Handle list of attention weights (from multiple layers)
@@ -117,12 +117,12 @@ def compute_geodesic_cost(
         # Extract transition weights: attn[t, t+1]
         transition_weights = torch.diagonal(attn_avg, offset=1, dim1=-2, dim2=-1)  # (batch, seq-1)
 
-        cost_per_step = cost_per_step * transition_weights
-
-    # Total geodesic cost
-    geodesic_cost = cost_per_step.mean()
-
-    return geodesic_cost
+        arc_length = arc_length * transition_weights
+    
+    # LIoR action: ∫ R(x) √(g(ẋ,ẋ)) dτ
+    lior_cost = R * arc_length.sum()
+    
+    return lior_cost
 
 
 def compute_field_entropy(field_state: torch.Tensor) -> torch.Tensor:

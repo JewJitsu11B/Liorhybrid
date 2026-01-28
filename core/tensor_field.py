@@ -138,6 +138,11 @@ class CognitiveTensorField:
             hbar_cog=self.config.hbar_cog,
             m_cog=self.config.m_cog
         )
+        
+        # Store metric for entropy computation (if available)
+        # In most cases, we use flat space (g = I), but this allows
+        # for future Riemannian geometry support
+        self._current_metric = None  # Default: flat space
 
         # 2. Bayesian recursive term (Paper Eq 4)
         # Extract parameter values (handle both scalar and Parameter cases)
@@ -397,11 +402,33 @@ class CognitiveTensorField:
             return
 
         if use_autograd:
-            # Compute entropy (requires_grad=True from Parameters)
-            H = self.compute_entropy()
+            # Import new variable-order entropy computation
+            from ..utils.metrics import compute_variable_order_entropy
+            
+            # Enable gradients temporarily
+            self.alpha.requires_grad_(True)
+            self.nu.requires_grad_(True)
+            self.tau.requires_grad_(True)
+            
+            # Compute variable-order entropy with current field
+            # Pass metric if available (for Riemannian volume)
+            g = getattr(self, '_current_metric', None)  # Set by evolve_step if available
+            
+            H = compute_variable_order_entropy(
+                Psi=self.T,
+                nu=self.nu,
+                g=g,  # Use curved space if metric available
+                phi_kernel='gaussian',  # Or make configurable
+                kernel_scale=2.0
+            )
 
             # Compute gradients via backpropagation
             H.backward(retain_graph=False)
+            
+            # Disable gradients
+            self.alpha.requires_grad_(False)
+            self.nu.requires_grad_(False)
+            self.tau.requires_grad_(False)
 
         if not apply_grads:
             # Leave grads populated for trainer/optimizer handling
