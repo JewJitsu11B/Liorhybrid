@@ -48,6 +48,9 @@ setup(
     },
     entry_points={
         "console_scripts": [
+            "liorhybrid=Liorhybrid.cli:main",
+            "liorhybrid-train=Liorhybrid.cli:train_entrypoint",
+            "liorhybrid-inference=Liorhybrid.cli:inference_entrypoint",
             "liorhybrid-simple=Liorhybrid.examples.simple_evolution:main",
         ],
     },

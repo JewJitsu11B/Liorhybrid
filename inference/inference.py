@@ -49,10 +49,26 @@ class InferenceEngine:
     ):
         self.device = device
         self.checkpoint_path = checkpoint_path
+        
+        # Warning about SDM memory not being implemented
+        print("⚠ WARNING: SDM associative memory is not yet implemented (stub only).")
+        print("  See inference/sdm_memory.py for placeholder implementation.")
+        print("  Memory retrieval will return empty results until full implementation.")
+        print()
 
         print(f"Loading checkpoint from: {checkpoint_path}")
         # weights_only=False needed for PyTorch 2.6+ which changed default
+        # WARNING: Only load checkpoints from trusted sources due to pickle security risks
         checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+
+        # Validate checkpoint schema
+        from Liorhybrid.training.checkpoint_validator import validate_checkpoint_schema
+        try:
+            validate_checkpoint_schema(checkpoint, strict=False)
+        except Exception as e:
+            print(f"⚠ Checkpoint validation warning: {e}")
+            print("⚠ Loading checkpoint anyway - may cause errors if incompatible")
+            print()
 
         self.config = checkpoint.get('config', {})
         print(f"✓ Checkpoint loaded: epoch {checkpoint['epoch']}, step {checkpoint['global_step']}")

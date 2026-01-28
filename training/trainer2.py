@@ -97,6 +97,20 @@ def apply_backend_flags(cfg: "TrainConfig") -> None:
     # NOTE: Do not print every step; print once at startup if desired.
 
 
+def set_random_seed(seed: int) -> None:
+    """Set random seed for reproducibility across all frameworks."""
+    import random
+    import numpy as np
+    
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # For multi-GPU setups
+    
+    print(f"[trainer2] Random seed set to: {seed}")
+
+
 def inference_context():
     # Stronger than no_grad: prevents autograd graph creation and reduces overhead.
     return torch.inference_mode()
@@ -257,6 +271,9 @@ class TrainConfig:
     telemetry_jsonl: bool = True
     telemetry_jsonl_filename: str = "telemetry.jsonl"
 
+    # Reproducibility
+    seed: int = 42                # Random seed for reproducibility (Python, NumPy, PyTorch)
+
     # Timing and debugging
     timing_debug: bool = False
     step_progress_every: int = 0
@@ -379,6 +396,7 @@ def trainer2_entrypoint(
     _trace("entrypoint:start")
     validate_config(cfg)
     _trace("entrypoint:config_validated")
+    set_random_seed(cfg.seed)
     apply_backend_flags(cfg)
     sig = mode_signature(cfg)
     print(f"trainer2 mode: {sig}")
