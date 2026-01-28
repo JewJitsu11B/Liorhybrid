@@ -97,7 +97,8 @@ class CognitiveTensorField:
     def evolve_step(
         self,
         evidence: Optional[torch.Tensor] = None,
-        external_input: Optional[torch.Tensor] = None
+        external_input: Optional[torch.Tensor] = None,
+        g_inv_diag: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
         """
         Single timestep evolution with Bayesian gradient-modulated update.
@@ -123,6 +124,7 @@ class CognitiveTensorField:
         Args:
             evidence: E_ij for Bayesian update (Paper Eq 6)
             external_input: J_ij external stimulus (Paper Eq 1)
+            g_inv_diag: Inverse metric diagonal (D,) for geometry-aware evolution
 
         Returns:
             Updated field T at t + Δt
@@ -132,11 +134,14 @@ class CognitiveTensorField:
         from Liorhybrid.utils.pipeline_audit import audit_file_once
         audit_file_once("field_evolve_step", __file__)
 
-        # 1. Hamiltonian evolution (Paper Eq 2)
-        H_T = hamiltonian_evolution(
+        # 1. Hamiltonian evolution (Paper Eq 2) - metric-aware
+        from ..kernels.hamiltonian import hamiltonian_evolution_with_metric
+        
+        H_T = hamiltonian_evolution_with_metric(
             self.T,
             hbar_cog=self.config.hbar_cog,
-            m_cog=self.config.m_cog
+            m_cog=self.config.m_cog,
+            g_inv_diag=g_inv_diag  # Pass metric (None = flat space)
         )
         
         # Store metric for entropy computation (if available)
@@ -240,16 +245,11 @@ class CognitiveTensorField:
 
     def compute_energy(self) -> float:
         """
-        Compute total Hamiltonian energy of the field.
-
-        Energy definition:
-            E = Re[⟨T|H|T⟩] = Re[Σ_xy Tr(T†(x,y) H[T](x,y))]
-
-        where H[T] is the Hamiltonian evolution operator.
-
+        Compute total Hamiltonian energy E = ⟨T|H|T⟩.
+        
         Returns:
-            Scalar energy value (real number)
-
+            Scalar energy value (real)
+        
         Physical Interpretation:
             - Positive kinetic energy from field gradients (∇²T term)
             - Potential energy from V·T term (if V present)
@@ -257,35 +257,21 @@ class CognitiveTensorField:
             - With Bayesian/memory terms, energy is not conserved (non-unitary)
 
         Paper Section 6.1: Conservation Laws
-
-        Implementation: Vectorized using einsum for efficiency
         """
         # Compute Hamiltonian operator applied to current field
+        from ..kernels.hamiltonian import hamiltonian_evolution
         H_T = hamiltonian_evolution(
             self.T,
             hbar_cog=self.config.hbar_cog,
             m_cog=self.config.m_cog
         )
-
-        # Vectorized computation: E = Re[Σ_xy Tr(T†(x,y) @ H_T(x,y))]
-        # Use einsum to compute all traces in parallel
-        # T†: conjugate transpose over last two dimensions
-        # T_conj @ H_T: element-wise then trace
         
-        # Shape: (N_x, N_y, D, D)
-        T_dag = self.T.conj()  # Conjugate (T†)
-        
-        # Compute T†(x,y) @ H(x,y) for all (x,y) using einsum
-        # 'xyij,xyjk->xyik' means: for each (x,y), matmul the (i,j) and (j,k) matrices
+        # Vectorized energy: E = Re[Σ_xy Tr(T†(x,y) @ H_T(x,y))]
+        T_dag = self.T.conj()
         T_dag_H = torch.einsum('xyij,xyjk->xyik', T_dag, H_T)
+        traces = torch.einsum('xyii->xy', T_dag_H)
+        energy = torch.sum(torch.real(traces)).item()
         
-        # Take trace over last two dimensions: Tr(T†H) for each (x,y)
-        # Diagonal elements: T_dag_H[x,y,i,i] summed over i
-        traces = torch.einsum('xyii->xy', T_dag_H)  # (N_x, N_y)
-        
-        # Sum over all spatial points and take real part
-        energy = torch.real(traces.sum()).item()
-
         return energy
 
     def compute_unitarity_deviation(self) -> float:

@@ -1341,6 +1341,12 @@ def _make_sig_caller(fn: Callable[..., Any], name: str) -> Callable[..., Any]:
         external_nudge: Optional[torch.Tensor] = None,
     ) -> Any:
         T = getattr(field, "T", None)
+        
+        # Extract g_inv_diag from batch for geometry-aware evolution
+        g_inv_diag = None
+        if isinstance(batch, dict) and "_trainer2_g_inv_diag" in batch:
+            g_inv_diag = batch["_trainer2_g_inv_diag"]
+        
         context = {
             "model": model,
             "field": field,
@@ -1351,6 +1357,7 @@ def _make_sig_caller(fn: Callable[..., Any], name: str) -> Callable[..., Any]:
             "external_nudge": external_nudge,
             "external_input": external_nudge,
             "nudge": external_nudge,
+            "g_inv_diag": g_inv_diag,
             "T": T,
             "field_T": T,
             "field_state": T,
@@ -1718,9 +1725,14 @@ def build_default_hooks(model: nn.Module, field: Any, cfg: TrainConfig) -> StepH
         if cfg.dynamics_mode == "symplectic":
             return _symplectic_step_dynamics_impl(field, external_nudge)
 
+        # Extract inverse metric diagonal from batch (for geometry-aware evolution)
+        g_inv_diag = None
+        if isinstance(batch, dict) and "_trainer2_g_inv_diag" in batch:
+            g_inv_diag = batch["_trainer2_g_inv_diag"]
+
         # Original dissipative mode (default for backward compatibility)
         if hasattr(field, "evolve_step"):
-            return field.evolve_step(external_input=external_nudge)
+            return field.evolve_step(external_input=external_nudge, g_inv_diag=g_inv_diag)
         if hasattr(field, "step"):
             return field.step(external_nudge)
         raise RuntimeError("Field does not expose evolve_step or step.")
@@ -1975,6 +1987,18 @@ def run_window(
                 curvature=R_sc.detach(),
                 lior=dlior.detach()
             )
+
+            # Pass metric to field evolution (for geometry-aware Hamiltonian)
+            # Note: geom.g0_inv has dimension coord_dim_n, but tensor field has dimension tensor_dim
+            # Only pass if dimensions match to avoid shape errors
+            if isinstance(batch, dict) and geom is not None and hasattr(geom, 'g0_inv'):
+                g_inv_diag = torch.diagonal(geom.g0_inv)
+                # Check if dimensions are compatible with field
+                # Field T is (N_x, N_y, D, D) where D = tensor_dim
+                # If dimensions don't match, skip metric (use flat space)
+                field_tensor_dim = getattr(field, 'T', None)
+                if field_tensor_dim is not None and g_inv_diag.shape[0] == field_tensor_dim.shape[-1]:
+                    batch["_trainer2_g_inv_diag"] = g_inv_diag
 
             if _t == 0:
                 _trace("run_window:step0:step_dynamics:start")

@@ -202,6 +202,9 @@ class MetricsLogger:
         metrics.field_nu_mean = field.nu.mean().item() if hasattr(field, 'nu') else 0.0
         metrics.field_tau_mean = field.tau.mean().item() if hasattr(field, 'tau') else 0.0
 
+        # Field energy
+        if hasattr(field, 'compute_energy'):
+            metrics.field_energy = field.compute_energy()
         # Field Hamiltonian (energy)
         if hasattr(field, 'compute_hamiltonian'):
             metrics.field_hamiltonian = field.compute_hamiltonian().item()
