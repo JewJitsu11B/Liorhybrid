@@ -54,6 +54,14 @@ class InferenceEngine:
         # weights_only=False needed for PyTorch 2.6+ which changed default
         checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
 
+        # Validate checkpoint schema
+        from Liorhybrid.training.checkpoint_validator import validate_checkpoint_schema
+        try:
+            validate_checkpoint_schema(checkpoint, strict=False)
+        except Exception as e:
+            print(f"⚠ Checkpoint validation warning: {e}")
+            print("Attempting to load anyway...")
+
         self.config = checkpoint.get('config', {})
         print(f"✓ Checkpoint loaded: epoch {checkpoint['epoch']}, step {checkpoint['global_step']}")
 
