@@ -8,6 +8,8 @@ LiorKernel for temporal credit assignment.
 
 CUDA-safe: All operations compatible with torch.compile and CUDA graphs.
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import torch.nn as nn

@@ -3,6 +3,8 @@ Configuration for MoE Framework
 
 Defines all configuration parameters for the mixture-of-experts system.
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 from dataclasses import dataclass, field
 from typing import List, Optional

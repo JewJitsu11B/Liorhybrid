@@ -15,6 +15,8 @@ The couples analogy:
 Key insight: The same interaction does NOT mean the same update,
 because the material remembers how it has been stressed before.
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import torch.nn as nn

@@ -4,6 +4,8 @@ Complete MoE System
 Integrates all components into a complete mixture-of-experts system.
 CUDA-safe with advanced optimizations.
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import torch.nn as nn

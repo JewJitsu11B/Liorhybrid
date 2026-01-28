@@ -5,6 +5,8 @@ Tests the complete evolution loop with all operators.
 
 Paper Reference: Algorithm 1
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import pytest

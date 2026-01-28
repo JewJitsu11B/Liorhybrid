@@ -10,6 +10,8 @@ Key properties tested:
 3. Unit magnitude property of exp(iΘ)
 4. Band regularizer behavior
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import torch.nn as nn

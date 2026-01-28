@@ -4,6 +4,8 @@ Base Expert Module
 Specialized expert modules for domain-specific processing.
 CUDA-safe implementation with efficient operations.
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import torch.nn as nn

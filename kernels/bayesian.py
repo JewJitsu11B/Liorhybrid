@@ -8,6 +8,8 @@ Paper References:
 - Equation (5): Posterior construction B[T]
 - Equation (6): Evidence weighting w_ij
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 from typing import Optional

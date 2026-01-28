@@ -13,6 +13,8 @@ Multimodal support:
 - Images: ViT-style patch embeddings
 - Video: Frame sampling + temporal encoding
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 from .tokenizer import CognitiveTokenizer
 from .embeddings import MultimodalEmbedding

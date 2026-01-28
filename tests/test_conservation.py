@@ -5,6 +5,8 @@ Verifies norm conservation and modified unitarity.
 
 Paper Reference: Section 6.1
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import pytest

@@ -12,6 +12,8 @@ This script:
 
 TODO: Implement full pipeline when token clustering is ready.
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 from Liorhybrid.core import CognitiveTensorField, MNIST_CONFIG

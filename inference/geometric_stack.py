@@ -37,6 +37,8 @@ Complexity:
 
 This is the Option 6 implementation for the Bayesian Cognitive Field system.
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import torch.nn as nn
@@ -145,10 +147,8 @@ class GeometricStack(nn.Module):
         field_dim: int = 4,
         pooling_mode: str = 'mean',
         timing_debug: bool = False,
-        ffn_activation: str = 'swiglu',
-        ffn_expansion_factor: float = None,
         dropout: float = 0.0,
-        **kwargs  # Absorb deprecated DPR params for backwards compat
+        **kwargs  # Absorb deprecated params for backwards compat
     ):
         super().__init__()
 
@@ -166,11 +166,9 @@ class GeometricStack(nn.Module):
                 d_model=d_model,
                 d_field=16,          # 16D = 4 real quaternions (Q_M_re, Q_M_im, Q_H_re, Q_H_im)
                 n_heads=n_heads,
-                expand_factor=ffn_expansion_factor,  # None -> SwiGLU default 8/3
                 use_attention=False, # O(N^2) attention disabled - use GeometricAttention instead
                 alpha=0.5,           # Causal mixing: 0=all memory, 1=all present
                 detach_memory=True,  # O(1) memory per node, no BPTT
-                ffn_activation=ffn_activation,
                 dropout=dropout
             )
             for _ in range(n_layers)

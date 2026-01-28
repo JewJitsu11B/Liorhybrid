@@ -5,6 +5,8 @@ Verifies power-law kernel and long-range memory effects.
 
 Paper Reference: Equations 7-8
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import pytest

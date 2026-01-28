@@ -27,6 +27,8 @@ Spinor-Wedge-Tensor Mapping (K0 -> K1 -> K2):
     K1 (Wedge):  Phi_{mu nu} = psi_bar gamma_{mu nu} psi  [Antisymmetric Torquency]
     K2 (Tensor): Theta_{mu nu} = psi_bar gamma_{(mu} gamma_{nu)} psi  [Symmetric Newtocity]
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import torch.nn as nn

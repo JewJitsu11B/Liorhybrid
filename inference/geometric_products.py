@@ -11,6 +11,8 @@ References:
 - Tensor product: Full correlation structure (no information loss)
 - Spinor product: Rotational features via Clifford algebra
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import math
 import torch

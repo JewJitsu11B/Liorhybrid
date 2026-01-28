@@ -9,8 +9,9 @@ Design constraints:
 - Must not read GPU tensors or call `.item()`; this module only deals with strings/paths.
 - Safe to call inside compiled/AMP regions (no device sync).
 """
-
 from __future__ import annotations
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 from dataclasses import dataclass
 from datetime import datetime, timezone

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Quick validation script for MoE framework."""
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import sys
 from pathlib import Path

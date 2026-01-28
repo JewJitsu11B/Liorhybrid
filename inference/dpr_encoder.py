@@ -15,6 +15,8 @@ References:
 - DPR paper: "Dense Passage Retrieval for Open-Domain Question Answering"
 - HuggingFace: facebook/dpr-ctx_encoder-single-nq-base
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import torch.nn as nn

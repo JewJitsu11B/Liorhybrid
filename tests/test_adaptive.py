@@ -5,6 +5,8 @@ Validates entropy descent and parameter convergence.
 
 Paper Reference: Corollary (Adaptive Learning)
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import pytest

@@ -9,6 +9,8 @@ Tests verify:
 3. LIoR action integral properties
 4. Physical consistency (positive definite, proper scaling)
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import pytest

@@ -9,6 +9,8 @@ Supports reading multiple file formats:
 
 Extracts text content for training the cognitive field.
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import os
 from pathlib import Path
@@ -267,7 +269,7 @@ class UniversalFileReader:
 
 def open_file_dialog(title: str = "Select File", filetypes: Optional[List] = None) -> Optional[str]:
     """
-    Open GUI file picker dialog.
+    Open GUI file picker dialog with Windows-native appearance.
 
     Args:
         title: Dialog title
@@ -279,6 +281,7 @@ def open_file_dialog(title: str = "Select File", filetypes: Optional[List] = Non
     try:
         import tkinter as tk
         from tkinter import filedialog
+        import sys
     except ImportError:
         print("Error: tkinter not available. Cannot open file dialog.")
         return None
@@ -286,20 +289,29 @@ def open_file_dialog(title: str = "Select File", filetypes: Optional[List] = Non
     try:
         # Create hidden root window
         root = tk.Tk()
-        root.withdraw()
+
+        # Windows-native appearance and DPI awareness
+        if sys.platform == 'win32':
+            try:
+                from ctypes import windll
+                windll.shcore.SetProcessDpiAwareness(1)
+            except:
+                pass
+            root.tk.call('tk', 'scaling', 1.5)
 
         # Get screen dimensions
         screen_width = root.winfo_screenwidth()
         screen_height = root.winfo_screenheight()
 
-        # Calculate position (centered with 25% left offset)
-        dialog_width = 600  # Approximate dialog width
-        dialog_height = 400  # Approximate dialog height
-        x = int((screen_width - dialog_width) / 2 - (screen_width * 0.25))
-        y = int((screen_height - dialog_height) / 2)
+        # Larger dialog, centered
+        dialog_width = 1000
+        dialog_height = 700
+        x = (screen_width - dialog_width) // 2
+        y = (screen_height - dialog_height) // 2
 
         # Set position and bring to front
-        root.geometry(f"+{x}+{y}")
+        root.geometry(f"{dialog_width}x{dialog_height}+{x}+{y}")
+        root.withdraw()
         root.attributes('-topmost', True)
         root.lift()
         root.focus_force()
@@ -318,7 +330,7 @@ def open_file_dialog(title: str = "Select File", filetypes: Optional[List] = Non
 
         # Open dialog
         file_path = filedialog.askopenfilename(
-            title=title,
+            title=f"{title} - Liorhybrid",
             filetypes=filetypes
         )
 
@@ -339,7 +351,7 @@ def open_file_dialog(title: str = "Select File", filetypes: Optional[List] = Non
 
 def open_multiple_files_dialog(title: str = "Select Files", filetypes: Optional[List] = None) -> List[str]:
     """
-    Open GUI file picker dialog for MULTIPLE file selection.
+    Open GUI file picker dialog for MULTIPLE file selection with Windows-native appearance.
 
     Args:
         title: Dialog title
@@ -351,6 +363,7 @@ def open_multiple_files_dialog(title: str = "Select Files", filetypes: Optional[
     try:
         import tkinter as tk
         from tkinter import filedialog
+        import sys
     except ImportError:
         print("ERROR: tkinter not available. Cannot open file dialog.")
         print("This may be a WSL/display issue. Use manual mode instead.")
@@ -359,20 +372,29 @@ def open_multiple_files_dialog(title: str = "Select Files", filetypes: Optional[
     try:
         # Create hidden root window
         root = tk.Tk()
-        root.withdraw()
+
+        # Windows-native appearance and DPI awareness
+        if sys.platform == 'win32':
+            try:
+                from ctypes import windll
+                windll.shcore.SetProcessDpiAwareness(1)
+            except:
+                pass
+            root.tk.call('tk', 'scaling', 1.5)
 
         # Get screen dimensions
         screen_width = root.winfo_screenwidth()
         screen_height = root.winfo_screenheight()
 
-        # Calculate position (centered with 25% left offset)
-        dialog_width = 600  # Approximate dialog width
-        dialog_height = 400  # Approximate dialog height
-        x = int((screen_width - dialog_width) / 2 - (screen_width * 0.25))
-        y = int((screen_height - dialog_height) / 2)
+        # Larger dialog, centered
+        dialog_width = 1000
+        dialog_height = 700
+        x = (screen_width - dialog_width) // 2
+        y = (screen_height - dialog_height) // 2
 
         # Set position and bring to front
-        root.geometry(f"+{x}+{y}")
+        root.geometry(f"{dialog_width}x{dialog_height}+{x}+{y}")
+        root.withdraw()
         root.attributes('-topmost', True)
         root.lift()
         root.focus_force()
@@ -391,7 +413,7 @@ def open_multiple_files_dialog(title: str = "Select Files", filetypes: Optional[
 
         # Open dialog (note: askopenfilenames - plural!)
         file_paths = filedialog.askopenfilenames(
-            title=title,
+            title=f"{title} - Liorhybrid",
             filetypes=filetypes
         )
 

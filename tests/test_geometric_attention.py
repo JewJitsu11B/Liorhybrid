@@ -9,6 +9,8 @@ Tests:
 - Attention weight normalization (softmax)
 - Full transformer forward pass
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import pytest

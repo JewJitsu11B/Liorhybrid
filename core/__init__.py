@@ -7,6 +7,8 @@ Main components:
 
 Paper Reference: Section 5 (Implementation)
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 from .config import FieldConfig, get_default_config, MNIST_CONFIG, FAST_TEST_CONFIG
 from .tensor_field import CognitiveTensorField

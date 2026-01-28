@@ -13,6 +13,8 @@ Run this to see:
 Usage:
     python demo_geometric_mamba.py
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import torch.nn as nn

@@ -5,6 +5,8 @@ Structure Validation Script
 Checks that all modules can be imported and basic functionality works.
 Run this after installation to verify the package structure.
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import sys
 from pathlib import Path

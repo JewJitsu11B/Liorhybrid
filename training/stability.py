@@ -17,6 +17,8 @@ Usage:
     level, diag = monitor.analyze("attention_scores", tensor, step=42)
     action = renorm.respond(level, diag, tensor, optimizer)
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 from typing import Dict, Optional

@@ -11,6 +11,8 @@ where ∇H is the gradient of the Hamiltonian energy functional.
 This replaces additive field updates with multiplicative probability updates,
 ensuring energy conservation and preventing field explosion.
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 

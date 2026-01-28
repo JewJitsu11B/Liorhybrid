@@ -8,6 +8,8 @@ Paper References:
 - Equation (13): Discretized evolution
 - Algorithm 1: Full evolution loop
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import torch.nn.functional as F
@@ -134,20 +136,22 @@ class CognitiveTensorField:
         from Liorhybrid.utils.pipeline_audit import audit_file_once
         audit_file_once("field_evolve_step", __file__)
 
-        # 1. Hamiltonian evolution (Paper Eq 2) - metric-aware
+        # 1. Hamiltonian evolution (Paper Eq 2) - metric-aware if g_inv_diag provided
         from ..kernels.hamiltonian import hamiltonian_evolution_with_metric
-        
         H_T = hamiltonian_evolution_with_metric(
             self.T,
             hbar_cog=self.config.hbar_cog,
             m_cog=self.config.m_cog,
-            g_inv_diag=g_inv_diag  # Pass metric (None = flat space)
+            g_inv_diag=g_inv_diag
         )
         
         # Store metric for entropy computation (if available)
         # In most cases, we use flat space (g = I), but this allows
         # for future Riemannian geometry support
         self._current_metric = None  # Default: flat space
+
+        # Cache H_T for fast energy computation
+        self._last_H_T = H_T
 
         # 2. Bayesian recursive term (Paper Eq 4)
         # Extract parameter values (handle both scalar and Parameter cases)
@@ -246,10 +250,13 @@ class CognitiveTensorField:
     def compute_energy(self) -> float:
         """
         Compute total Hamiltonian energy E = ⟨T|H|T⟩.
-        
+
+        Uses cached H_T from last evolve_step() if available (O(1) traces only),
+        otherwise recomputes H_T (for standalone energy checks).
+
         Returns:
             Scalar energy value (real)
-        
+
         Physical Interpretation:
             - Positive kinetic energy from field gradients (∇²T term)
             - Potential energy from V·T term (if V present)
@@ -258,20 +265,30 @@ class CognitiveTensorField:
 
         Paper Section 6.1: Conservation Laws
         """
-        # Compute Hamiltonian operator applied to current field
-        from ..kernels.hamiltonian import hamiltonian_evolution
-        H_T = hamiltonian_evolution(
-            self.T,
-            hbar_cog=self.config.hbar_cog,
-            m_cog=self.config.m_cog
-        )
-        
-        # Vectorized energy: E = Re[Σ_xy Tr(T†(x,y) @ H_T(x,y))]
-        T_dag = self.T.conj()
+        # Try to use cached H_T (fast path)
+        if hasattr(self, '_last_H_T'):
+            H_T = self._last_H_T
+        else:
+            # Fallback: recompute if called standalone (not from evolve_step)
+            from ..kernels.hamiltonian import hamiltonian_evolution
+            H_T = hamiltonian_evolution(
+                self.T,
+                hbar_cog=self.config.hbar_cog,
+                m_cog=self.config.m_cog
+            )
+
+        # Vectorized computation: E = Re[Σ_xy Tr(T†(x,y) @ H_T(x,y))]
+        T_dag = self.T.conj()  # Conjugate (T†)
+
+        # Compute T†(x,y) @ H(x,y) for all (x,y) using einsum
         T_dag_H = torch.einsum('xyij,xyjk->xyik', T_dag, H_T)
-        traces = torch.einsum('xyii->xy', T_dag_H)
-        energy = torch.sum(torch.real(traces)).item()
-        
+
+        # Take trace over last two dimensions: Tr(T†H) for each (x,y)
+        traces = torch.einsum('xyii->xy', T_dag_H)  # (N_x, N_y)
+
+        # Sum over all spatial points and take real part
+        energy = torch.real(traces.sum()).item()
+
         return energy
 
     def compute_unitarity_deviation(self) -> float:

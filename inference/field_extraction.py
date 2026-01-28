@@ -13,6 +13,8 @@ Architecture:
 - Keys capture "what is in memory"
 - Values capture "what to retrieve from memory"
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import torch.nn as nn

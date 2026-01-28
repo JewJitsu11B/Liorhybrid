@@ -12,6 +12,8 @@ Architecture:
     Apply: softmax normalization
     Output: attention_weights @ V
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import torch.nn as nn
@@ -435,10 +437,12 @@ class GeometricAttention(nn.Module):
         # Apply role weights: (batch, seq_len, 64) * (64,)
         similarity = similarity * role_weights.unsqueeze(0).unsqueeze(0)
 
-        # Born gate: |ψ|² normalization (NO SOFTMAX COLLAPSE)
-        # This preserves evidence structure better than softmax
-        weights = similarity.pow(2)
-        weights = weights / (weights.sum(dim=-1, keepdim=True) + 1e-8)
+        # All three gates combined: Born × Gibbs × Softmax
+        tau = self.temperature.clamp(min=1e-8)
+        born = similarity.pow(2)                          # |ψ|² amplitude
+        gibbs = torch.exp(-similarity.abs() / tau)        # exp(-E/T) cost
+        soft = torch.softmax(similarity / tau, dim=-1)    # score distribution
+        weights = born * gibbs * soft
 
         # Weighted combination of neighbor embeddings
         # (batch, seq_len, 64) @ (batch, 64, d_model) -> (batch, seq_len, d_model)

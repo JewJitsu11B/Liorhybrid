@@ -26,6 +26,8 @@ Usage:
 
     cleanup.stop()
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import gc
 import os

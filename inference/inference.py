@@ -3,6 +3,8 @@ Inference Module
 
 Interactive chat interface for running inference on trained models.
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import math
 from typing import Optional, List, Tuple, Dict
@@ -340,16 +342,39 @@ def load_checkpoint_with_gui() -> str:
     try:
         import tkinter as tk
         from tkinter import filedialog
+        import sys
 
         root = tk.Tk()
+
+        # Windows-native appearance
+        if sys.platform == 'win32':
+            try:
+                from ctypes import windll
+                windll.shcore.SetProcessDpiAwareness(1)  # DPI aware
+            except:
+                pass
+            root.tk.call('tk', 'scaling', 1.5)  # Larger UI elements
+
+        # Make dialog larger and centered
+        screen_w = root.winfo_screenwidth()
+        screen_h = root.winfo_screenheight()
+        dialog_w, dialog_h = 900, 600
+        x = (screen_w - dialog_w) // 2
+        y = (screen_h - dialog_h) // 2
+        root.geometry(f"{dialog_w}x{dialog_h}+{x}+{y}")
+
         root.withdraw()  # Hide the main window
+        root.attributes('-topmost', True)
+        root.lift()
+        root.focus_force()
 
         checkpoint_path = filedialog.askopenfilename(
-            title="Select Checkpoint",
+            title="Select Checkpoint - Liorhybrid",
             filetypes=[
                 ("PyTorch Checkpoints", "*.pt *.pth"),
                 ("All Files", "*.*")
-            ]
+            ],
+            initialdir="./checkpoints"
         )
 
         root.destroy()

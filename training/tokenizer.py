@@ -16,6 +16,8 @@ Special tokens:
 - <|endoftext|>: Sequence terminator
 - <|pad|>: Padding token
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import json
 import os

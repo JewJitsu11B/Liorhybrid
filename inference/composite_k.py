@@ -27,6 +27,8 @@ Architecture:
     Output O splits into: (state_update, new_address_block)
     The new_address_block feeds into next Q
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import torch.nn as nn

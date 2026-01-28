@@ -17,6 +17,8 @@ modules may treat these as coordinates in cognitive spacetime and compute
 metrics/curvatures offline; this layer itself remains O(N) and doesn't perform
 neighbor search or distance calculations.
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import torch.nn as nn

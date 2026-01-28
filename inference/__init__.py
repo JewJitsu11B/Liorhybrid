@@ -18,6 +18,8 @@ Architecture (Full Stack):
 This module bridges the physics-based field evolution with
 modern transformer-based inference at O(N log N) complexity.
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 from .geometric_products import (
     wedge_product,

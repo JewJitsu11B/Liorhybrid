@@ -14,6 +14,8 @@ Three internal consistency measures (no external supervision required):
 
 These are the correct convergence signals in the LIoR framework.
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 from typing import Tuple, Optional

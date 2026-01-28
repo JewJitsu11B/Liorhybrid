@@ -42,8 +42,9 @@ FUTURE: Multi-domain coarse/fine embedding system
 - Parameters: n_domains × 2 × dim_per_slot (e.g., 4 domains × 2 × 64 = 512)
 - See training/embeddings.py for implementation scaffold
 """
-
 from __future__ import annotations
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple

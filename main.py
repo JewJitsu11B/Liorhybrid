@@ -6,6 +6,8 @@ Run without arguments for interactive mode:
 
 Or use command line arguments for automation.
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import torch.nn as nn
@@ -110,6 +112,7 @@ def interactive_menu():
     # Main menu
     print("┌─ MAIN MENU ─────────────────────────────────────────────────┐")
     print("│                                                             │")
+    print("│  0. ONE-TOUCH 250M (Load all data, optimal config)          │")
     print("│  1. Quick Start (Geometric Training - Recommended)          │")
     print("│  2. Full Training (Train Everything End-to-End)             │")
     print("│  3. Resume from Checkpoint                                  │")
@@ -122,9 +125,11 @@ def interactive_menu():
     print("│                                                             │")
     print("└─────────────────────────────────────────────────────────────┘")
 
-    choice = input("\n▶ Select option [1-9]: ").strip()
+    choice = input("\n▶ Select option [0-9]: ").strip()
 
-    if choice == '1':
+    if choice == '0':
+        return configure_one_touch_250m()
+    elif choice == '1':
         return configure_geometric_training()
     elif choice == '2':
         return configure_full_training()
@@ -153,6 +158,154 @@ def interactive_menu():
         return interactive_menu()
 
 
+def configure_one_touch_250m():
+    """
+    One-touch 250M parameter configuration.
+    Loads all 14 data files and configures for 250M params as cheaply as possible.
+
+    Cost optimization strategy:
+    - Large vocab (100k) = cheap params (embedding lookups are O(1))
+    - Moderate d_model (768) = balanced memory/compute
+    - More BiQuat layers (20) = O(N log N) cheap
+    - Minimal attention (2) = avoid O(T^2) cost
+    """
+    from pathlib import Path
+
+    print("\n" + "=" * 70)
+    print("  ONE-TOUCH 250M CONFIGURATION")
+    print("  Loads all data files, optimized for 250M params cheaply")
+    print("=" * 70)
+
+    # Find all data files (exclude Zone.Identifier and subdirectories)
+    data_dir = Path('./data')
+    excluded = {'sample', 'temp_merged.txt', 'temp_converted.txt'}  # Skip temp files
+    data_files = []
+
+    for f in data_dir.iterdir():
+        if f.is_file() and not f.name.endswith(':Zone.Identifier'):
+            if f.name not in excluded:
+                data_files.append(str(f))
+
+    print(f"\n  Found {len(data_files)} data files:")
+    total_size_mb = 0
+    for f in sorted(data_files):
+        size_mb = Path(f).stat().st_size / (1024 * 1024)
+        total_size_mb += size_mb
+        print(f"    - {Path(f).name} ({size_mb:.1f} MB)")
+
+    print(f"\n  Total data: {total_size_mb:.1f} MB ({total_size_mb/1024:.2f} GB)")
+
+    # 250M param config - CHEAPEST POSSIBLE
+    # Strategy: Large vocab (free compute), moderate d, more layers, minimal attention
+    vocab_size = 100000   # Large vocab = cheap params (just lookups)
+    d_model = 768         # Moderate dimension
+    n_layers = 20         # BiQuat layers (O(N log N))
+    n_attention_layers = 2  # Minimal attention (O(T^2) is expensive)
+    batch_size = 32       # Reasonable for 24GB VRAM
+    max_seq_len = 512     # Standard context
+    spatial_size = [8, 8]
+
+    # Calculate actual params
+    embed_params = 2 * vocab_size * d_model  # input + output embeddings
+    biquat_params = n_layers * 8 * d_model * d_model  # ~8*d^2 per layer (no FFN)
+    attn_params = n_attention_layers * 4 * d_model * d_model  # ~4*d^2 per attn layer
+    total_params = embed_params + biquat_params + attn_params
+
+    # Calculate computational cost
+    # BiQuat: O(B*T*d^2*L) per forward
+    biquat_flops_per_token = n_layers * 8 * d_model * d_model
+    # Attention: O(B*T^2*d*A) per forward
+    attn_flops_per_seq = n_attention_layers * max_seq_len * max_seq_len * d_model * 4
+    # Total per batch
+    flops_per_batch = batch_size * (max_seq_len * biquat_flops_per_token + attn_flops_per_seq)
+
+    print("\n" + "=" * 70)
+    print("  250M PARAM CONFIG (COMPUTE-OPTIMIZED)")
+    print("=" * 70)
+    print(f"\n  Architecture:")
+    print(f"    vocab_size:        {vocab_size:,} (large = cheap params via embeddings)")
+    print(f"    d_model:           {d_model}")
+    print(f"    n_layers:          {n_layers} (BiQuat, O(N log N))")
+    print(f"    n_attention_layers: {n_attention_layers} (minimal, O(T^2) is expensive)")
+    print(f"    batch_size:        {batch_size}")
+    print(f"    max_seq_len:       {max_seq_len}")
+    print(f"    dynamics_mode:     symplectic (default)")
+
+    print(f"\n  Parameter Breakdown:")
+    print(f"    Embeddings:        {embed_params:,} ({embed_params/1e6:.1f}M) - FREE compute!")
+    print(f"    BiQuat layers:     {biquat_params:,} ({biquat_params/1e6:.1f}M)")
+    print(f"    Attention layers:  {attn_params:,} ({attn_params/1e6:.1f}M)")
+    print(f"    ─────────────────────────────────────")
+    print(f"    TOTAL:             {total_params:,} ({total_params/1e6:.1f}M)")
+
+    print(f"\n  Computational Cost (per batch):")
+    print(f"    BiQuat FLOPs:      {batch_size * max_seq_len * biquat_flops_per_token / 1e9:.2f} GFLOPs")
+    print(f"    Attention FLOPs:   {batch_size * attn_flops_per_seq / 1e9:.2f} GFLOPs")
+    print(f"    Total FLOPs:       {flops_per_batch / 1e9:.2f} GFLOPs/batch")
+    print(f"    FLOPs/param:       {flops_per_batch / total_params:.1f} (lower = cheaper)")
+
+    # Memory estimate
+    param_mem_gb = total_params * 4 / (1024**3)  # fp32
+    act_mem_gb = batch_size * max_seq_len * d_model * 4 * n_layers / (1024**3)
+    print(f"\n  Memory Estimate:")
+    print(f"    Parameters:        {param_mem_gb:.2f} GB (fp32)")
+    print(f"    Activations:       {act_mem_gb:.2f} GB (approx)")
+    print(f"    Total:             {param_mem_gb + act_mem_gb:.2f} GB")
+
+    print("\n" + "=" * 70)
+    print("\n  Starting training automatically...")
+
+    config = {
+        # Skip all prompts - go straight to training
+        'skip_prompts': True,
+
+        # Core training config
+        'mode': 'full',
+        'data_paths': data_files,
+        'data_type': 'text',
+        'use_causal_field': True,
+        'd_model': d_model,
+        'n_layers': n_layers,
+        'n_mamba_layers': n_layers,
+        'n_attention_layers': n_attention_layers,
+        'n_heads': 8,
+        'vocab_size': vocab_size,
+        'max_seq_len': max_seq_len,
+        'batch_size': batch_size,
+        'field_dim': 16,
+        'spatial_size': spatial_size,
+        'max_epochs': 10,
+        'lr': 0.0001,
+        'dropout': 0.0,
+        'adaptive_field': True,
+        'output_dir': './checkpoints/250m',
+        'log_interval': 10,
+
+        # Trainer2 params (skip prompts, use optimal defaults)
+        'trainer_backend': 'trainer2',
+        'trainer2_confirm': False,
+        'dynamics_mode': 'symplectic',
+        'tbptt_window_steps': 64,
+        'trainer2_sdm_capacity': 4096,
+        'retrieval_beta': 5.0,
+        'frame_mode': 'rotor',
+        'R_source': 'constitutive',
+        'rotor_mode': 'stateful',
+        'beta_nudge': 1e-3,
+        'coord_dim_n': 8,
+        'rotor_k': 6,
+
+        # Symplectic params
+        'symplectic_dt': 0.005,
+        'symplectic_m_cog': 1.0,
+        'symplectic_hbar_cog': 0.1,
+        'symplectic_potential': 'harmonic',
+        'symplectic_stiffness': 0.01,
+    }
+
+    return config
+
+
 def config_cost_calculator_menu():
     """Interactive one-shot config cost calculator (params/memory/compute)."""
     from Liorhybrid.utils.cost_estimator import print_estimate
@@ -161,14 +314,17 @@ def config_cost_calculator_menu():
         print("\n" + "=" * 70)
         print("  CONFIG COST CALCULATOR")
         print("=" * 70)
-        print("\nPARAM IMPACT GUIDE:")
-        print("  d_model:    MAJOR - 256=~5M, 512=~20M, 1024=~80M total params")
-        print("  n_layers:   MAJOR - BiQuatCausal blocks, linear scaling")
-        print("  vocab_size: MAJOR - embedding=V*d, LM_head=d*V+V")
-        print("  n_attn:     MODERATE - GeometricAttention layers")
-        print("  max_seq:    MEMORY - positional embed, activations")
-        print("  batch_size: MEMORY - linear GPU memory scaling")
-        print("  spatial:    MEMORY - field grid, 16^2 complex per point")
+
+        # O(...) Complexity Guide
+        print("\n=== PARAMETER COST GUIDE ===")
+        print("d_model:     O(d^2)     Memory: O(B*T*d)     Params: ~d^2 per layer")
+        print("n_layers:    O(L)       Memory: O(L*activations)  Linear scaling")
+        print("n_heads:     O(1)       No param change, affects attention pattern")
+        print("batch_size:  O(B)       Memory: O(B*T*d)     GPU memory linear")
+        print("seq_len:     O(T)       Memory: O(B*T*d)     Attention: O(T^2) if enabled")
+        print("vocab_size:  O(V*d)     Embedding + LM head dominate for large V")
+        print("spatial_size: O(N^2)    Field memory: O(Nx*Ny*D^2)")
+        print("=" * 40)
         print()
 
         def _ask_int(prompt: str, default: int) -> int:
@@ -349,27 +505,45 @@ def configure_geometric_training():
         print("\n" + "=" * 70)
         print("  MODEL CONFIGURATION")
         print("=" * 70)
-        print("\nPARAM IMPACT GUIDE (from actual model code):")
-        print("  d_model:    MAJOR - 256=~5M, 512=~20M, 1024=~80M total params")
-        print("              Each layer adds ~12*d^2 params (FFN=8/3*d + projections)")
-        print("  n_layers:   MAJOR - BiQuatCausal blocks, linear scaling")
-        print("  vocab_size: MAJOR - embedding=V*d, LM_head=d*V+V")
-        print("  n_attn:     MODERATE - GeometricAttention O(N^2) layers")
-        print("  max_seq:    MEMORY - positional embed T*d, activations O(B*T*d)")
-        print("  batch_size: MEMORY/THROUGHPUT - linear GPU memory scaling")
-        print("  spatial:    MEMORY - field grid, 16^2 complex per grid point")
+
+        # O(...) Complexity Guide
+        print("\n=== PARAMETER COST GUIDE ===")
+        print("d_model:     O(d^2)     Memory: O(B*T*d)     Params: ~d^2 per layer")
+        print("n_layers:    O(L)       Memory: O(L*activations)  Linear scaling")
+        print("n_heads:     O(1)       No param change, affects attention pattern")
+        print("batch_size:  O(B)       Memory: O(B*T*d)     GPU memory linear")
+        print("seq_len:     O(T)       Memory: O(B*T*d)     Attention: O(T^2) if enabled")
+        print("vocab_size:  O(V*d)     Embedding + LM head dominate for large V")
+        print("spatial_size: O(N^2)    Field memory: O(Nx*Ny*D^2)")
+        print("=" * 40)
         print()
 
         # Only REAL configurable params
         try:
             d_model = int(input("d_model [256/512/1024] (256): ").strip() or "256")
+            print(f"  -> Params: ~{3 * d_model * d_model * 8 // 3:,} per BiQuat layer")
+
             n_layers = int(input("n_layers [2/4/8] (4): ").strip() or "4")
+            print(f"  -> Total layer params: ~{n_layers * 3 * d_model * d_model * 8 // 3:,}")
+
             n_attention_layers = int(input("n_attention_layers [1/2/4] (2): ").strip() or "2")
+            print(f"  -> Attention params: ~{n_attention_layers * 4 * d_model * d_model:,}")
+
             vocab_size = int(input("vocab_size [8000/16000/32000] (32000): ").strip() or "32000")
+            print(f"  -> Embedding params: {vocab_size * d_model:,} + LM head: {d_model * vocab_size:,}")
+
             max_seq_len = int(input("max_seq_len [256/512/1024] (512): ").strip() or "512")
+            print(f"  -> Positional embed: {max_seq_len * d_model:,} params")
+
             batch_size = int(input("batch_size [16/32/64/128] (64): ").strip() or "64")
+            act_mem_mb = (batch_size * max_seq_len * d_model * 4) / (1024 * 1024)
+            print(f"  -> Activation memory: ~{act_mem_mb:.1f} MB per forward")
+
             spatial_x = int(input("spatial_size X [4/8/16] (8): ").strip() or "8")
             spatial_y = int(input("spatial_size Y [4/8/16] (8): ").strip() or "8")
+            field_mem_mb = (spatial_x * spatial_y * 16 * 16 * 8) / (1024 * 1024)  # 16D complex64
+            print(f"  -> Field memory: ~{field_mem_mb:.2f} MB (complex64)")
+
             max_epochs = int(input("max_epochs [5/10/20] (5): ").strip() or "5")
             lr = float(input("learning_rate [0.0001/0.0003/0.001] (0.0001): ").strip() or "0.0001")
             dropout = float(input("dropout [0.0/0.1/0.2] (0.0): ").strip() or "0.0")
@@ -1316,9 +1490,9 @@ def configure_trainer2_params(config):
     # -------------------------------------------------------------------------
     print("\n[E] DYNAMICS MODE (field evolution)")
     print("-" * 50)
-    print("  dissipative: Standard gradient-based (default)")
-    print("  symplectic: Phase-space preserving (no memory bleed)")
-    config['dynamics_mode'] = input(f"  dynamics_mode [dissipative]: ").strip() or config.get('dynamics_mode', 'dissipative')
+    print("  symplectic: Phase-space preserving (default, no memory bleed)")
+    print("  dissipative: Standard gradient-based")
+    config['dynamics_mode'] = input(f"  dynamics_mode [symplectic]: ").strip() or config.get('dynamics_mode', 'symplectic')
 
     if config['dynamics_mode'] == 'symplectic':
         print("\n  Symplectic parameters (Stormer-Verlet integration):")
@@ -1471,7 +1645,7 @@ def start_training(config):
     # TRAINER2 PARAMS - Configure BEFORE model/dataset creation
     # This allows params like coord_dim_n, rotor_k to influence parameter count
     # =========================================================================
-    if config.get('trainer_backend') == 'trainer2':
+    if config.get('trainer_backend') == 'trainer2' and not config.get('skip_prompts', False):
         config = configure_trainer2_params(config)
 
     print(f"\n▶ Mode: {config['mode']}")

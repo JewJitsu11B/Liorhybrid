@@ -22,6 +22,8 @@ References:
 - Streaming PCA: Oja (1982), incremental SVD algorithms
 - Memory-efficient transformers: various sparse attention papers
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import torch.nn as nn

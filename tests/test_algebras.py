@@ -9,6 +9,8 @@ Tests verify:
 3. Octonion algebra (O): Non-associativity, alternativity, Moufang identities
 4. LIoR Kernel: Power-law decay, O(1) recurrence correctness
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import pytest

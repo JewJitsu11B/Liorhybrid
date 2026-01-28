@@ -4,6 +4,8 @@ BiquatOptimizer: Memory-efficient SGD optimizer for Lie algebra parameters.
 Replaces AdamW to eliminate optimizer state memory overhead.
 AdamW stores 2 tensors per parameter (m, v); this stores none.
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 

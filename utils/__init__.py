@@ -3,6 +3,8 @@ Utilities for Bayesian Cognitive Field
 
 Visualization, metrics, and diagnostics.
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 from .metrics import (
     compute_norm_conservation,

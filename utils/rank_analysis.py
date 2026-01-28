@@ -9,6 +9,8 @@ These utilities help answer:
 2. How much can we compress without losing physics accuracy?
 3. When is low-rank approximation safe vs risky?
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import numpy as np

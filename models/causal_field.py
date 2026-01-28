@@ -30,6 +30,8 @@ Key properties:
     - Complex metric G = A + iB with phase orthogonality
     - No sequential loops over seq_len
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import torch.nn as nn
@@ -513,12 +515,10 @@ class BiQuatCausalBlock(nn.Module):
         d_model: int,
         d_field: int = 16,
         n_heads: int = 8,
-        expand_factor: float = None,
         use_attention: bool = True,
         alpha: float = 0.5,
         detach_memory: bool = True,
         bptt_window: int = 0,
-        ffn_activation: str = 'swiglu',
         dropout: float = 0.0
     ):
         super().__init__()
@@ -548,16 +548,6 @@ class BiQuatCausalBlock(nn.Module):
                 d_model, n_heads, batch_first=True
             )
             self.attn_norm = nn.LayerNorm(d_model)
-
-        # FFN (SwiGLU default for max knowledge per parameter)
-        from .activations import FFN
-        self.ffn = FFN(
-            d_model=d_model,
-            expansion_factor=expand_factor,  # None -> 8/3 for SwiGLU, 4 for legacy
-            activation=ffn_activation,
-            dropout=dropout
-        )
-        self.ffn_norm = nn.LayerNorm(d_model)
 
     @track_first_call
     def forward(
@@ -601,13 +591,7 @@ class BiQuatCausalBlock(nn.Module):
                 print(f"[BiQuatCausalBlock] After attention: nan={x.isnan().any().item()}, "
                       f"inf={x.isinf().any().item()}")
 
-        # FFN
-        residual = x
-        x = self.ffn_norm(residual + self.ffn(x))
-
         if diagnose:
-            print(f"[BiQuatCausalBlock] After FFN: nan={x.isnan().any().item()}, "
-                  f"inf={x.isinf().any().item()}")
             print(f"[BiQuatCausalBlock] END")
             print(f"{'='*60}\n")
 

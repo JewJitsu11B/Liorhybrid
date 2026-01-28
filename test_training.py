@@ -7,6 +7,8 @@ Programmatically tests both architectures:
 
 Run this to verify everything works without interactive prompts.
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import torch.nn as nn

@@ -19,6 +19,8 @@ Quick Start:
     ...     field.evolve_step()
     >>> print(f"Final norm: {field.get_norm_squared():.6f}")
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 from .core import (
     CognitiveTensorField,

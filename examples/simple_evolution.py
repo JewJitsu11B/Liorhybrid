@@ -10,6 +10,8 @@ This script:
 4. Prints diagnostic information
 5. Optionally enables adaptive parameter learning
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import argparse

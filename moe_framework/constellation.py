@@ -4,6 +4,8 @@ Expert Constellation Coordinator
 Coordinates activation of expert constellations.
 CUDA-safe with efficient batched operations.
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import torch.nn as nn

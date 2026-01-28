@@ -17,6 +17,8 @@ Components:
 - GraphReasoningHead: Graph reasoning with parallel transport
 - ControlHead: RL/robotics control using Hamiltonian structure
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 from .audio_head import AudioCausalHead
 from .image_head import ImageManifoldHead

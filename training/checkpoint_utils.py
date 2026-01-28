@@ -9,6 +9,8 @@ Features:
 - Recreate train/val/test splits from saved split_info
 - Run validation on checkpointed models
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 from torch.utils.data import Dataset, Subset, DataLoader

@@ -7,6 +7,8 @@ Paper References:
 - Section 4.2: Collapse as belief selection
 - Implementation Note 4: Reversible information encoding
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 from typing import Optional, Tuple

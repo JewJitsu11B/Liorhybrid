@@ -22,6 +22,8 @@ Table of sections:
 - Section 1: runtime constraints and guards
 - Section 2: config + mode menu + validation
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 # ==============================================================================
 # SECTION 1: HARD runtime constraints + CUDA-only enforcement + no-autograd enforcement
@@ -236,7 +238,7 @@ class TrainConfig:
     # 2.2b Symplectic Dynamics (Phase-Space Preserving Integration)
     # When dynamics_mode="symplectic", field.T evolves via Stormer-Verlet integration
     # preserving phase space volume (Liouville's theorem) to prevent memory rot.
-    dynamics_mode: str = "dissipative"      # "dissipative" | "symplectic"
+    dynamics_mode: str = "symplectic"       # "symplectic" | "dissipative"
     symplectic_dt: float = 0.005            # Integration timestep
     symplectic_m_cog: float = 1.0           # Effective mass (cognitive inertia)
     symplectic_hbar_cog: float = 0.1        # Cognitive Planck constant (for Laplacian term)

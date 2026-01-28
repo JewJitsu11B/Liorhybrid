@@ -4,6 +4,8 @@ Example: Field Evolution with Harmonic Potential
 Demonstrates Bayesian cognitive field evolution in a harmonic potential well.
 Shows how the field behavior changes with different potential landscapes.
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import matplotlib.pyplot as plt

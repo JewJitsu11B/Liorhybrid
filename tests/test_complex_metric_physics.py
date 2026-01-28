@@ -10,6 +10,8 @@ Tests verify:
 4. Phase orthogonality (σ ⊥ λ stability condition)
 5. Spinor bilinear mappings (K₀ → K₁ → K₂)
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import pytest

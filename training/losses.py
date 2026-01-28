@@ -10,6 +10,8 @@ Losses:
 4. Field Regularization: Entropy penalties on field evolution
 5. Band Regularization: Soft penalty for A, B, Θ generator norms outside healthy range
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import torch.nn as nn

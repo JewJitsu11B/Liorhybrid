@@ -3,6 +3,8 @@ Tests for MoE Framework
 
 Basic tests to validate functionality.
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import pytest
 import torch

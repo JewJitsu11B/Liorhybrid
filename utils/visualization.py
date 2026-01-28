@@ -3,6 +3,8 @@ Visualization Utilities for Bayesian Cognitive Field
 
 Plotting correlation matrices, field evolution, eigenspectra.
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import matplotlib.pyplot as plt

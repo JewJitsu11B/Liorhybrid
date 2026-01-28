@@ -28,6 +28,8 @@ Complexity comparison:
     Shampoo: O(√N × √N) state, O(N^1.5) cost, blockwise Fisher
     LIoR:    O(0) state, O(N) cost, TRUE local R(x)
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 from typing import Optional, Callable, Dict, Any

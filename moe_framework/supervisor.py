@@ -4,6 +4,8 @@ Supervisor Gating Module
 Implements sparse attention-based expert selection.
 CUDA-safe with top-k gating mechanism.
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import torch.nn as nn

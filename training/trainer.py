@@ -14,6 +14,8 @@ Features:
 - Logging (TensorBoard compatible)
 - Multi-GPU support (future)
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import os
 

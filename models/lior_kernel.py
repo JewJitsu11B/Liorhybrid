@@ -23,6 +23,8 @@ References:
 - Fractional calculus: Caputo derivative pairs with power-law kernel
 - Phase orthogonality: Sigma (geometric) perp Lambda (spectral) for stability
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import torch.nn as nn

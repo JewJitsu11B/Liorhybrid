@@ -13,6 +13,8 @@ Components:
 - Causal field layer (parallel field evolution with Pi, Gamma, Phi)
 - Activation functions (SwiGLU, FFN)
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 from .language_head import LanguageModelHead
 

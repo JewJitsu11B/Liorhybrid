@@ -7,6 +7,8 @@ References:
 - Paper Equation (1): Master equation
 - Paper Table 1: Parameter reference
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 from dataclasses import dataclass
 import torch

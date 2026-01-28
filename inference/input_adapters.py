@@ -1,4 +1,6 @@
 from __future__ import annotations
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 from dataclasses import dataclass
 from pathlib import Path

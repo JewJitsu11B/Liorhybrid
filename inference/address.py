@@ -23,6 +23,8 @@ Per-neighbor block (d_block = 88):
 - scores: m = 8 (similarity, heap rank, salience)
 - coords: k = 16 (routing info)
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import torch.nn as nn

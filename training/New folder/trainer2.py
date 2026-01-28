@@ -22,6 +22,8 @@ Table of sections:
 - Section 1: runtime constraints and guards
 - Section 2: config + mode menu + validation
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 # ==============================================================================
 # SECTION 1: HARD runtime constraints + CUDA-only enforcement + no-autograd enforcement

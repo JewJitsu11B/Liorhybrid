@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(source:*)",
+      "Bash(conda activate:*)",
+      "Bash(pip install:*)",
+      "Bash(python:*)"
     ]
   }
 }

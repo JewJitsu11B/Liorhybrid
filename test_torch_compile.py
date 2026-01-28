@@ -5,6 +5,8 @@ Tests:
 1. Compatibility - does it compile without errors/graph breaks?
 2. Memory profiling - VRAM comparison eager vs compiled
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import gc

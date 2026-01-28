@@ -18,6 +18,8 @@ Architecture Flow:
 The field acts as a "subconscious mind" that continuously evolves,
 and the transformer acts as "conscious attention" that queries it.
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import argparse

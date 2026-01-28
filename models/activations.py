@@ -10,6 +10,8 @@ References:
 - Shazeer (2020): GLU Variants Improve Transformer
 - PaLM, LLaMA, Mistral all use SwiGLU
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import warnings
 import torch

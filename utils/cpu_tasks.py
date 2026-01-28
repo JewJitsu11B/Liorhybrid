@@ -5,8 +5,9 @@ Use these lightweight functions for tasks that don't benefit from GPU
 acceleration (string munging, file metadata, simple JSON merges).
 Keeping them here avoids accidental GPU execution for small jobs.
 """
-
 from __future__ import annotations
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import json
 from pathlib import Path

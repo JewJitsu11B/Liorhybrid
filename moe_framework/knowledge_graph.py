@@ -4,6 +4,8 @@ Knowledge Graph Module
 Persistent knowledge graph for storing and retrieving expert insights.
 CUDA-safe with GPU-accelerated similarity search.
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import torch.nn.functional as F

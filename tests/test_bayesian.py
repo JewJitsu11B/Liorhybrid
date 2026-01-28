@@ -5,6 +5,8 @@ Verifies posterior construction and evidence weighting.
 
 Paper Reference: Equations 4-6
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 import pytest

@@ -8,6 +8,8 @@ Paper References:
 - Equation (8): Power-law kernel K(τ) = τ^(α-1)/Γ(α)
 - Implementation Note 3: Grünwald-Letnikov discretization
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import torch
 from typing import List, Union

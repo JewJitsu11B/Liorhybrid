@@ -4,6 +4,8 @@ Execution Tracker - First-Call Detection
 Tracks function/method first calls during training for execution flow visibility.
 Logs: function name, module, file location, line number, and calling context.
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 import functools
 import inspect

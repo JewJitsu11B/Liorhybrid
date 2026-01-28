@@ -9,6 +9,8 @@ A sophisticated MoE framework with:
 - Knowledge graph integration
 - CUDA-safe optimizations
 """
+try: import usage_tracker; usage_tracker.track(__file__)
+except: pass
 
 from .config import MoEConfig
 from .expert import BaseExpert
