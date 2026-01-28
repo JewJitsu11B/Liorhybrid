@@ -49,6 +49,12 @@ class InferenceEngine:
     ):
         self.device = device
         self.checkpoint_path = checkpoint_path
+        
+        # Warning about SDM memory not being implemented
+        print("⚠ WARNING: SDM associative memory is not yet implemented (stub only).")
+        print("  See inference/sdm_memory.py for placeholder implementation.")
+        print("  Memory retrieval will return empty results until full implementation.")
+        print()
 
         print(f"Loading checkpoint from: {checkpoint_path}")
         # weights_only=False needed for PyTorch 2.6+ which changed default
