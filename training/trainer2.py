@@ -1964,8 +1964,16 @@ def run_window(
             )
 
             # Pass metric to field evolution (for geometry-aware Hamiltonian)
+            # Note: geom.g0_inv has dimension coord_dim_n, but tensor field has dimension tensor_dim
+            # Only pass if dimensions match to avoid shape errors
             if isinstance(batch, dict) and geom is not None and hasattr(geom, 'g0_inv'):
-                batch["_trainer2_g_inv_diag"] = torch.diagonal(geom.g0_inv)
+                g_inv_diag = torch.diagonal(geom.g0_inv)
+                # Check if dimensions are compatible with field
+                # Field T is (N_x, N_y, D, D) where D = tensor_dim
+                # If dimensions don't match, skip metric (use flat space)
+                field_tensor_dim = getattr(field, 'T', None)
+                if field_tensor_dim is not None and g_inv_diag.shape[0] == field_tensor_dim.shape[-1]:
+                    batch["_trainer2_g_inv_diag"] = g_inv_diag
 
             if _t == 0:
                 _trace("run_window:step0:step_dynamics:start")

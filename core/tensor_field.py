@@ -143,9 +143,6 @@ class CognitiveTensorField:
             m_cog=self.config.m_cog,
             g_inv_diag=g_inv_diag  # Pass metric (None = flat space)
         )
-        
-        # Cache H_T for fast energy computation
-        self._last_H_T = H_T
 
         # 2. Bayesian recursive term (Paper Eq 4)
         # Extract parameter values (handle both scalar and Parameter cases)
@@ -245,9 +242,6 @@ class CognitiveTensorField:
         """
         Compute total Hamiltonian energy E = ⟨T|H|T⟩.
         
-        Uses cached H_T from last evolve_step() if available (O(1) traces only),
-        otherwise recomputes H_T (for standalone energy checks).
-        
         Returns:
             Scalar energy value (real)
         
@@ -258,20 +252,14 @@ class CognitiveTensorField:
             - With Bayesian/memory terms, energy is not conserved (non-unitary)
 
         Paper Section 6.1: Conservation Laws
-
-        Implementation: Vectorized using einsum for efficiency
         """
-        # Try to use cached H_T (fast path)
-        if hasattr(self, '_last_H_T'):
-            H_T = self._last_H_T
-        else:
-            # Fallback: recompute if called standalone (not from evolve_step)
-            from ..kernels.hamiltonian import hamiltonian_evolution
-            H_T = hamiltonian_evolution(
-                self.T,
-                hbar_cog=self.config.hbar_cog,
-                m_cog=self.config.m_cog
-            )
+        # Compute Hamiltonian operator applied to current field
+        from ..kernels.hamiltonian import hamiltonian_evolution
+        H_T = hamiltonian_evolution(
+            self.T,
+            hbar_cog=self.config.hbar_cog,
+            m_cog=self.config.m_cog
+        )
         
         # Vectorized energy: E = Re[Σ_xy Tr(T†(x,y) @ H_T(x,y))]
         T_dag = self.T.conj()

@@ -14,8 +14,8 @@ from ..kernels.hamiltonian import hamiltonian_evolution, hamiltonian_evolution_w
 from ..core import CognitiveTensorField, FAST_TEST_CONFIG
 
 
-def test_compute_energy_works():
-    """Test that compute_energy() method exists and works."""
+def test_energy_computation_works():
+    """Test that compute_energy() method exists and works (no caching)."""
     config = FAST_TEST_CONFIG
     field = CognitiveTensorField(config)
     
@@ -113,27 +113,21 @@ def test_evolve_step_with_metric():
         "Field should evolve with metric-aware Hamiltonian"
 
 
-def test_H_T_caching():
-    """Test that H_T is cached after evolve_step for fast energy computation."""
+def test_energy_computation_no_caching():
+    """Test that energy computation works correctly without caching."""
     config = FAST_TEST_CONFIG
     field = CognitiveTensorField(config)
     
-    # Before evolve_step, no cache should exist
-    assert not hasattr(field, '_last_H_T'), \
-        "H_T should not be cached before evolve_step"
+    # No cache should exist initially
+    assert not hasattr(field, '_last_H_T'), "No cache should exist initially"
     
-    # Run evolve_step
+    # Evolve field
     field.evolve_step()
     
-    # After evolve_step, cache should exist
-    assert hasattr(field, '_last_H_T'), \
-        "H_T should be cached after evolve_step"
+    # Still no cache after evolve (caching removed for physics correctness)
+    assert not hasattr(field, '_last_H_T'), "No cache should exist after evolve_step"
     
-    # Cached H_T should have correct shape
-    assert field._last_H_T.shape == field.T.shape, \
-        "Cached H_T should have same shape as T"
-    
-    # Compute energy (should use cache)
+    # Energy computation should work
     energy = field.compute_energy()
     
     # Energy should be valid
@@ -142,38 +136,27 @@ def test_H_T_caching():
 
 
 def test_energy_computation_consistency():
-    """Test that energy computation uses cache after evolve_step."""
+    """Test that energy computation is consistent."""
     config = FAST_TEST_CONFIG
     field = CognitiveTensorField(config)
     
-    # Before evolve_step, no cache should exist
-    assert not hasattr(field, '_last_H_T'), "Cache should not exist before evolve_step"
+    # Compute energy before evolution
+    energy_before = field.compute_energy()
     
-    # Evolve to populate cache
+    # Evolve field
     field.evolve_step()
     
-    # After evolve_step, cache should exist  
-    assert hasattr(field, '_last_H_T'), "Cache should exist after evolve_step"
-    
-    # Cached H_T should have correct shape
-    assert field._last_H_T.shape == field.T.shape, \
-        "Cached H_T should have same shape as T"
-    
-    # Energy computation should work (uses cache if available)
-    energy = field.compute_energy()
-    
-    # Energy should be valid
-    assert isinstance(energy, float), "Energy should be float"
-    assert torch.isfinite(torch.tensor(energy)), "Energy should be finite"
-    
-    # If we clear the cache and recompute, we should get a different energy
-    # (because the field state changed after evolve_step)
-    delattr(field, '_last_H_T')
-    energy_no_cache = field.compute_energy()
+    # Compute energy after evolution
+    energy_after = field.compute_energy()
     
     # Both should be valid floats
-    assert isinstance(energy_no_cache, float), "Energy without cache should be float"
-    assert torch.isfinite(torch.tensor(energy_no_cache)), "Energy without cache should be finite"
+    assert isinstance(energy_before, float), "Energy before should be float"
+    assert isinstance(energy_after, float), "Energy after should be float"
+    assert torch.isfinite(torch.tensor(energy_before)), "Energy before should be finite"
+    assert torch.isfinite(torch.tensor(energy_after)), "Energy after should be finite"
+    
+    # Energy should change after evolution (non-conservative dynamics)
+    # Don't require specific relationship, just that both are valid
 
 
 def test_metric_aware_evolution_vs_flat():
