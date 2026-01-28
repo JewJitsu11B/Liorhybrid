@@ -1680,6 +1680,29 @@ def build_default_hooks(model: nn.Module, field: Any, cfg: TrainConfig) -> StepH
         # Update field state in-place
         field.T = T_new
         field._symplectic_P = P_new
+        
+        # Compute energy conservation diagnostics (for validation)
+        diagnostics = compute_symplectic_diagnostics(T_new, P_new, T_eq, cfg)
+        
+        # Track energy drift for monitoring
+        if not hasattr(field, '_initial_symplectic_energy'):
+            field._initial_symplectic_energy = diagnostics['total_energy']
+            field._energy_drift = 0.0
+            field._energy_drift_percent = 0.0
+        else:
+            field._energy_drift = diagnostics['total_energy'] - field._initial_symplectic_energy
+            field._energy_drift_percent = 100.0 * field._energy_drift / (abs(field._initial_symplectic_energy) + 1e-8)
+            
+            # Warn if large drift (indicates integrator instability)
+            if abs(field._energy_drift_percent) > 10.0 and cfg.timing_debug:
+                import warnings
+                warnings.warn(
+                    f"Symplectic energy drift {field._energy_drift_percent:.1f}% - check dt/stiffness",
+                    RuntimeWarning
+                )
+        
+        # Store diagnostics on field for metrics logging
+        field._symplectic_diagnostics = diagnostics
 
         return T_new
 

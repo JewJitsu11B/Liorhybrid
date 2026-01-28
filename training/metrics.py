@@ -205,6 +205,17 @@ class MetricsLogger:
         # Field Hamiltonian (energy)
         if hasattr(field, 'compute_hamiltonian'):
             metrics.field_hamiltonian = field.compute_hamiltonian().item()
+        
+        # Symplectic integrator diagnostics (energy conservation)
+        if hasattr(field, '_symplectic_diagnostics'):
+            diag = field._symplectic_diagnostics
+            metrics.kinetic_energy = diag.get('kinetic_energy', 0.0)
+            metrics.potential_energy = diag.get('potential_energy', 0.0)
+            metrics.total_hamiltonian_energy = diag.get('total_energy', 0.0)
+        
+        if hasattr(field, '_energy_drift'):
+            metrics.energy_drift = field._energy_drift
+            metrics.energy_drift_percent = field._energy_drift_percent
 
         # Entropy gradient (for adaptive updates)
         if hasattr(field, 'T') and field.T.requires_grad and field.T.grad is not None:
@@ -383,6 +394,16 @@ class MetricsLogger:
         print(f"  Tau (mean):    {metrics.field_tau_mean:.6f}")
         print(f"  Hamiltonian:   {metrics.field_hamiltonian:.6f}")
         print(f"  |∇H|:          {metrics.field_entropy_gradient_norm:.6f}")
+        
+        # Symplectic energy conservation (if applicable)
+        if metrics.total_hamiltonian_energy != 0.0:
+            print(f"\nENERGY CONSERVATION (Symplectic):")
+            print(f"  Kinetic:       {metrics.kinetic_energy:.6f}")
+            print(f"  Potential:     {metrics.potential_energy:.6f}")
+            print(f"  Total:         {metrics.total_hamiltonian_energy:.6f}")
+            print(f"  Drift:         {metrics.energy_drift:.6f} ({metrics.energy_drift_percent:.2f}%)")
+            if abs(metrics.energy_drift_percent) > 5.0:
+                print(f"  ⚠ WARNING: Energy drift > 5%")
 
         # Gradients
         print(f"\nGRADIENTS:")
