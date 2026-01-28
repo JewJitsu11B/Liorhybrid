@@ -2160,10 +2160,26 @@ def main():
 
     # Check if running interactively (no args) or with CLI args
     if len(sys.argv) == 1:
+        # Try GUI mode first, fall back to text menu
+        use_gui = True
+        try:
+            from gui import show_main_menu
+        except ImportError:
+            use_gui = False
+
         # Interactive mode - loop until user exits
         while True:
             try:
-                config = interactive_menu()
+                if use_gui:
+                    gui_result = show_main_menu()
+                    if gui_result is None:
+                        print("\nExiting...")
+                        break
+                    # Convert GUI result to config
+                    config = _gui_result_to_config(gui_result)
+                else:
+                    config = interactive_menu()
+
                 if config:
                     start_training(config)
                 else:
@@ -2191,6 +2207,55 @@ def main():
         print("  Run without arguments for interactive mode:")
         print("    python main.py")
         print("=" * 70)
+
+
+def _gui_result_to_config(gui_result):
+    """Convert GUI result to training config."""
+    if gui_result is None:
+        return None
+
+    action = gui_result.get('action')
+
+    if action == 'one_touch_250m':
+        return configure_one_touch_250m()
+    elif action == 'geometric':
+        return configure_geometric_training()
+    elif action == 'full':
+        return configure_full_training()
+    elif action == 'resume':
+        checkpoint_path = gui_result.get('checkpoint_path')
+        if checkpoint_path:
+            return {'mode': 'resume', 'checkpoint_path': checkpoint_path}
+        return configure_resume_training()
+    elif action == 'generate_sample':
+        generate_sample_data()
+        return None  # Return to menu
+    elif action == 'inference':
+        checkpoint_path = gui_result.get('checkpoint_path')
+        if checkpoint_path:
+            start_inference_mode(checkpoint_path)
+        else:
+            start_inference_mode()
+        return None  # Return to menu
+    elif action == 'inspect':
+        checkpoint_path = gui_result.get('checkpoint_path')
+        if checkpoint_path:
+            inspect_checkpoint(checkpoint_path)
+        else:
+            inspect_checkpoint_menu()
+        return None  # Return to menu
+    elif action == 'evaluate':
+        checkpoint_path = gui_result.get('checkpoint_path')
+        if checkpoint_path:
+            evaluate_checkpoint(checkpoint_path)
+        else:
+            evaluate_checkpoint_menu()
+        return None  # Return to menu
+    elif action == 'cost_calculator':
+        config_cost_calculator_menu()
+        return None  # Return to menu
+    else:
+        return None
 
 
 if __name__ == "__main__":

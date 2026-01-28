@@ -1,6 +1,8 @@
-torch>=2.0.0
-numpy>=1.21.0
-scipy>=1.7.0
-matplotlib>=3.5.0
-pytest>=7.0.0
-pytest-cov>=3.0.0
+# Requirements for Python 3.13t (free-threaded)
+# NumPy 2.1+ required for free-threaded support
+torch>=2.5.0
+numpy>=2.1.0
+scipy>=1.14.0
+matplotlib>=3.9.0
+pytest>=8.3.0
+pytest-cov>=5.0.0

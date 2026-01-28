@@ -267,172 +267,141 @@ class UniversalFileReader:
         return sorted(self.supported_extensions.keys())
 
 
+def _get_default_filetypes():
+    """Return default filetypes for file dialogs."""
+    return [
+        ("All Supported", "*.pdf *.docx *.txt *.md *.py *.cpp *.cu *.hpp *.json *.csv"),
+        ("PDF files", "*.pdf"),
+        ("Word documents", "*.docx *.doc"),
+        ("Text files", "*.txt *.md"),
+        ("Code files", "*.py *.cpp *.cu *.hpp *.h *.c"),
+        ("Data files", "*.json *.jsonl *.csv"),
+        ("All files", "*.*")
+    ]
+
+
+def _open_file_dialog_tkinter(title: str, filetypes: Optional[List], multiple: bool = False):
+    """Open file dialog using tkinter - larger, centered."""
+    import tkinter as tk
+    from tkinter import filedialog
+
+    root = tk.Tk()
+
+    # Get screen dimensions
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+
+    # Dialog size - large
+    dialog_width = 1000
+    dialog_height = 700
+
+    # Center position
+    x = (screen_width - dialog_width) // 2
+    y = (screen_height - dialog_height) // 2
+
+    # Configure root window (affects dialog)
+    root.geometry(f"{dialog_width}x{dialog_height}+{x}+{y}")
+    root.withdraw()
+    root.attributes('-topmost', True)
+    root.lift()
+    root.focus_force()
+
+    # Update to apply geometry
+    root.update_idletasks()
+
+    if filetypes is None:
+        filetypes = _get_default_filetypes()
+
+    # Open dialog with initial directory
+    initial_dir = os.path.abspath("./data") if os.path.exists("./data") else os.getcwd()
+
+    if multiple:
+        result = filedialog.askopenfilenames(
+            title=title,
+            filetypes=filetypes,
+            initialdir=initial_dir
+        )
+        root.destroy()
+        return list(result) if result else []
+    else:
+        result = filedialog.askopenfilename(
+            title=title,
+            filetypes=filetypes,
+            initialdir=initial_dir
+        )
+        root.destroy()
+        return result if result else None
+
+
+def _manual_file_input(title: str, multiple: bool = False):
+    """Fallback to manual file path input."""
+    print(f"\n{title}")
+    print("Enter file path(s) manually (GUI not available):")
+
+    if multiple:
+        print("Enter paths one per line, empty line when done:")
+        paths = []
+        while True:
+            path = input("  Path: ").strip()
+            if not path:
+                break
+            if os.path.exists(path):
+                paths.append(path)
+                print(f"    Added: {path}")
+            else:
+                print(f"    Warning: File not found: {path}")
+        return paths
+    else:
+        path = input("  Path: ").strip()
+        if path and os.path.exists(path):
+            return path
+        elif path:
+            print(f"  Warning: File not found: {path}")
+        return None
+
+
 def open_file_dialog(title: str = "Select File", filetypes: Optional[List] = None) -> Optional[str]:
     """
-    Open GUI file picker dialog with Windows-native appearance.
+    Open GUI file picker dialog. Tries tkinter, falls back to manual input.
 
     Args:
         title: Dialog title
-        filetypes: List of (name, pattern) tuples, e.g., [("Text files", "*.txt")]
+        filetypes: List of (name, pattern) tuples
 
     Returns:
         Selected file path, or None if cancelled
     """
+    # Try tkinter first
     try:
         import tkinter as tk
-        from tkinter import filedialog
-        import sys
-    except ImportError:
-        print("Error: tkinter not available. Cannot open file dialog.")
-        return None
-
-    try:
-        # Create hidden root window
-        root = tk.Tk()
-
-        # Windows-native appearance and DPI awareness
-        if sys.platform == 'win32':
-            try:
-                from ctypes import windll
-                windll.shcore.SetProcessDpiAwareness(1)
-            except:
-                pass
-            root.tk.call('tk', 'scaling', 1.5)
-
-        # Get screen dimensions
-        screen_width = root.winfo_screenwidth()
-        screen_height = root.winfo_screenheight()
-
-        # Larger dialog, centered
-        dialog_width = 1000
-        dialog_height = 700
-        x = (screen_width - dialog_width) // 2
-        y = (screen_height - dialog_height) // 2
-
-        # Set position and bring to front
-        root.geometry(f"{dialog_width}x{dialog_height}+{x}+{y}")
-        root.withdraw()
-        root.attributes('-topmost', True)
-        root.lift()
-        root.focus_force()
-
-        # Default filetypes
-        if filetypes is None:
-            filetypes = [
-                ("All Supported", "*.pdf *.docx *.txt *.md *.py *.cpp *.cu *.hpp *.json *.csv"),
-                ("PDF files", "*.pdf"),
-                ("Word documents", "*.docx *.doc"),
-                ("Text files", "*.txt *.md"),
-                ("Code files", "*.py *.cpp *.cu *.hpp *.h *.c"),
-                ("Data files", "*.json *.jsonl *.csv"),
-                ("All files", "*.*")
-            ]
-
-        # Open dialog
-        file_path = filedialog.askopenfilename(
-            title=f"{title} - Liorhybrid",
-            filetypes=filetypes
-        )
-
-        # Ensure proper cleanup
-        root.update()
-        root.destroy()
-
-        return file_path if file_path else None
-
+        return _open_file_dialog_tkinter(title, filetypes, multiple=False)
     except Exception as e:
-        print(f"Error opening file dialog: {e}")
-        try:
-            root.destroy()
-        except:
-            pass
-        return None
+        print(f"GUI dialog failed ({e}), using manual input...")
+
+    # Fallback to manual input
+    return _manual_file_input(title, multiple=False)
 
 
 def open_multiple_files_dialog(title: str = "Select Files", filetypes: Optional[List] = None) -> List[str]:
     """
-    Open GUI file picker dialog for MULTIPLE file selection with Windows-native appearance.
+    Open GUI file picker for multiple files. Tries tkinter, falls back to manual input.
 
     Args:
         title: Dialog title
-        filetypes: List of (name, pattern) tuples, e.g., [("Text files", "*.txt")]
+        filetypes: List of (name, pattern) tuples
 
     Returns:
-        List of selected file paths, or empty list if cancelled
+        List of selected file paths
     """
+    # Try tkinter first
     try:
         import tkinter as tk
-        from tkinter import filedialog
-        import sys
-    except ImportError:
-        print("ERROR: tkinter not available. Cannot open file dialog.")
-        print("This may be a WSL/display issue. Use manual mode instead.")
-        return []
-
-    try:
-        # Create hidden root window
-        root = tk.Tk()
-
-        # Windows-native appearance and DPI awareness
-        if sys.platform == 'win32':
-            try:
-                from ctypes import windll
-                windll.shcore.SetProcessDpiAwareness(1)
-            except:
-                pass
-            root.tk.call('tk', 'scaling', 1.5)
-
-        # Get screen dimensions
-        screen_width = root.winfo_screenwidth()
-        screen_height = root.winfo_screenheight()
-
-        # Larger dialog, centered
-        dialog_width = 1000
-        dialog_height = 700
-        x = (screen_width - dialog_width) // 2
-        y = (screen_height - dialog_height) // 2
-
-        # Set position and bring to front
-        root.geometry(f"{dialog_width}x{dialog_height}+{x}+{y}")
-        root.withdraw()
-        root.attributes('-topmost', True)
-        root.lift()
-        root.focus_force()
-
-        # Default filetypes
-        if filetypes is None:
-            filetypes = [
-                ("All Supported", "*.pdf *.docx *.txt *.md *.py *.cpp *.cu *.hpp *.json *.csv"),
-                ("PDF files", "*.pdf"),
-                ("Word documents", "*.docx *.doc"),
-                ("Text files", "*.txt *.md"),
-                ("Code files", "*.py *.cpp *.cu *.hpp *.h *.c"),
-                ("Data files", "*.json *.jsonl *.csv"),
-                ("All files", "*.*")
-            ]
-
-        # Open dialog (note: askopenfilenames - plural!)
-        file_paths = filedialog.askopenfilenames(
-            title=f"{title} - Liorhybrid",
-            filetypes=filetypes
-        )
-
-        # Ensure proper cleanup
-        root.update()
-        root.destroy()
-
-        return list(file_paths) if file_paths else []
-
+        return _open_file_dialog_tkinter(title, filetypes, multiple=True)
     except Exception as e:
-        print(f"ERROR opening file dialog: {e}")
-        print(f"Exception type: {type(e).__name__}")
-        import traceback
-        traceback.print_exc()
-        try:
-            root.destroy()
-        except:
-            pass
-        return []
+        print(f"GUI dialog failed ({e}), using manual input...")
+
+    # Fallback to manual input
+    return _manual_file_input(title, multiple=True)
 
 
 def read_file_with_dialog(title: str = "Select Training Data") -> Optional[str]:

@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=70.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "Liorhybrid"
+version = "0.1.0"
+description = "Bayesian recursive dynamics with fractional memory for cognitive tensor fields"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{name = "Sam Leizerman"}]
+requires-python = ">=3.13"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "torch>=2.5.0",
+    "numpy>=2.1.0",
+    "scipy>=1.14.0",
+    "matplotlib>=3.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-cov>=5.0.0",
+    "ruff>=0.6.0",
+    "mypy>=1.11.0",
+]
+full = [
+    "transformers>=4.45.0",
+    "tokenizers>=0.20.0",
+    "huggingface-hub>=0.25.0",
+    "safetensors>=0.4.0",
+    "PyQt6>=6.7.0",
+    "PyPDF2>=3.0.0",
+    "python-docx>=1.1.0",
+    "lxml>=5.2.0",
+    "tqdm>=4.66.0",
+    "pyyaml>=6.0.2",
+]
+
+[project.urls]
+Repository = "https://github.com/JewJitsu11B/Liorhybrid"
+
+[tool.setuptools.packages.find]
+where = ["."]
+exclude = ["env*", "tests*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.mypy]
+python_version = "3.13"
+ignore_missing_imports = true
