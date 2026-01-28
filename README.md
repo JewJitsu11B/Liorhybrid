@@ -120,6 +120,100 @@ This demonstrates:
 - Geometric product structure (Trinor/Wedge/Spinor)
 - Comparison tables and examples
 
+### CLI Commands
+
+Liorhybrid provides command-line interfaces for training and inference:
+
+#### Generate Sample Data
+
+Create training and validation data for testing:
+
+```bash
+# Generate sample data (creates data/sample/train.txt and val.txt)
+python -m Liorhybrid.data.sample.generate_sample_data
+
+# Or with custom parameters
+python -m Liorhybrid.data.sample.generate_sample_data \
+    --train-samples 200 \
+    --val-samples 40 \
+    --seed 42
+```
+
+The sample data consists of simple sentences for quick experimentation. For production use, provide your own training data.
+
+#### Run Inference
+
+Run inference on a trained model:
+
+```bash
+# Interactive chat mode
+liorhybrid inference --checkpoint checkpoints/model.pt
+
+# Single generation with prompt
+liorhybrid inference \
+    --checkpoint checkpoints/model.pt \
+    --prompt "Once upon a time" \
+    --max-length 100 \
+    --temperature 0.8
+```
+
+Or using Python module:
+```bash
+python -m Liorhybrid.cli inference --checkpoint checkpoints/model.pt
+```
+
+#### Training
+
+For training, use the interactive interface:
+
+```bash
+# Interactive training with full options
+python -m Liorhybrid.main
+```
+
+The interactive interface provides:
+- Quick start with sample data
+- Full training configuration
+- Resume from checkpoint
+- Real-time progress monitoring
+
+### Checkpoint Schema
+
+Liorhybrid checkpoints follow a specific schema for compatibility:
+
+**Required Keys:**
+- `model_state_dict`: Main model parameters
+- `field_state_dict` or `field_state`: Field evolution state
+- `input_embedding_state_dict`: Input embedding parameters
+- `lm_head_state_dict`: Language model head parameters
+
+**Optional but Recommended:**
+- `config`: Model configuration dictionary
+- `epoch`: Training epoch number
+- `global_step`: Global training step
+- `optimizer_state_dict`: Optimizer state (for resuming)
+
+The checkpoint validator automatically checks for these keys during loading and provides clear error messages if any are missing or have incompatible shapes.
+
+### Deterministic Training
+
+For reproducible training results, set the random seed in your config:
+
+```yaml
+# In configs/train_geometric.yaml
+seed: 42
+cudnn_deterministic: true
+cudnn_benchmark: false
+```
+
+The seed controls:
+- Python random number generation
+- NumPy random state
+- PyTorch CPU and CUDA random state
+- cuDNN deterministic mode (when enabled)
+
+Note: Even with deterministic settings, some CUDA operations may have non-deterministic behavior depending on GPU architecture and CUDA version.
+
 ### Programmatic Usage
 
 For custom training pipelines:

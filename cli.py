@@ -11,6 +11,11 @@ import argparse
 import sys
 from pathlib import Path
 
+# Add repo root to path for imports
+repo_root = Path(__file__).resolve().parent
+if str(repo_root.parent) not in sys.path:
+    sys.path.insert(0, str(repo_root.parent))
+
 
 def train_entrypoint():
     """Training entrypoint with absolute imports.
@@ -86,8 +91,6 @@ def train_entrypoint():
 
 def inference_entrypoint():
     """Inference entrypoint with absolute imports."""
-    from Liorhybrid.inference.inference import InferenceEngine
-    
     parser = argparse.ArgumentParser(description='Run inference with a trained Liorhybrid model')
     parser.add_argument('--checkpoint', type=str, required=True,
                         help='Path to model checkpoint (.pt file)')
@@ -102,6 +105,9 @@ def inference_entrypoint():
     
     args = parser.parse_args()
     
+    # Import after arg parsing to avoid slow imports for --help
+    from Liorhybrid.inference.inference import InferenceEngine
+    
     # Check checkpoint exists
     checkpoint_path = Path(args.checkpoint)
     if not checkpoint_path.exists():
@@ -110,7 +116,8 @@ def inference_entrypoint():
     
     # Initialize inference engine
     print(f"Loading model from: {checkpoint_path}")
-    device = args.device if args.device else ('cuda' if __import__('torch').cuda.is_available() else 'cpu')
+    import torch
+    device = args.device if args.device else ('cuda' if torch.cuda.is_available() else 'cpu')
     
     try:
         engine = InferenceEngine(str(checkpoint_path), device=device)
@@ -136,24 +143,33 @@ def inference_entrypoint():
 
 def main():
     """Main CLI entrypoint."""
-    parser = argparse.ArgumentParser(
-        description='Liorhybrid: Physics-Based AI',
-        usage='liorhybrid <command> [options]'
-    )
-    parser.add_argument('command', choices=['train', 'inference'],
-                        help='Command to run (train or inference)')
+    # Handle no arguments
+    if len(sys.argv) < 2:
+        parser = argparse.ArgumentParser(
+            description='Liorhybrid: Physics-Based AI',
+            usage='liorhybrid <command> [options]'
+        )
+        parser.add_argument('command', choices=['train', 'inference'],
+                            help='Command to run (train or inference)')
+        parser.print_help()
+        sys.exit(1)
     
-    # Parse just the command
-    args, remaining = parser.parse_known_args()
+    command = sys.argv[1]
     
-    # Remove the command from sys.argv for subcommand parsing
-    sys.argv = [sys.argv[0]] + remaining
+    # Remove the program name and command from sys.argv for subcommand parsing
+    sys.argv = [sys.argv[0]] + sys.argv[2:]
     
-    if args.command == 'train':
+    if command == 'train':
         train_entrypoint()
-    elif args.command == 'inference':
+    elif command == 'inference':
         inference_entrypoint()
     else:
+        parser = argparse.ArgumentParser(
+            description='Liorhybrid: Physics-Based AI',
+            usage='liorhybrid <command> [options]'
+        )
+        parser.add_argument('command', choices=['train', 'inference'],
+                            help='Command to run (train or inference)')
         parser.print_help()
         sys.exit(1)
 
