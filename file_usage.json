@@ -1,23 +1,23 @@
 {
   "__init__.py": {
-    "call_count": 22,
+    "call_count": 25,
     "first_called": "2026-01-23T23:34:38.855996",
-    "last_called": "2026-01-28T04:03:35.773586"
+    "last_called": "2026-01-28T14:47:06.671457"
   },
   "core/__init__.py": {
-    "call_count": 22,
+    "call_count": 25,
     "first_called": "2026-01-23T23:34:38.857088",
-    "last_called": "2026-01-28T04:03:35.774520"
+    "last_called": "2026-01-28T14:47:06.672377"
   },
   "core/config.py": {
-    "call_count": 22,
+    "call_count": 25,
     "first_called": "2026-01-23T23:34:38.860139",
-    "last_called": "2026-01-28T04:03:35.775348"
+    "last_called": "2026-01-28T14:47:06.673288"
   },
   "core/tensor_field.py": {
-    "call_count": 22,
+    "call_count": 25,
     "first_called": "2026-01-23T23:34:38.936975",
-    "last_called": "2026-01-28T04:03:35.851079"
+    "last_called": "2026-01-28T14:47:07.988956"
   },
   "core\\__init__.py": {
     "call_count": 2,
@@ -35,9 +35,9 @@
     "last_called": "2026-01-27T22:53:11.191995"
   },
   "inference/__init__.py": {
-    "call_count": 16,
+    "call_count": 17,
     "first_called": "2026-01-23T23:35:40.768227",
-    "last_called": "2026-01-28T04:03:36.094119"
+    "last_called": "2026-01-28T14:47:15.263654"
   },
   "inference/composite_k.py": {
     "call_count": 15,
@@ -50,29 +50,29 @@
     "last_called": "2026-01-28T04:03:36.165934"
   },
   "inference/field_extraction.py": {
-    "call_count": 16,
+    "call_count": 17,
     "first_called": "2026-01-23T23:35:40.771472",
-    "last_called": "2026-01-28T04:03:36.097038"
+    "last_called": "2026-01-28T14:47:15.268693"
   },
   "inference/geometric_attention.py": {
-    "call_count": 16,
+    "call_count": 17,
     "first_called": "2026-01-23T23:35:40.774875",
-    "last_called": "2026-01-28T04:03:36.097813"
+    "last_called": "2026-01-28T14:47:15.272963"
   },
   "inference/geometric_products.py": {
-    "call_count": 16,
+    "call_count": 17,
     "first_called": "2026-01-23T23:35:40.770288",
-    "last_called": "2026-01-28T04:03:36.095031"
+    "last_called": "2026-01-28T14:47:15.266716"
   },
   "inference/geometric_stack.py": {
-    "call_count": 15,
+    "call_count": 16,
     "first_called": "2026-01-23T23:36:07.681931",
-    "last_called": "2026-01-28T04:03:36.158780"
+    "last_called": "2026-01-28T14:47:15.341321"
   },
   "inference/triality_coordinate_head.py": {
-    "call_count": 15,
+    "call_count": 16,
     "first_called": "2026-01-23T23:36:07.542199",
-    "last_called": "2026-01-28T04:03:36.098430"
+    "last_called": "2026-01-28T14:47:15.274551"
   },
   "inference\\__init__.py": {
     "call_count": 2,
@@ -120,14 +120,14 @@
     "last_called": "2026-01-28T04:03:35.851722"
   },
   "kernels/bayesian.py": {
-    "call_count": 21,
+    "call_count": 24,
     "first_called": "2026-01-23T23:34:38.941164",
-    "last_called": "2026-01-28T04:03:35.853014"
+    "last_called": "2026-01-28T14:47:07.990327"
   },
   "kernels/fractional_memory.py": {
-    "call_count": 21,
+    "call_count": 24,
     "first_called": "2026-01-23T23:34:38.942419",
-    "last_called": "2026-01-28T04:03:35.853529"
+    "last_called": "2026-01-28T14:47:07.991197"
   },
   "kernels/gradients.py": {
     "call_count": 3,
@@ -138,6 +138,11 @@
     "call_count": 21,
     "first_called": "2026-01-23T23:34:38.939933",
     "last_called": "2026-01-28T04:03:35.852493"
+  },
+  "kernels/metric_context.py": {
+    "call_count": 2,
+    "first_called": "2026-01-28T14:46:54.474315",
+    "last_called": "2026-01-28T14:47:07.992128"
   },
   "kernels\\__init__.py": {
     "call_count": 2,
@@ -244,45 +249,50 @@
     "first_called": "2026-01-27T18:39:25.458245",
     "last_called": "2026-01-27T22:53:12.440713"
   },
+  "test_address_standalone.py": {
+    "call_count": 1,
+    "first_called": "2026-01-28T14:47:47.137267",
+    "last_called": "2026-01-28T14:47:47.137267"
+  },
   "test_file.py": {
     "call_count": 1,
     "first_called": "2026-01-23T23:22:11.653335",
     "last_called": "2026-01-23T23:22:11.653335"
   },
   "training/__init__.py": {
-    "call_count": 18,
+    "call_count": 19,
     "first_called": "2026-01-23T23:36:07.544666",
-    "last_called": "2026-01-28T04:03:36.099768"
+    "last_called": "2026-01-28T14:47:15.277185"
   },
   "training/biquat_optimizer.py": {
-    "call_count": 18,
+    "call_count": 19,
     "first_called": "2026-01-23T23:36:07.672782",
-    "last_called": "2026-01-28T04:03:36.155280"
+    "last_called": "2026-01-28T14:47:15.327241"
   },
   "training/checkpoint_utils.py": {
-    "call_count": 18,
+    "call_count": 19,
     "first_called": "2026-01-23T23:36:07.678248",
-    "last_called": "2026-01-28T04:03:36.157458"
+    "last_called": "2026-01-28T14:47:15.335987"
   },
   "training/datasets.py": {
-    "call_count": 25,
+    "call_count": 27,
     "first_called": "2026-01-23T23:36:07.571872",
-    "last_called": "2026-01-28T04:03:36.103558"
+    "last_called": "2026-01-28T14:47:15.298116"
   },
   "training/embeddings.py": {
-    "call_count": 18,
+    "call_count": 19,
     "first_called": "2026-01-23T23:36:07.566306",
-    "last_called": "2026-01-28T04:03:36.101903"
+    "last_called": "2026-01-28T14:47:15.284731"
   },
   "training/execution_tracker.py": {
-    "call_count": 17,
+    "call_count": 18,
     "first_called": "2026-01-23T23:36:07.679458",
-    "last_called": "2026-01-28T04:03:36.158026"
+    "last_called": "2026-01-28T14:47:15.337695"
   },
   "training/file_reader.py": {
-    "call_count": 18,
+    "call_count": 19,
     "first_called": "2026-01-23T23:36:07.640836",
-    "last_called": "2026-01-28T04:03:36.154394"
+    "last_called": "2026-01-28T14:47:15.325440"
   },
   "training/geometric_diagnostics.py": {
     "call_count": 17,
@@ -290,39 +300,39 @@
     "last_called": "2026-01-28T04:03:36.109630"
   },
   "training/gpu_cleanup.py": {
-    "call_count": 18,
+    "call_count": 19,
     "first_called": "2026-01-23T23:36:07.675734",
-    "last_called": "2026-01-28T04:03:36.156706"
+    "last_called": "2026-01-28T14:47:15.332365"
   },
   "training/lior_optimizer.py": {
-    "call_count": 18,
+    "call_count": 19,
     "first_called": "2026-01-23T23:36:07.674192",
-    "last_called": "2026-01-28T04:03:36.155968"
+    "last_called": "2026-01-28T14:47:15.329639"
   },
   "training/lior_trainer.py": {
-    "call_count": 18,
+    "call_count": 19,
     "first_called": "2026-01-23T23:36:07.637952",
-    "last_called": "2026-01-28T04:03:36.151237"
+    "last_called": "2026-01-28T14:47:15.321731"
   },
   "training/losses.py": {
-    "call_count": 18,
+    "call_count": 19,
     "first_called": "2026-01-23T23:36:07.573853",
-    "last_called": "2026-01-28T04:03:36.104428"
+    "last_called": "2026-01-28T14:47:15.303090"
   },
   "training/metrics.py": {
-    "call_count": 18,
+    "call_count": 19,
     "first_called": "2026-01-23T23:36:07.581853",
-    "last_called": "2026-01-28T04:03:36.105964"
+    "last_called": "2026-01-28T14:47:15.315211"
   },
   "training/tokenizer.py": {
-    "call_count": 18,
+    "call_count": 19,
     "first_called": "2026-01-23T23:36:07.548284",
-    "last_called": "2026-01-28T04:03:36.100631"
+    "last_called": "2026-01-28T14:47:15.281162"
   },
   "training/trainer.py": {
-    "call_count": 18,
+    "call_count": 19,
     "first_called": "2026-01-23T23:36:07.579935",
-    "last_called": "2026-01-28T04:03:36.105281"
+    "last_called": "2026-01-28T14:47:15.309428"
   },
   "training/trainer2.py": {
     "call_count": 17,
@@ -400,9 +410,9 @@
     "last_called": "2026-01-27T22:53:11.997818"
   },
   "utils/__init__.py": {
-    "call_count": 21,
+    "call_count": 23,
     "first_called": "2026-01-23T23:34:38.943397",
-    "last_called": "2026-01-28T04:03:35.854242"
+    "last_called": "2026-01-28T14:47:07.993330"
   },
   "utils/cpu_tasks.py": {
     "call_count": 19,
@@ -410,9 +420,9 @@
     "last_called": "2026-01-28T04:03:36.093264"
   },
   "utils/metrics.py": {
-    "call_count": 21,
+    "call_count": 22,
     "first_called": "2026-01-23T23:34:38.944903",
-    "last_called": "2026-01-28T04:03:35.854990"
+    "last_called": "2026-01-28T14:47:07.994337"
   },
   "utils/pipeline_audit.py": {
     "call_count": 5,
@@ -420,9 +430,9 @@
     "last_called": "2026-01-28T04:08:52.610555"
   },
   "utils/visualization.py": {
-    "call_count": 21,
+    "call_count": 22,
     "first_called": "2026-01-23T23:34:38.945866",
-    "last_called": "2026-01-28T04:03:35.855533"
+    "last_called": "2026-01-28T14:47:07.996866"
   },
   "utils\\__init__.py": {
     "call_count": 2,
