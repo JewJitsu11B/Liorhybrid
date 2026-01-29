@@ -1,6 +1,21 @@
 """
 Complex Metric Tensor: G_{mu nu} = A_{mu nu} + i B_{mu nu}
 
+PLANNING NOTE - 2025-01-29
+STATUS: TO_BE_MODIFIED
+CURRENT: Complex metric with phase orthogonality
+PLANNED: Enhanced geometry validation and measurement integration
+RATIONALE: Ensure complex metric properties are validated during training
+PRIORITY: MEDIUM
+DEPENDENCIES: utils/geometric_validation.py
+TESTING: Validate phase orthogonality, hermiticity, and symplectic structure
+
+Planned enhancements:
+1. Integration with geometric_validation.py for runtime checks
+2. Add measurement hooks for phase/amplitude decomposition
+3. Extend to support time-dependent metrics (for dynamic fields)
+4. Add visualization hooks for phase portraits
+
 Implements the complex metric structure from Clifford-Hodge geometry:
 
     A_{mu nu} = (1/2)(gamma_mu gamma_nu + gamma_nu gamma_mu)  [Symmetric, Riemannian]

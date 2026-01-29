@@ -2,6 +2,28 @@
 """
 Metrics and Diagnostics for Bayesian Cognitive Field
 
+PLANNING NOTE - 2025-01-29
+STATUS: TO_BE_MODIFIED
+CURRENT: Traditional metrics (entropy, norms, conservation)
+PLANNED: Integration with measurement-based training and enhanced validation
+RATIONALE: Support both traditional and measurement-based metric computation
+PRIORITY: MEDIUM
+DEPENDENCIES: utils/variational_entropy.py, utils/geometric_validation.py
+TESTING: Compare measurements with traditional metrics, validate consistency
+
+Planned enhancements:
+1. Add measurement-only metrics (no autograd) using @torch.inference_mode()
+2. Integrate variational_entropy.py for field-aware entropy
+3. Add geometric_validation checks for conservation laws
+4. Support comprehensive_similarity.py for distance metrics
+5. Add proper time measurements via lior_calibration.py
+
+New measurement-based functions to add:
+- measure_field_state() - Pure measurement snapshot
+- validate_conservation_laws() - Physics checks
+- compute_correlation_matrix() - Geodesic correlations
+- track_proper_time() - CPU cycle-based timing
+
 Conservation laws, entropy, correlation measures.
 
 Paper References:
