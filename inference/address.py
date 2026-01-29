@@ -15,8 +15,8 @@ Dimensions (default d=512):
 
 Neighbor roles by position:
 - N1-N32: absolute nearest (similarity grounding)
-- N33-N48: attractors (reinforcing evidence)
-- N49-N64: repulsors (contrastive evidence)
+- N33-N48: high_sim neighbors (maximum similarity interactions)
+- N49-N64: low_sim neighbors (minimum similarity, contrastive examples)
 
 Per-neighbor block (d_block = 86):
 - value: d' = 64 (reduced interaction vector)
@@ -50,8 +50,8 @@ class AddressConfig:
 
     # Neighbors
     n_nearest: int = 32
-    n_attractors: int = 16
-    n_repulsors: int = 16
+    n_high_sim: int = 16  # formerly n_attractors
+    n_low_sim: int = 16   # formerly n_repulsors
 
     # Per-neighbor dimensions
     d_prime: int = 64   # value dim
@@ -64,7 +64,7 @@ class AddressConfig:
 
     @property
     def n_neighbors(self) -> int:
-        return self.n_nearest + self.n_attractors + self.n_repulsors
+        return self.n_nearest + self.n_high_sim + self.n_low_sim
 
     @property
     def d_block(self) -> int:
@@ -139,7 +139,7 @@ class NeighborSelector(nn.Module):
     """
     Strict metric-only neighbor selector.
     
-    Selects exactly 64 neighbors (32 nearest, 16 attractors, 16 repulsors)
+    Selects exactly 64 neighbors (32 nearest, 16 high_sim, 16 low_sim)
     using ONLY the learned/curved metric from Address.metric/transport.
     
     NO FALLBACK to Euclidean or cosine distance.
@@ -319,16 +319,16 @@ class NeighborSelector(nn.Module):
         )
         nearest_idx = nearest_idx  # (batch, 32)
         
-        # For attractors: select candidates with high dot product (channel 0)
-        attractor_scores = scores_6ch[..., 0]  # (batch, N_cand)
-        _, attractor_idx = torch.topk(attractor_scores, k=16, dim=-1, sorted=True)
-        
-        # For repulsors: select candidates with high wedge product (channel 1, orthogonal)
-        repulsor_scores = scores_6ch[..., 1]  # (batch, N_cand)
-        _, repulsor_idx = torch.topk(repulsor_scores, k=16, dim=-1, sorted=True)
-        
-        # Combine indices: [32 nearest | 16 attractors | 16 repulsors]
-        selected_indices = torch.cat([nearest_idx, attractor_idx, repulsor_idx], dim=1)  # (batch, 64)
+        # For high_sim: select candidates with high dot product (channel 0)
+        high_sim_scores = scores_6ch[..., 0]  # (batch, N_cand)
+        _, high_sim_idx = torch.topk(high_sim_scores, k=16, dim=-1, sorted=True)
+
+        # For low_sim: select candidates with high wedge product (channel 1, orthogonal)
+        low_sim_scores = scores_6ch[..., 1]  # (batch, N_cand)
+        _, low_sim_idx = torch.topk(low_sim_scores, k=16, dim=-1, sorted=True)
+
+        # Combine indices: [32 nearest | 16 high_sim | 16 low_sim]
+        selected_indices = torch.cat([nearest_idx, high_sim_idx, low_sim_idx], dim=1)  # (batch, 64)
         
         # Gather selected embeddings
         batch_indices = torch.arange(batch_size, device=query_embedding.device).view(-1, 1).expand(-1, 64)
@@ -507,18 +507,18 @@ class Address:
         return blocked[..., :self.config.n_nearest, :]
 
     @property
-    def attractor_neighbors(self) -> torch.Tensor:
-        """N33-N48: attractors, shape (..., 16, d_block)."""
+    def high_sim_neighbors(self) -> torch.Tensor:
+        """N33-N48: high_sim neighbors, shape (..., 16, d_block)."""
         blocked = self.neighbors_blocked
         start = self.config.n_nearest
-        end = start + self.config.n_attractors
+        end = start + self.config.n_high_sim
         return blocked[..., start:end, :]
 
     @property
-    def repulsor_neighbors(self) -> torch.Tensor:
-        """N49-N64: repulsors, shape (..., 16, d_block)."""
+    def low_sim_neighbors(self) -> torch.Tensor:
+        """N49-N64: low_sim neighbors, shape (..., 16, d_block)."""
         blocked = self.neighbors_blocked
-        start = self.config.n_nearest + self.config.n_attractors
+        start = self.config.n_nearest + self.config.n_high_sim
         return blocked[..., start:, :]
 
     @property
@@ -588,7 +588,7 @@ class AddressBuilder(nn.Module):
     
     Option 6 Requirements:
     - Uses NeighborSelector with metric-only distances (no Euclidean fallback)
-    - Enforces exactly 64 neighbor slots (32 nearest, 16 attractors, 16 repulsors)
+    - Enforces exactly 64 neighbor slots (32 nearest, 16 high_sim, 16 low_sim)
     - Computes 6 geometric similarity scores per neighbor (dot, wedge, tensor, spinor, energy, rank)
     - Fails fast if metric is missing or invalid
     - Addresses are naturally unique based on embeddings (no collision detection)
@@ -737,8 +737,8 @@ Per-neighbor block (86 floats):
 
 Neighbor roles:
   N1-N32  (idx 0-31):   absolute nearest (metric-based)
-  N33-N48 (idx 32-47):  attractors (high dot product)
-  N49-N64 (idx 48-63):  repulsors (high wedge product, orthogonal)
+  N33-N48 (idx 32-47):  high_sim (high dot product)
+  N49-N64 (idx 48-63):  low_sim (high wedge product, orthogonal)
 
 6 Geometric Similarity Score Channels:
   Channel 0: Dot product (metric-weighted inner product q·g·c)
