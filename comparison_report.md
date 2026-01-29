@@ -31,5 +31,16 @@ This report compares and contrasts the designs of **Coordinate Spacetime** and *
 4. **Mathematical Upgrade**:
    - Both approaches still operate over tokens and rely on softmax (and its variants) for weighting, but the newer geometric framing replaces the earlier purely linear algebra view.
 
+## Comparison to LeCun-Style JEPA
+- **Objective**: LeCun’s Joint Embedding Predictive Architecture (JEPA) learns energy-based latent representations by predicting compatible future states without auto-regressive token generation. Liorhybrid instead learns a **geometric causal manifold** where evolution is governed by complex metrics, geodesics, and parallel transport.
+- **Inductive Bias**: JEPA emphasizes **predictive consistency** and invariances via contrastive/energy objectives; Liorhybrid emphasizes **physical structure** (Hamiltonian constraints, complex metrics, O(1) fractional kernels) to preserve stability and long-range coherence.
+- **Computation**: JEPA typically pairs encoders/decoders over learned features; Liorhybrid uses **spinor/clifford transports** and causal convolution kernels (no FFTs), avoiding attention and sequence scans.
+- **Use Cases**: JEPA is well-suited for robust representation learning and perception-style tasks; Liorhybrid targets **structured reasoning and causal simulation** with higher information density per parameter.
+
+## Architectures Not Fully Subsumed
+- **Explicit autoregressive attention stacks** (e.g., GPT-style Transformers) retain quadratic attention maps that Liorhybrid intentionally removes; while Liorhybrid claims superior O(1) memory, it does not reproduce attention’s exact inductive bias.
+- **Pure energy-based models without causal evolution** (e.g., classical EBMs) focus on steady-state compatibility rather than manifold dynamics; Liorhybrid centers on causal transport, so it does not subsume EBMs’ training dynamics directly.
+- **Neural radiance fields (NeRF/3D Gaussian splatting)** are specialized for volumetric rendering; Liorhybrid does not implement differentiable volume rendering or view synthesis pipelines.
+
 ## Conclusion
 Both designs have their strengths and weaknesses. The best choice depends on the specific requirements of the application and the skill level of the end-users. Because the software is not yet finished, these observations are provisional and assume the geometric approach reaches a successful completion.

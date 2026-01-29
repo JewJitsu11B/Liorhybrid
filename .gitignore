@@ -88,3 +88,9 @@ data/sample/*.txt
 test_*_standalone.py
 test_*_integration.py
 *.bak
+# Generated visualizations
+*prime*.png
+*spectral*.png
+*level*.png
+alpha_interpolation.png
+associator_magnitude.png

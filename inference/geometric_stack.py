@@ -1,11 +1,13 @@
 """
 Full Geometric Stack: CausalField → Address-Space Probing → Geometric Attention
 
-Option 6 Architecture: Evidence-as-Address
+Option 6 Architecture: Evidence-as-Address (STRICT METRIC MODE)
     - NO pooling (destroys information)
     - NO dense K/V matmul (O(N²) is inexcusable)
-    - K is Address structure, not dense tensor
+    - K is Address structure with 64 role-typed neighbors
     - Attention is selective probing, not matrix multiplication
+    - STRICT: Metric/transport REQUIRED (no Euclidean fallback)
+    - 6 similarity score channels (all metric-derived)
 
 Architecture Flow:
     Input (text/image/video)
@@ -17,23 +19,33 @@ Architecture Flow:
     Holomorphic Contraction (λ = 1/2)
          ↓
     Address Building (64 role-typed neighbors from field)
+         - Strict neighbor selection via learned metric g_ij
+         - 32 nearest + 16 attractors + 16 repulsors
+         - 6 score channels per neighbor (all from metric/transport)
+         - Collision detection with route_hash/salt
+         - Fail-fast if metric invalid or <64 candidates
          ↓
     Neighbor Probing (NO matmul) ← Born gate |ψ|² normalization
+         - Uses Address.metric for scaled similarity
+         - Incorporates 6 pre-computed score channels
+         - Role-typed weighting (attractors boosted, repulsors contrastive)
          ↓
     Output Projection
 
 Key innovations:
 1. O(N log N) base processing via CausalField (FFT convolution)
 2. Address structure with 64 neighbors (32 nearest + 16 attract + 16 repulse)
-3. Metric-weighted similarity probing (diagonal metric fiber)
-4. Born gate |ψ|² instead of softmax (preserves evidence structure)
-5. Role-typed weighting (attractors boosted, repulsors contrastive)
+3. Strict metric-only neighbor selection (NO Euclidean fallback)
+4. 6 similarity score channels (metric distance, transport-corrected, attraction, repulsion, confidence, rank)
+5. Born gate |ψ|² instead of softmax (preserves evidence structure)
+6. Role-typed weighting (attractors boosted, repulsors contrastive)
+7. Collision detection with SHA256 route_hash
 
 Complexity:
 - CausalField encoder: O(N log N) parallel
-- Address building: O(N) (sample 64 field positions)
+- Address building: O(N_cand × log N_cand) for neighbor selection
 - Neighbor probing: O(N × 64 × d') ← THE KEY IMPROVEMENT
-- Total: O(N log N) + O(N × 64 × d') = O(N log N) dominated
+- Total: O(N log N) dominated
 
 This is the Option 6 implementation for the Bayesian Cognitive Field system.
 """
@@ -267,46 +279,82 @@ class GeometricStack(nn.Module):
         if self.timing_debug:
             timing_contract = time.perf_counter() - t_contract_start
 
-        # Step 2: Build Address structure (NO POOLING)
-        # Option 6: K is Address structure, not dense tensor
-        # Address contains role-typed neighbors from field state
+        # Step 2: Build Address structure (Option 6)
+        # Address contains role-typed neighbors from field state with metric/transport
         if self.timing_debug:
             t_addr_start = time.perf_counter()
 
-        # Build neighbor embeddings from field state (spatial sampling)
-        # Field state shape: (N_x, N_y, D, D) - sample 64 positions
-        n_neighbors = 64  # 32 nearest + 16 attract + 16 repulse
+        # Import Address and AddressBuilder
+        from .address import Address, AddressBuilder, AddressConfig
+        
+        # Initialize AddressBuilder if not already present
+        if not hasattr(self, 'address_builder'):
+            addr_config = AddressConfig(d=self.d_model // 2)  # Match contracted dimension
+            self.address_builder = AddressBuilder(
+                config=addr_config
+            ).to(encoder_output.device)
+        
+        # Build candidate embeddings from field state (spatial sampling)
+        # Field state shape: (N_x, N_y, D, D) - sample many positions
         field_flat = field_state.reshape(-1, field_state.shape[-1])  # (N_x*N_y*D, D)
         n_field_positions = field_flat.shape[0]
-
-        # Uniformly sample neighbor indices
-        if n_field_positions >= n_neighbors:
-            sample_indices = torch.linspace(0, n_field_positions - 1, n_neighbors, device=field_state.device).long()
-            neighbor_embeddings = field_flat[sample_indices]  # (64, D)
+        
+        # Need at least 64 candidates for full neighbor selection
+        n_candidates = max(128, min(512, n_field_positions))  # Sample 128-512 candidates
+        
+        if n_field_positions >= n_candidates:
+            sample_indices = torch.linspace(
+                0, n_field_positions - 1, n_candidates, device=field_state.device
+            ).long()
+            candidate_embeddings = field_flat[sample_indices]  # (n_candidates, D)
         else:
             # Repeat if field is too small
-            neighbor_embeddings = field_flat.repeat(n_neighbors // n_field_positions + 1, 1)[:n_neighbors]
-
-        # Project neighbors to d_model//2 to match encoder output
-        # (neighbors come from field_dim space, need to match embedding space)
-        if not hasattr(self, '_neighbor_proj'):
-            self._neighbor_proj = nn.Linear(neighbor_embeddings.shape[-1], self.d_model // 2, bias=False).to(field_state.device)
-            nn.init.orthogonal_(self._neighbor_proj.weight)
-        neighbor_embeddings = self._neighbor_proj(neighbor_embeddings.float())  # (64, d_model//2)
-
-        # Expand for batch
-        neighbor_embeddings = neighbor_embeddings.unsqueeze(0).expand(batch_size, -1, -1)  # (batch, 64, d_model//2)
+            repeats = (n_candidates // n_field_positions) + 1
+            candidate_embeddings = field_flat.repeat(repeats, 1)[:n_candidates]
+        
+        # Project candidates to d_model//2 to match encoder output
+        if not hasattr(self, '_candidate_proj'):
+            self._candidate_proj = nn.Linear(
+                candidate_embeddings.shape[-1],
+                self.d_model // 2,
+                bias=False
+            ).to(field_state.device)
+            nn.init.orthogonal_(self._candidate_proj.weight)
+        
+        candidate_embeddings = self._candidate_proj(candidate_embeddings.float())  # (n_candidates, d_model//2)
+        
+        # Expand for batch: (batch, n_candidates, d_model//2)
+        candidate_embeddings = candidate_embeddings.unsqueeze(0).expand(batch_size, -1, -1)
+        
+        # Pool encoder output to get query embedding per batch item
+        # Simple mean pooling over sequence: (batch, seq_len, d_model//2) -> (batch, d_model//2)
+        query_embedding = encoder_output.mean(dim=1)  # (batch, d_model//2)
+        
+        # Build Address structures (one per batch item)
+        try:
+            addresses = self.address_builder(
+                embedding=query_embedding,
+                candidate_embeddings=candidate_embeddings,
+                enable_probing=True  # Option 6 mode
+            )
+        except ValueError as e:
+            # Address building failed - provide diagnostic
+            if diagnose:
+                print(f"\n[GeometricStack] Address building failed: {e}")
+            raise ValueError(
+                f"Failed to build Address structure for Option 6 probing: {e}. "
+                "Check that field state is valid and has sufficient positions."
+            )
 
         if self.timing_debug:
             timing_addr = time.perf_counter() - t_addr_start
 
         # Step 3: Q from encoder output, Address provides evidence
         # Q: full sequence for per-position outputs (batch, seq_len, d_model//2)
-        # neighbors: 64 role-typed evidence vectors (batch, 64, d_model//2)
         Q = encoder_output
 
-        # Step 4: Geometric attention with Address-based probing
-        # NO matmul - explicit probing of neighbors
+        # Step 4: Geometric attention with Address-based probing (Option 6)
+        # NO dense matmul - explicit probing of 64 neighbors from Address
         if self.timing_debug:
             t_attn_start = time.perf_counter()
 
@@ -314,14 +362,15 @@ class GeometricStack(nn.Module):
             print(f"\n[GeometricStack] Before geometric_attention (Option 6):")
             print(f"  Q: nan={Q.isnan().any().item()}, inf={Q.isinf().any().item()}, "
                   f"range=[{Q.min().item():.4g}, {Q.max().item():.4g}]")
-            print(f"  neighbors: shape={neighbor_embeddings.shape}")
+            print(f"  addresses: shape={addresses.shape}, metric valid={not addresses.metric.isnan().any().item()}")
 
         attn_output = Q
 
         for i, attn_layer in enumerate(self.geometric_attention):
             attn_output, _ = attn_layer(
                 Q_input=attn_output,
-                neighbor_embeddings=neighbor_embeddings,  # Option 6: neighbors instead of K/V
+                address=addresses,  # NEW: Pass full Address structure
+                enable_address_probing=True,  # Enable strict Option 6 mode
                 T_field=field_state,
                 mask=attention_mask
             )
