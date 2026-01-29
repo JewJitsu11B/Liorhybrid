@@ -1,6 +1,32 @@
 """
 Linearized Address Structure
 
+PLANNING NOTE - 2025-01-29
+STATUS: TO_BE_MODIFIED
+CURRENT: Uses 6-channel similarity scores (m=6) for neighbor selection
+PLANNED: Expand to 15-channel comprehensive similarity (utils/comprehensive_similarity.py)
+RATIONALE: Richer geometric representation captures more aspects of similarity
+PRIORITY: HIGH
+DEPENDENCIES: utils/comprehensive_similarity.py (15D similarity vector)
+TESTING: Compare neighbor quality with 6-channel vs 15-channel scoring
+
+Key terminology changes planned:
+- "scores" → "similarity_vector" (more descriptive)
+- "m = 6" → "m = 15" (expanded channels)
+- Add channel documentation: which channels for what purpose
+
+15-channel similarity breakdown:
+1-6: Algebraic (dot, wedge, tensor, spinor, energy, rank) [CURRENT]
+7-9: Geometric (geodesic, christoffel, curvature) [NEW]
+10-12: Physical (phase, resilience, entropy) [NEW]
+13-15: Dynamical (action, symplectic, killing) [NEW]
+
+Integration strategy:
+1. Keep m=6 as default for backward compatibility
+2. Add m=15 mode via config flag
+3. Update neighbor selection to use comprehensive_similarity
+4. Validate that richer scoring improves neighbor quality
+
 The address is a structured vector with fixed-width blocks:
 [ core | geom | N1 | N2 | ... | N64 | integrity ]
 
@@ -21,12 +47,14 @@ Neighbor roles by position:
 Per-neighbor block (d_block = 86):
 - value: d' = 64 (reduced interaction vector)
 - scores: m = 6 (geometric similarity channels: dot, wedge, tensor, spinor, energy, rank)
+  TO_BE_MODIFIED: m = 15 (comprehensive similarity channels)
 - coords: k = 16 (routing info)
 
 Strict Requirements (Option 6):
 - Neighbor selection: ONLY metric-derived distances (no Euclidean fallback)
 - All 64 slots MUST be populated (fail fast if unable)
 - 6 score channels per neighbor (geometric products: dot, wedge, tensor, spinor, energy, rank)
+  TO_BE_MODIFIED: 15 score channels (see comprehensive_similarity.py)
 - Addresses naturally unique based on embeddings (no collision detection needed)
 """
 try: import usage_tracker; usage_tracker.track(__file__)

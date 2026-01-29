@@ -1,6 +1,24 @@
 """
 Cognitive Manifold: Coordinate Spacetime from Geometry
 
+PLANNING NOTE - 2025-01-29
+STATUS: TO_BE_AUDITED
+CURRENT: Pure PyTorch implementation (good!)
+PLANNED: Audit for any remaining .cpu()/.numpy() operations that could break GPU flow
+RATIONALE: Ensure all operations stay on GPU for performance and differentiability
+PRIORITY: MEDIUM
+DEPENDENCIES: None (self-contained audit)
+TESTING: Run with torch.autograd.detect_anomaly(), check for CPU/GPU transfers
+
+Key audit points:
+1. Verify no .cpu() calls except in visualization/debugging code
+2. Verify no .numpy() conversions in forward pass
+3. Ensure all temporary tensors created on same device as inputs
+4. Check Christoffel symbol computation (finite differences) stays on GPU
+5. Validate exponential/log map operations are pure PyTorch
+
+Current status: Initial scan shows pure PyTorch - good! Full audit needed.
+
 Provides coordinate spacetime derived from LIoR metric and geodesic structure,
 rather than hard-coded tree scaffolding.
 
