@@ -520,6 +520,50 @@ class Address:
         blocked = self.neighbors_blocked
         start = self.config.n_nearest + self.config.n_attractors
         return blocked[..., start:, :]
+    
+    @property
+    def neighbor_similarity_vectors(self) -> torch.Tensor:
+        """
+        PLANNING NOTE: 15D similarity vectors for all 64 neighbors.
+        
+        Extended neighbor scoring with comprehensive geometric similarity.
+        This property will return rich 15D (or 9D for Phase 1) similarity
+        vectors for each neighbor, replacing simple scalar scores with
+        multi-dimensional geometric features.
+        
+        Returns:
+            [batch, 64, D] where D ∈ {9, 12, 15}
+            
+        Each neighbor will have a comprehensive similarity vector containing:
+            - cosine: Angular alignment
+            - wedge_magnitude: Rotational structure
+            - tensor_trace: Interaction strength
+            - spinor_magnitude: Phase overlap
+            - spinor_phase: Phase angle
+            - energy: Field coupling
+            - l2_tangent: Euclidean in tangent space
+            - l1_tangent: Manhattan in tangent space
+            - lior_distance: Geodesic distance (PRIMARY)
+            [Future: + entropy and statistical measures]
+        
+        Implementation Status:
+            - Phase 1 (9D core): Planned - see utils/comprehensive_similarity.py
+            - Phase 2 (12D extended): Future
+            - Phase 3 (15D full): Future
+            
+        Current State:
+            The current address structure stores 6 geometric scores per neighbor
+            (dot, wedge, tensor, spinor, energy, rank) in the m=6 scores section.
+            This will be extended to store or reference full 15D vectors.
+            
+        TO BE IMPLEMENTED in future PR
+        """
+        raise NotImplementedError(
+            "neighbor_similarity_vectors: Stub for Phase 1 planning. "
+            "Full implementation requires integration with ComprehensiveSimilarity "
+            "and modification of neighbor selection logic. "
+            "See utils/comprehensive_similarity.py for core implementation."
+        )
 
     @property
     def ecc(self) -> torch.Tensor:
@@ -764,4 +808,63 @@ Example Address Structure:
   [Neighbor 63: value(64) | scores(6: dot,wedge,tensor,spinor,energy,rank) | coords(16)]
   [ECC (32)]
   [Timestamps (2)]
+"""
+
+
+# =============================================================================
+# PLANNING NOTE: Future 15D Comprehensive Similarity Integration
+# =============================================================================
+
+COMPREHENSIVE_SIMILARITY_INTEGRATION_PLAN = """
+PLANNING NOTE: Extended Neighbor Scoring with 15D Similarity Vectors
+
+Current Implementation (Phase 0):
+  - NeighborSelector computes 6 geometric scores per neighbor
+  - Selection based on metric distances (dot, wedge products)
+  - Stored in m=6 scores section of neighbor blocks
+
+Phase 1 Enhancement (9D Core - COMPLETE):
+  Implementation: utils/comprehensive_similarity.py
+  - ✅ Compute 9D similarity vectors for all candidates
+  - ✅ Dimensions: [cosine, wedge, tensor, spinor_mag, spinor_phase,
+                 energy, l2_tangent, l1_tangent, lior_distance]
+  - ✅ Aggregate to scalar scores for neighbor selection
+  - ✅ Vectorized operations for GPU efficiency
+  - ✅ 23 passing unit tests
+  - TODO: Store full 9D vectors for selected neighbors (future)
+  - TODO: Integrate with NeighborSelector (future PR)
+
+Phase 2 Enhancement (12D Extended - FUTURE):
+  - Add 3 entropy measures: variational, Rényi, curvature
+  - Cost: ~600 FLOPs per candidate (still fast for all N)
+
+Phase 3 Enhancement (15D Full - FUTURE):
+  - Add 3 statistical measures: Kendall tau, mutual info, sectional curvature
+  - Use tiered computation: expensive measures only for top-K
+  - Total cost: ~0.8ms with tiering (vs 120ms naive)
+
+Integration Points:
+  1. NeighborSelector.select_neighbors():
+     - Replace simple distance computation with ComprehensiveSimilarity
+     - Call sim_computer.compute_batch(query_embedding, candidate_embeddings)
+     - Aggregate to scalar with sim_computer.aggregate_to_scalar()
+     - Use aggregated scores for top-K selection
+  
+  2. Address.neighbor_similarity_vectors property:
+     - Return stored 15D vectors for all 64 neighbors
+     - Either store in extended neighbor blocks or compute on-demand
+  
+  3. AddressBuilder.forward():
+     - Instantiate ComprehensiveSimilarity with manifold
+     - Pass to NeighborSelector for enhanced selection
+     - Optionally store full 15D vectors in address
+
+Implementation Strategy:
+  - Phase 1: Compute 9D, store existing 6 scores (backward compatible) [COMPLETE]
+  - Later: Extend neighbor block from d_block=86 to include 15D vectors
+  - Or: Store 15D vectors externally and reference via coords
+
+See: utils/comprehensive_similarity.py for core implementation
+     Problem Statement: "Extend Neighbor Addressing with Comprehensive 
+                        Similarity Scores + Computational Cost Analysis"
 """
