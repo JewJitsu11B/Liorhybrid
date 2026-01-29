@@ -12,11 +12,11 @@ TESTING: Unit tests for transform accuracy, gradient flow, GPU compatibility
 
 Purpose:
 --------
-Fast Local Transform provides efficient local coordinate transformations on the cognitive
+Fast Lior Transform provides efficient local coordinate transformations on the cognitive
 field using pure PyTorch operations. This enables:
 1. GPU-accelerated field analysis
-2. Differentiable transforms for end-to-end learning
-3. No scipy/numpy dependencies in forward/backward pass
+2. Measurement-based field analysis (no autograd)
+3. No scipy/numpy dependencies in forward pass
 
 Key Features:
 -------------
@@ -59,7 +59,7 @@ Performance Targets:
 --------------------
 - GPU forward pass: <1ms for batch_size=32, window=16
 - Memory: O(B * r² * D²) 
-- Backward pass: Full gradient support via torch.autograd
+- Pure measurement operations (no autograd overhead)
 
 References:
 -----------
