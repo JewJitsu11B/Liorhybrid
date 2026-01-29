@@ -53,10 +53,10 @@ Physical Interpretation:
 Variational Principle:
 ----------------------
 Field parameters evolve to minimize free energy:
-    F = E - T·S = ⟨H⟩ - β·H_var
+    F = E - T·S = E_field - β·H_var
 
 Where:
-- E = ⟨H⟩: Expected energy (Hamiltonian expectation)
+- E = E_field: Expected energy (Hamiltonian expectation)
 - S = H_var: Variational entropy
 - β: Inverse temperature
 - T: Temperature parameter

@@ -97,36 +97,38 @@ Avoid dependencies: No mayavi, no vtk (complex installation)
 
 Example Usage:
 --------------
->>> viz = SemanticPointCloudViz(manifold)
->>> 
->>> # Static visualization
->>> viz.plot_embeddings(
->>>     embeddings,
->>>     field=field,
->>>     color_by='entropy',
->>>     reduction='geodesic_pca'
->>> )
->>> 
->>> # Animate training
->>> viz.animate_training(
->>>     embedding_history,
->>>     field_history,
->>>     save_path='training.mp4'
->>> )
->>> 
->>> # Show address structure
->>> viz.plot_address_graph(
->>>     embeddings,
->>>     addresses,
->>>     show_similarities=True
->>> )
+```python
+viz = SemanticPointCloudViz(manifold)
+
+# Static visualization
+viz.plot_embeddings(
+    embeddings,
+    field=field,
+    color_by='entropy',
+    reduction='geodesic_pca'
+)
+
+# Animate training
+viz.animate_training(
+    embedding_history,
+    field_history,
+    save_path='training.mp4'
+)
+
+# Show address structure
+viz.plot_address_graph(
+    embeddings,
+    addresses,
+    show_similarities=True
+)
+```
 
 Performance:
 ------------
 - Reduction: O(N D²) for N points
 - Rendering: O(N) points per frame
 - Target: 60 fps for N < 10k points
-- For N > 10k: Use downsampling or LOD
+- For N > 10k: Use downsampling or LOD (Level of Detail)
 
 Output Formats:
 ---------------
@@ -145,7 +147,7 @@ References:
 -----------
 - matplotlib 3D: mpl_toolkits.mplot3d
 - Dimensionality reduction: PCA, UMAP, t-SNE
-- Scientific visualization: ColorBrewer, cmocean
+- Scientific visualization: ColorBrewer color schemes, cmocean colormaps (matplotlib package)
 """
 try: import usage_tracker; usage_tracker.track(__file__)
 except: pass

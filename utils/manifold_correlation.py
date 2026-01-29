@@ -199,7 +199,7 @@ def compute_frechet_mean(
         tol: Convergence tolerance
         
     Returns:
-        frechet_mean: (D,) - Intrinsic mean on manifold
+        frechet_mean: (D,) - Intrinsic mean (Fréchet mean) on manifold
     """
     raise NotImplementedError(
         "compute_frechet_mean: "
