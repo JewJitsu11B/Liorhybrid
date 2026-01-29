@@ -144,6 +144,11 @@
     "first_called": "2026-01-23T23:34:38.939933",
     "last_called": "2026-01-28T04:03:35.852493"
   },
+  "kernels/metric_context.py": {
+    "call_count": 2,
+    "first_called": "2026-01-28T14:46:54.474315",
+    "last_called": "2026-01-28T14:47:07.992128"
+  },
   "kernels\\__init__.py": {
     "call_count": 2,
     "first_called": "2026-01-27T18:39:23.225789",
@@ -248,6 +253,16 @@
     "call_count": 2,
     "first_called": "2026-01-27T18:39:25.458245",
     "last_called": "2026-01-27T22:53:12.440713"
+  },
+  "test_address_attention_integration.py": {
+    "call_count": 3,
+    "first_called": "2026-01-28T14:50:55.136150",
+    "last_called": "2026-01-28T14:55:31.415863"
+  },
+  "test_address_standalone.py": {
+    "call_count": 2,
+    "first_called": "2026-01-28T14:47:47.137267",
+    "last_called": "2026-01-28T14:55:24.173608"
   },
   "test_file.py": {
     "call_count": 1,

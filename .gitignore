@@ -84,6 +84,10 @@ data/
 !data/sample/
 data/sample/*.txt
 
+# Temporary/standalone test files
+test_*_standalone.py
+test_*_integration.py
+*.bak
 # Generated visualizations
 *prime*.png
 *spectral*.png
