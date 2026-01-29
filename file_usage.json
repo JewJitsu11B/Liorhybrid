@@ -170,9 +170,9 @@
     "last_called": "2026-01-28T04:03:34.863598"
   },
   "models/__init__.py": {
-    "call_count": 20,
+    "call_count": 21,
     "first_called": "2026-01-23T23:22:02.580518",
-    "last_called": "2026-01-28T04:03:36.159329"
+    "last_called": "2026-01-29T07:36:22.702961"
   },
   "models/activations.py": {
     "call_count": 17,
@@ -195,9 +195,9 @@
     "last_called": "2026-01-28T04:03:36.161185"
   },
   "models/language_head.py": {
-    "call_count": 20,
+    "call_count": 21,
     "first_called": "2026-01-23T23:22:02.581950",
-    "last_called": "2026-01-28T04:03:36.159910"
+    "last_called": "2026-01-29T07:36:22.704343"
   },
   "models/lior_kernel.py": {
     "call_count": 20,
