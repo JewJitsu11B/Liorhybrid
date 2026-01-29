@@ -823,13 +823,16 @@ Current Implementation (Phase 0):
   - Selection based on metric distances (dot, wedge products)
   - Stored in m=6 scores section of neighbor blocks
 
-Phase 1 Enhancement (9D Core - IN PROGRESS):
+Phase 1 Enhancement (9D Core - COMPLETE):
   Implementation: utils/comprehensive_similarity.py
-  - Compute 9D similarity vectors for all candidates
-  - Dimensions: [cosine, wedge, tensor, spinor_mag, spinor_phase,
+  - ✅ Compute 9D similarity vectors for all candidates
+  - ✅ Dimensions: [cosine, wedge, tensor, spinor_mag, spinor_phase,
                  energy, l2_tangent, l1_tangent, lior_distance]
-  - Aggregate to scalar scores for neighbor selection
-  - Store full 9D vectors for selected neighbors (future)
+  - ✅ Aggregate to scalar scores for neighbor selection
+  - ✅ Vectorized operations for GPU efficiency
+  - ✅ 23 passing unit tests
+  - TODO: Store full 9D vectors for selected neighbors (future)
+  - TODO: Integrate with NeighborSelector (future PR)
 
 Phase 2 Enhancement (12D Extended - FUTURE):
   - Add 3 entropy measures: variational, Rényi, curvature
@@ -843,7 +846,7 @@ Phase 3 Enhancement (15D Full - FUTURE):
 Integration Points:
   1. NeighborSelector.select_neighbors():
      - Replace simple distance computation with ComprehensiveSimilarity
-     - Call sim_computer.compute_batch(query_coords, candidate_coords)
+     - Call sim_computer.compute_batch(query_embedding, candidate_embeddings)
      - Aggregate to scalar with sim_computer.aggregate_to_scalar()
      - Use aggregated scores for top-K selection
   
@@ -857,7 +860,7 @@ Integration Points:
      - Optionally store full 15D vectors in address
 
 Implementation Strategy:
-  - Phase 1: Compute 9D, store existing 6 scores (backward compatible)
+  - Phase 1: Compute 9D, store existing 6 scores (backward compatible) [COMPLETE]
   - Later: Extend neighbor block from d_block=86 to include 15D vectors
   - Or: Store 15D vectors externally and reference via coords
 

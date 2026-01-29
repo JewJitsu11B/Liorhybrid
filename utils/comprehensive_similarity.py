@@ -1,23 +1,23 @@
 """
-Comprehensive 15D Similarity Vector Computation
+Comprehensive 9D Similarity Vector Computation (Phase 1 of Planned 15D)
 
 Implements rich geometric similarity measures beyond simple cosine similarity.
 
 IMPLEMENTATION PHASES:
-- Phase 1: 9D core (cheap/medium measures) [THIS FILE]
+- Phase 1: 9D core (cheap/medium measures) [IMPLEMENTED - THIS FILE]
 - Phase 2: 12D extended (+ entropies) [FUTURE]
 - Phase 3: 15D full (+ statistical, tiered) [FUTURE]
 
-The 15D similarity vector captures comprehensive geometric relationships:
-    1. cosine: Angular alignment
-    2. wedge_magnitude: Rotational structure  
-    3. tensor_trace: Interaction strength
-    4. spinor_magnitude: Phase overlap
-    5. spinor_phase: Phase angle
-    6. energy: Field coupling
-    7. l2_tangent: Euclidean in tangent space
-    8. l1_tangent: Manhattan in tangent space
-    9. lior_distance: Geodesic distance (PRIMARY)
+The planned 15D similarity vector will capture comprehensive geometric relationships:
+    1. cosine: Angular alignment [✓ Phase 1]
+    2. wedge_magnitude: Rotational structure [✓ Phase 1]
+    3. tensor_trace: Interaction strength [✓ Phase 1]
+    4. spinor_magnitude: Phase overlap [✓ Phase 1]
+    5. spinor_phase: Phase angle [✓ Phase 1]
+    6. energy: Field coupling [✓ Phase 1]
+    7. l2_tangent: Euclidean in tangent space [✓ Phase 1]
+    8. l1_tangent: Manhattan in tangent space [✓ Phase 1]
+    9. lior_distance: Geodesic distance (PRIMARY) [✓ Phase 1]
     10. geodesic_kendall_tau: Non-parametric correlation [FUTURE]
     11. manifold_mutual_info: Information distance [FUTURE]
     12. variational_entropy_diff: Field entropy difference [FUTURE]
@@ -27,7 +27,7 @@ The 15D similarity vector captures comprehensive geometric relationships:
 
 References:
     - Problem Statement: Extend Neighbor Addressing with Comprehensive Similarity Scores
-    - Computational Cost Analysis: ~400 FLOPs/candidate for 9D core
+    - Computational Cost Analysis: ~400-600 FLOPs/candidate for 9D core
 """
 try:
     import usage_tracker
@@ -48,18 +48,22 @@ class ComprehensiveSimilarity:
     """
     Comprehensive similarity computation with tiered execution.
     
-    Computes 15D similarity vectors capturing rich geometric relationships
-    between query and candidate points. Uses tiered computation to balance
-    accuracy and performance.
+    Computes comprehensive similarity vectors (9D in Phase 1, with 12D/15D planned)
+    capturing rich geometric relationships between query and candidate points. 
+    Uses tiered computation to balance accuracy and performance.
+    
+    Current Implementation: Phase 1 - 9D Core
+    Future Phases: 12D Extended, 15D Full (with tiering)
     
     Args:
         manifold: CognitiveManifold instance for geometric operations
         mode: Computation mode - 'core' (9D), 'extended' (12D), 'full' (15D)
+              Currently only 'core' is implemented.
         
     Attributes:
         manifold: Manifold for geodesic computations
         mode: Current computation mode
-        context_cache: Cache for precomputed context statistics
+        context_cache: Cache for precomputed context statistics (future use)
     """
     
     def __init__(
@@ -161,10 +165,10 @@ class ComprehensiveSimilarity:
         
         # (1) Wedge magnitude: O(d_coord²) FLOPs (antisymmetric outer product)
         # |q ∧ c| measures rotational structure
-        for i in range(N):
-            outer = torch.outer(query_coord, candidate_coords[i])
-            wedge = outer - outer.T  # Antisymmetric part
-            core[i, 1] = torch.norm(wedge, p='fro')
+        # Vectorized: compute all wedges at once
+        outer = torch.einsum('d,ne->nde', query_coord, candidate_coords)  # [N, d, d]
+        wedge = outer - outer.transpose(1, 2)  # Antisymmetric part
+        core[:, 1] = torch.norm(wedge.reshape(N, -1), p='fro', dim=1)
         
         # (2) Tensor trace: O(d_coord) FLOPs (inner product)
         # Tr(q ⊗ c) = q · c
@@ -172,40 +176,36 @@ class ComprehensiveSimilarity:
         
         # (3-4) Spinor magnitude and phase: O(d_spinor) FLOPs
         # Complex overlap via spinor projection - on embeddings
+        # Vectorized: compute all spinors at once
         psi_q = self.manifold.to_spinor(query_embedding.unsqueeze(0)).squeeze()  # [d_spinor]
+        psi_candidates = self.manifold.to_spinor(candidate_embeddings)  # [N, d_spinor]
         
-        for i in range(N):
-            psi_c = self.manifold.to_spinor(candidate_embeddings[i].unsqueeze(0)).squeeze()
-            
-            # Complex overlap (treat as complex numbers)
-            # Split into real/imag if d_spinor is even
-            if len(psi_q) % 2 == 0:
-                mid = len(psi_q) // 2
-                psi_q_complex = psi_q[:mid] + 1j * psi_q[mid:]
-                psi_c_complex = psi_c[:mid] + 1j * psi_c[mid:]
-                overlap = torch.dot(torch.conj(psi_q_complex), psi_c_complex)
-            else:
-                # Fallback: treat as real
-                overlap = torch.dot(psi_q, psi_c) + 0j
-            
-            core[i, 3] = torch.abs(overlap)      # Magnitude
-            core[i, 4] = torch.angle(overlap)    # Phase
+        # Complex overlap - check once if spinor dimension is even
+        if len(psi_q) % 2 == 0:
+            mid = len(psi_q) // 2
+            psi_q_complex = psi_q[:mid] + 1j * psi_q[mid:]  # [mid]
+            psi_c_complex = psi_candidates[:, :mid] + 1j * psi_candidates[:, mid:]  # [N, mid]
+            # Vectorized overlap: [N]
+            overlaps = torch.einsum('d,nd->n', torch.conj(psi_q_complex), psi_c_complex)
+        else:
+            # Fallback: treat as real
+            overlaps = torch.einsum('d,nd->n', psi_q, psi_candidates) + 0j
+        
+        core[:, 3] = torch.abs(overlaps)      # Magnitude
+        core[:, 4] = torch.angle(overlaps)    # Phase
         
         # (5) Energy: O(d_coord²) FLOPs (quadratic form)
         # E = q^T H c where H is the metric (acting as Hamiltonian)
         # Use base metric as the Hamiltonian
         H = self.manifold.base_metric()  # [d_coord, d_coord]
-        core[:, 5] = torch.real(query_coord @ H @ candidate_coords.T)
+        core[:, 5] = query_coord @ H @ candidate_coords.T  # Already real
         
         # (6-7) Tangent space distances: O(d_coord) FLOPs each
-        # Compute approximate tangent vectors
+        # Compute approximate tangent vectors - vectorized
         midpoints = (query_exp + candidate_coords) / 2  # [N, d_coord]
-        
-        for i in range(N):
-            # Approximate tangent vector (simple difference from midpoint)
-            v = candidate_coords[i] - midpoints[i]
-            core[i, 6] = torch.norm(v)       # L2 distance
-            core[i, 7] = torch.abs(v).sum()  # L1 distance
+        v = candidate_coords - midpoints  # [N, d_coord]
+        core[:, 6] = torch.norm(v, dim=1)       # L2 distance
+        core[:, 7] = torch.abs(v).sum(dim=1)    # L1 distance
         
         # (8) LIoR distance: O(d_coord × num_samples) FLOPs (EXPENSIVE)
         # Geodesic distance (PRIMARY similarity measure)
