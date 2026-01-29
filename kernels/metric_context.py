@@ -1,23 +1,19 @@
-# Context Manager for Metric-Aware Operations
+"""
+Context Manager for Metric-Aware Operations
 
-## Overview
+Overview:
+    A context manager is a Python pattern for resource management using `with` statements. 
+    It ensures proper setup and cleanup, even if errors occur.
 
-A **context manager** is a Python pattern for resource management using `with` statements. It ensures proper setup and cleanup, even if errors occur.
-
-## Why Use Context Managers for Metrics?
-
-For causal field propagation with anisotropic metrics, context managers provide:
-
-1. **Automatic metric validation** - Check positive definiteness on entry
-2. **Resource cleanup** - Clear cached computations on exit
-3. **Error handling** - Ensure metric consistency even with exceptions
-4. **Performance tracking** - Measure operation timing
-5. **State restoration** - Save/restore metric state
-
-## Implementation
-
-```python
-# kernels/metric_context.py
+Why Use Context Managers for Metrics?
+    For causal field propagation with anisotropic metrics, context managers provide:
+    
+    1. Automatic metric validation - Check positive definiteness on entry
+    2. Resource cleanup - Clear cached computations on exit
+    3. Error handling - Ensure metric consistency even with exceptions
+    4. Performance tracking - Measure operation timing
+    5. State restoration - Save/restore metric state
+"""
 
 import torch
 from contextlib import contextmanager
