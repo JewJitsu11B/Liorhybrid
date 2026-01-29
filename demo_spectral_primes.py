@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Demo: Spectral Analysis of Prime Numbers on Neto Morphic Fields
+Demo: Spectral Analysis of Prime Numbers on Meromorphic Fields
 
 This script demonstrates how the LIoRHybrid spectral framework can be used
 to analyze prime number distribution through the lens of quantum field theory
@@ -225,7 +225,7 @@ def main():
     Main demonstration script.
     """
     parser = argparse.ArgumentParser(
-        description='Demonstrate spectral analysis of prime numbers on Neto morphic fields'
+        description='Demonstrate spectral analysis of prime numbers on meromorphic fields'
     )
     parser.add_argument('--n-max', type=int, default=5000,
                         help='Maximum number to analyze (default: 5000)')

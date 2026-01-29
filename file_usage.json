@@ -35,9 +35,9 @@
     "last_called": "2026-01-27T22:53:11.191995"
   },
   "demo_spectral_primes.py": {
-    "call_count": 7,
+    "call_count": 8,
     "first_called": "2026-01-28T19:28:08.295439",
-    "last_called": "2026-01-28T19:34:57.871248"
+    "last_called": "2026-01-29T05:44:10.026043"
   },
   "inference/__init__.py": {
     "call_count": 16,

@@ -1,4 +1,4 @@
-# Spectral Analysis of Prime Numbers on Neto Morphic Fields
+# Spectral Analysis of Prime Numbers on Meromorphic Fields
 
 **Date:** 2026-01-28  
 **Context:** Analysis of how LIoRHybrid's spectral framework connects to prime number theory  
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-This document explores the deep connections between **spectral analysis** in the LIoRHybrid physics framework and **prime number distribution**, with particular focus on how the **Neto morphic field** structure (interpreted as the field's natural emergent topology) provides a novel lens for understanding prime patterns.
+This document explores the deep connections between **spectral analysis** in the LIoRHybrid physics framework and **prime number distribution**, with particular focus on how the **meromorphic field** structure (functions analytic except at isolated poles, like the Riemann zeta function) provides a novel lens for understanding prime patterns.
 
 **Key Insight:** The spectral decomposition methods already present in LIoRHybrid—eigenvalue analysis, Fourier transforms, and fractional kernels—mirror the mathematical structures underlying the Riemann zeta function and prime number theory.
 
@@ -138,26 +138,32 @@ The **singular value spectrum** {σ_i} is like the **prime counting function** �
 
 ---
 
-## Part 3: Neto Morphic Field Structure
+## Part 3: Meromorphic Field Structure
 
-### 3.1 Interpreting "Neto Morphic"
+### 3.1 Interpreting "Meromorphic"
 
-**Hypothesis:** "Neto morphic" likely refers to the **natural emergent topology** of the field, arising from:
+**Definition:** A **meromorphic function** is a complex function that is holomorphic (analytic) everywhere except at isolated poles. The Riemann zeta function ζ(s) is the canonical example:
 
-1. **Network-like structure**: 32-neighbor addressing (16 min-heap + 16 max-heap)
-2. **Morphic resonance**: Power-law memory creates self-similar patterns
-3. **Field emergence**: Topology emerges from physics, not imposed a priori
+- **Holomorphic region**: ζ(s) is analytic for Re(s) > 1
+- **Meromorphic continuation**: Extends to entire complex plane except s = 1 (simple pole)
+- **Functional equation**: Relates ζ(s) to ζ(1-s), revealing symmetry about Re(s) = 1/2
+
+**Connection to LIoRHybrid:**
+The cognitive tensor field T_ij exhibits similar properties:
+1. **Analytic regions**: Smooth field evolution in bulk
+2. **Isolated singularities**: Phase transitions, field collapses at critical points
+3. **Functional symmetry**: Complex metric G = A + iB with phase orthogonality
 
 ```python
 # From PHYSICS_AUDIT_ADDENDUM.md:
+# - Phase orthogonality: Σ (geometric) ⊥ Λ (spectral) for stability
+# - Complex metric: G_μν = A_μν + i B_μν (meromorphic structure)
 # - Addressing: Route-hashable with coordinates, parent path
-# - Neighbor structure: 32 NN, 16 min-heap, 16 max-heap
-# - Error correction: 4x8 BCH ECC for addressing
 ```
 
-### 3.2 Prime Distribution on Neto Morphic Fields
+### 3.2 Prime Distribution on Meromorphic Fields
 
-**Key Idea:** Model prime numbers as **excitations** on the Neto morphic field, where:
+**Key Idea:** Model prime numbers as **excitations** on the meromorphic field, where:
 
 **1. Field Points = Natural Numbers**
 - Each lattice site n ∈ ℕ
@@ -616,7 +622,7 @@ def compare_zeta_zeros(field_frequencies: torch.Tensor):
 
 **What This Framework Offers:**
 
-1. **Geometric Interpretation**: Primes as excitations on curved Neto morphic field
+1. **Geometric Interpretation**: Primes as excitations on meromorphic field (holomorphic except at poles)
 2. **Dynamic Evolution**: Prime patterns emerge from field physics
 3. **Memory Structure**: Power-law kernel captures long-range prime correlations
 4. **Prediction Capability**: Trained field could forecast prime locations

@@ -120,10 +120,11 @@ spacings = compute_level_spacing_statistics(spectral_data['eigenvalues'])
    - Field evolution equation has same structure
    - Modes (frequencies) ↔ zeta zeros (imaginary parts)
 
-4. **Neto Morphic Field**: Natural emergent topology
-   - 32-neighbor addressing creates network structure
+4. **Meromorphic Field Structure**: Analytic except at isolated poles
+   - Complex metric G = A + iB (holomorphic with pole structure)
+   - Phase orthogonality Σ ⊥ Λ for stability
+   - Network properties: 32-neighbor addressing, BCH error correction
    - Power-law memory (LIoR kernel) captures prime correlations
-   - BCH error correction enforces algebraic constraints
 
 ---
 

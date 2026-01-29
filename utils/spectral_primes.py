@@ -1,5 +1,5 @@
 """
-Spectral Analysis of Prime Numbers on Neto Morphic Fields
+Spectral Analysis of Prime Numbers on Meromorphic Fields
 
 This module implements spectral methods for analyzing prime number distribution
 using the LIoRHybrid physics framework. It connects number theory (Riemann zeta
