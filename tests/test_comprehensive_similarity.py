@@ -12,7 +12,8 @@ Phase 1: 9D core measures
 try:
     import usage_tracker
     usage_tracker.track(__file__)
-except:
+except Exception:
+    # Usage tracking is optional; failures here must not prevent tests from running.
     pass
 
 import torch
