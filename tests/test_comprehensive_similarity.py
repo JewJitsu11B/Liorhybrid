@@ -134,8 +134,10 @@ class TestComprehensiveSimilarity:
         vectors = similarity_computer.compute_batch(query_embedding, candidate_embeddings)
         
         # Dimension 0 should be cosine (values between -1 and 1)
-        assert -1.0 <= vectors[0, 0] <= 1.0
-        assert -1.0 <= vectors[1, 0] <= 1.0
+        cos0 = vectors[0, 0].item()
+        cos1 = vectors[1, 0].item()
+        assert -1.0 <= cos0 <= 1.0
+        assert -1.0 <= cos1 <= 1.0
     
     def test_compute_batch_no_nans(self, similarity_computer):
         """Test that computation doesn't produce NaNs."""
