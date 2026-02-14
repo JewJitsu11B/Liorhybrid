@@ -32,7 +32,7 @@ References:
 try:
     import usage_tracker
     usage_tracker.track(__file__)
-except:
+except Exception:
     pass
 
 import torch
