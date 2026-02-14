@@ -207,6 +207,9 @@ class VariationalEntropyComputer(nn.Module):
             cache_eigenvalues: Cache eigendecomposition for speed
         """
         super().__init__()
+        self.field_dim = field_dim
+        self.grid_size = grid_size
+        self.cache_eigenvalues = cache_eigenvalues
         raise NotImplementedError(
             "VariationalEntropyComputer: "
             "Setup caching structures. "
