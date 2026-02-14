@@ -64,14 +64,24 @@ Integration Strategy:
 ---------------------
 Use Runge-Kutta or symplectic integrator:
 ```python
-# RK4 for geodesic equation
-k1 = f(z_n, v_n)
-k2 = f(z_n + h/2 * v_n, v_n + h/2 * k1)
-k3 = f(z_n + h/2 * v_n, v_n + h/2 * k2)
-k4 = f(z_n + h * v_n, v_n + h * k3)
+# RK4 for geodesic equation written as:
+# dz/dt = v
+# dv/dt = f(z, v)   # e.g. -Γ(z)[v, v]
 
-z_{n+1} = z_n + h/6 * (v_n + 2*k1 + 2*k2 + k3)
-v_{n+1} = v_n + h/6 * (k1 + 2*k2 + 2*k3 + k4)
+# acceleration stages
+a1 = f(z_n, v_n)
+a2 = f(z_n + h/2 * v_n,     v_n + h/2 * a1)
+a3 = f(z_n + h/2 * (v_n + h/2 * a1), v_n + h/2 * a2)
+a4 = f(z_n + h * (v_n + h/2 * a2),   v_n + h * a3)
+
+# intermediate velocity stages
+v1 = v_n + h/2 * a1
+v2 = v_n + h/2 * a2
+v3 = v_n + h * a3
+
+# RK4 updates
+z_{n+1} = z_n + h/6 * (v_n + 2*v1 + 2*v2 + v3)
+v_{n+1} = v_n + h/6 * (a1 + 2*a2 + 2*a3 + a4)
 ```
 
 Error Accumulation:
