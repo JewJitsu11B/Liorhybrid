@@ -31,7 +31,7 @@ with a rich multi-faceted measure.
 11. resilience_product: R(u) · R(v) - Resilience correlation
 12. entropy_distance: |H(u) - H(v)| - Information-theoretic distance
 13. action_distance: |S(u) - S(v)| - LIoR action distance
-14. symplectic_form: ω(u, v) - Symplectic pairing (odd dimensions)
+14. symplectic_form: ω(u, v) - Symplectic pairing (even dimensions)
 15. killing_form: K(u, v) - Lie algebra similarity (if applicable)
 
 Mathematics:
