@@ -128,6 +128,9 @@ class MathValidationTeam:
 
     def __init__(self, literature: Dict[str, str] | None = None):
         self.literature = literature or DEFAULT_LITERATURE
+        self.required_neighbors = 64
+        self.required_score_channels = 6
+        self.validation_lambda_f = 0.1
 
     def validate_all(
         self,
@@ -224,12 +227,14 @@ class MathValidationTeam:
 
         hist_short = [torch.randn(4, 4, 2, 2, dtype=torch.complex64) for _ in range(4)]
         hist_long = [torch.randn(4, 4, 2, 2, dtype=torch.complex64) for _ in range(24)]
-        w_short = self._memory_weight_proxy(len(hist_short), alpha=alpha, lambda_F=0.1)
-        w_long = self._memory_weight_proxy(len(hist_long), alpha=alpha, lambda_F=0.1)
+        w_short = self._memory_weight_proxy(len(hist_short), alpha=alpha, lambda_F=self.validation_lambda_f)
+        w_long = self._memory_weight_proxy(len(hist_long), alpha=alpha, lambda_F=self.validation_lambda_f)
+        w_short_f = float(w_short)
+        w_long_f = float(w_long)
         weight_bound_ok = (
-            float(w_short) >= 0.0 and float(w_short) <= 1.0 and
-            float(w_long) >= 0.0 and float(w_long) <= 1.0 and
-            float(w_long) >= float(w_short)
+            w_short_f >= 0.0 and w_short_f <= 1.0 and
+            w_long_f >= 0.0 and w_long_f <= 1.0 and
+            w_long_f >= w_short_f
         )
         findings.append(
             ValidationFinding(
@@ -262,7 +267,11 @@ class MathValidationTeam:
             )
         )
 
-        precompute_ok = cfg.n_neighbors == 64 and cfg.m == 6 and cfg.d_block == (cfg.d_prime + cfg.m + cfg.k)
+        precompute_ok = (
+            cfg.n_neighbors == self.required_neighbors and
+            cfg.m == self.required_score_channels and
+            cfg.d_block == (cfg.d_prime + cfg.m + cfg.k)
+        )
         findings.append(
             ValidationFinding(
                 agent="Implementation Agent",
