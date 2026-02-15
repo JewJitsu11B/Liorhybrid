@@ -15,6 +15,11 @@ def test_math_validation_team_passes_default_pipeline():
     assert report.passed
     assert len(report.findings) >= 8
     assert all(f.literature for f in report.findings)
+    assert report.logic_audit_comments
+    assert report.stub_output.pseudocode
+    assert report.stub_output.formalisms
+    assert report.bridge_plan == []
+    assert all("path=" in c and "why=" in c for c in report.logic_audit_comments)
 
 
 def test_math_validation_team_detects_precompute_contract_break():
@@ -25,6 +30,9 @@ def test_math_validation_team_detects_precompute_contract_break():
     failed = [f for f in report.failed_checks if "Precompute dimensions satisfy Option-6 contracts" in f.check]
 
     assert failed, "Expected precompute contract failure was not detected."
+    assert {"Physics Agent", "Abstract Algebra Agent", "Differential Geometry Agent"} == {
+        s.owner_agent for s in report.bridge_plan
+    }
 
 
 def test_math_validation_report_written_to_pipeline_audit(monkeypatch, tmp_path):
@@ -37,3 +45,6 @@ def test_math_validation_report_written_to_pipeline_audit(monkeypatch, tmp_path)
 
     assert "Math Validation Team" in text
     assert "full_pipeline_math_validation" in text
+    assert "Logic Audit Comments" in text
+    assert "Stub Team: Pseudocode" in text
+    assert "Stub Team: Formalisms" in text

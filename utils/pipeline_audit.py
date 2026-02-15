@@ -129,6 +129,25 @@ def write_math_validation_report(label: str = "full_pipeline_math_validation") -
                 status = "PASS" if finding.passed else "FAIL"
                 f.write(
                     f"- `{status}` | `{finding.agent}` | `{finding.check}` | "
-                    f"{finding.details} | ref: {finding.literature}\n"
+                    f"{finding.details} | path: {finding.logic_path} | "
+                    f"why: {finding.rationale} | ref: {finding.literature}\n"
                 )
+            f.write("\n### Logic Audit Comments\n")
+            for comment in report.logic_audit_comments:
+                f.write(f"- {comment}\n")
+            f.write("\n### Stub Team: Pseudocode\n")
+            for line in report.stub_output.pseudocode:
+                f.write(f"- {line}\n")
+            f.write("\n### Stub Team: Formalisms\n")
+            for line in report.stub_output.formalisms:
+                f.write(f"- {line}\n")
+            f.write("\n### Bridge Plan\n")
+            if report.bridge_plan:
+                for step in report.bridge_plan:
+                    f.write(
+                        f"- `{step.owner_agent}` | gap: {step.gap} | action: {step.action} | "
+                        f"done-when: {step.completion_criterion}\n"
+                    )
+            else:
+                f.write("- No unresolved gaps; bridge agents not required.\n")
     return out

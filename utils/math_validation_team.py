@@ -29,11 +29,30 @@ class ValidationFinding:
     passed: bool
     details: str
     literature: str
+    logic_path: str
+    rationale: str
+
+
+@dataclass(frozen=True)
+class BridgeStep:
+    gap: str
+    owner_agent: str
+    action: str
+    completion_criterion: str
+
+
+@dataclass(frozen=True)
+class StubTeamOutput:
+    pseudocode: List[str]
+    formalisms: List[str]
 
 
 @dataclass(frozen=True)
 class ValidationReport:
     findings: List[ValidationFinding]
+    logic_audit_comments: List[str]
+    stub_output: StubTeamOutput
+    bridge_plan: List[BridgeStep]
 
     @property
     def passed(self) -> bool:
@@ -145,7 +164,15 @@ class MathValidationTeam:
         findings.extend(self._formal_integrity_agent())
         findings.extend(self._physical_consistency_agent(alpha=alpha, n_steps=n_steps, dt=dt))
         findings.extend(self._implementation_agent(cfg))
-        return ValidationReport(findings=findings)
+        comments = self._logic_audit_comments(findings)
+        stub_output = self._stub_team_output()
+        bridge_plan = self._bridge_plan(findings)
+        return ValidationReport(
+            findings=findings,
+            logic_audit_comments=comments,
+            stub_output=stub_output,
+            bridge_plan=bridge_plan,
+        )
 
     def _formal_integrity_agent(self) -> List[ValidationFinding]:
         findings: List[ValidationFinding] = []
@@ -160,6 +187,8 @@ class MathValidationTeam:
                 passed=lap_ok,
                 details="Finite-difference stencil must preserve constant fields exactly.",
                 literature=self.literature["hamiltonian_operator"],
+                logic_path="start->operator_discretization->constant_field_invariance",
+                rationale="A constant field should have zero second derivative; non-zero indicates index/sign defect.",
             )
         )
 
@@ -172,6 +201,8 @@ class MathValidationTeam:
                 passed=ham_ok,
                 details="Checks coefficient/sign consistency in H[T] = -(ħ²/2m)∇²T + V·T.",
                 literature=self.literature["hamiltonian_operator"],
+                logic_path="start->hamiltonian_kernel->free_field_limit",
+                rationale="In the free-field limit with ∇²T=0 and V=0, Hamiltonian contribution must vanish.",
             )
         )
 
@@ -186,6 +217,8 @@ class MathValidationTeam:
                 passed=bool(posterior_ok),
                 details="Posterior normalization must not create NaN/Inf and must preserve indices.",
                 literature=self.literature["bayesian_update"],
+                logic_path="start->bayesian_update->posterior_normalization",
+                rationale="Posterior maps tensor-to-tensor; shape/index mismatch breaks downstream operator algebra.",
             )
         )
 
@@ -204,6 +237,8 @@ class MathValidationTeam:
                 passed=qr_ok,
                 details="When no prior collapsed state exists, Λ_QR must be exactly zero.",
                 literature=self.literature["bayesian_update"],
+                logic_path="start->bayesian_recursive_term->initial_condition",
+                rationale="Initial update must not invent prior evidence; otherwise dynamics is unphysical.",
             )
         )
 
@@ -222,6 +257,8 @@ class MathValidationTeam:
                 passed=bool(kernel_norm_ok and kernel_positive_ok),
                 details="Power-law memory kernel must remain a valid bounded weighting measure.",
                 literature=self.literature["fractional_memory"],
+                logic_path="start->fractional_memory->kernel_measure",
+                rationale="A normalized positive kernel is required for stable memory integration and physical weighting.",
             )
         )
 
@@ -243,6 +280,8 @@ class MathValidationTeam:
                 passed=weight_bound_ok,
                 details="memory_weight must stay in [0,1] and increase with accumulated history.",
                 literature=self.literature["fractional_memory"],
+                logic_path="start->fractional_memory->bayesian_modulation_weight",
+                rationale="Out-of-bound or non-monotone weights break posterior interpretation and control stability.",
             )
         )
 
@@ -264,6 +303,8 @@ class MathValidationTeam:
                 passed=contiguous,
                 details="All linearized block offsets must be gap-free and end at total_dim.",
                 literature=self.literature["index_contract"],
+                logic_path="start->address_linearization->offset_continuity",
+                rationale="Non-contiguous offsets imply index corruption between semantic blocks.",
             )
         )
 
@@ -279,6 +320,8 @@ class MathValidationTeam:
                 passed=precompute_ok,
                 details="Neighbor slots and score channel counts must match strict pipeline assumptions.",
                 literature=self.literature["index_contract"],
+                logic_path="start->address_precompute->dimension_contracts",
+                rationale="Precompute dimensions define compile-time tensor interfaces for routing kernels.",
             )
         )
 
@@ -290,3 +333,59 @@ class MathValidationTeam:
             return 0.0
         w = alpha * torch.log(torch.tensor(1.0 + float(n_steps)))
         return float(torch.clamp(w * lambda_F, min=0.0, max=1.0))
+
+    @staticmethod
+    def _logic_audit_comments(findings: List[ValidationFinding]) -> List[str]:
+        comments = []
+        for finding in findings:
+            direction = "accepted" if finding.passed else "rejected"
+            comments.append(
+                f"[{finding.agent}] {direction}: {finding.check} | "
+                f"path={finding.logic_path} | why={finding.rationale}"
+            )
+        return comments
+
+    @staticmethod
+    def _stub_team_output() -> StubTeamOutput:
+        return StubTeamOutput(
+            pseudocode=[
+                "Input T, config, evidence, history",
+                "Compute H[T], Λ_QR[T], and memory modulation w_mem",
+                "Assemble update dT = (dt/(i*hbar)) * (-effective_grad + Λ_QR + J)",
+                "Validate index contracts and record audit path/rationale",
+                "If gaps remain, dispatch to bridge agents until all checks pass",
+            ],
+            formalisms=[
+                "H[T] = -(ħ²/2m)∇²T + V·T",
+                "Λ_QR[T] = λ_QR(B[T_prev] - T_prev)",
+                "B[T] = (w ⊙ T) / Z, with Z = Σ w|T|²",
+                "K(τ) = τ^(α-1)/Γ(α), normalized over discrete history",
+                "w_mem = clamp(λ_F * α * log(1+n_steps), 0, 1)",
+            ],
+        )
+
+    @staticmethod
+    def _bridge_plan(findings: List[ValidationFinding]) -> List[BridgeStep]:
+        bridge_steps: List[BridgeStep] = []
+        if not all(f.passed for f in findings):
+            bridge_steps.extend([
+                BridgeStep(
+                    gap="Operator-level physical inconsistency",
+                    owner_agent="Physics Agent",
+                    action="Re-derive physical constraint and enforce admissible parameter regime.",
+                    completion_criterion="All physics-tagged findings pass.",
+                ),
+                BridgeStep(
+                    gap="Tensor/index contract ambiguity",
+                    owner_agent="Abstract Algebra Agent",
+                    action="Normalize tensor/index formalism and prove block-consistent mappings.",
+                    completion_criterion="All index/layout findings pass with contiguous mappings.",
+                ),
+                BridgeStep(
+                    gap="Geometry/operator transport mismatch",
+                    owner_agent="Differential Geometry Agent",
+                    action="Verify metric-connection compatibility and curvature-safe discretization assumptions.",
+                    completion_criterion="Geometry-sensitive findings pass and no transport mismatch remains.",
+                ),
+            ])
+        return bridge_steps
