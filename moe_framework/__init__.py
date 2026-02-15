@@ -19,7 +19,6 @@ from .constellation import ExpertConstellation
 from .librarian import LibrarianCurator
 from .knowledge_graph import KnowledgeGraph, PersistentKnowledgeGraph, FastRetrievalKG
 from .moe_system import MixtureOfExpertsSystem, FullyOptimizedMoESystem
-from .agentic_team import AgenticAITeam, TeamReport, Objection
 
 __all__ = [
     'MoEConfig',
@@ -32,9 +31,6 @@ __all__ = [
     'FastRetrievalKG',
     'MixtureOfExpertsSystem',
     'FullyOptimizedMoESystem',
-    'AgenticAITeam',
-    'TeamReport',
-    'Objection',
 ]
 
 __version__ = '1.0.0'

@@ -4,7 +4,6 @@ A sophisticated mixture-of-experts framework with hierarchical controls, knowled
 
 ## Features
 
-- **Agentic AI Team Blueprint**: 3 orthogonal teams (formal, physical, implementation) with supervisors and CEO synthesis
 - **Sparse Expert Activation**: Only relevant experts are activated per input (top-k routing)
 - **Supervisor Gating**: Attention-based mechanism for intelligent expert selection
 - **Expert Constellations**: Coordinated activation of interdependent expert combinations
@@ -108,13 +107,6 @@ config = MoEConfig(
 ```
 
 ## Components
-
-### Agentic Team Architecture (`AgenticAITeam`)
-Defines a distributed review architecture with:
-- 3 teams × (3 agents + 1 supervisor)
-- 1 CEO synthesis agent
-- Structured supervisor reports with concrete references (equation, file, invariant, or failure case)
-- CEO verdicts: `APPROVED`, `APPROVED WITH CONDITIONS`, `REVISE`, `REJECT`
 
 ### 1. Expert Modules (`BaseExpert`)
 Specialized modules for domain-specific processing.
