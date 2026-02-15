@@ -9,6 +9,11 @@ from typing import Dict, List, Literal, Optional
 
 
 Verdict = Literal['APPROVED', 'APPROVED WITH CONDITIONS', 'REVISE', 'REJECT']
+APPROVED_STATUSES = {
+    'Formal Integrity Team': 'mathematically sound',
+    'Physical Consistency Team': 'physically consistent',
+    'Implementation & Code Team': 'safe merge',
+}
 
 
 @dataclass(frozen=True)
@@ -118,22 +123,25 @@ class AgenticAITeam:
             report.validate()
 
         statuses = {report.team_name: report.status.lower() for report in reports}
-        dominant_team = next((r.team_name for r in reports if r.objections), None)
+        severity_order = ['REJECT', 'REVISE', 'APPROVED WITH CONDITIONS']
+        dominant_team = None
 
-        if any(s in {'invalid', 'violates x'} for s in statuses.values()):
+        if any(s in {'invalid', 'violates constraint'} for s in statuses.values()):
             verdict: Verdict = 'REJECT'
         elif any(s in {'structural risk'} for s in statuses.values()):
             verdict = 'REVISE'
         elif any(s in {'conditional', 'needs constraint'} for s in statuses.values()):
             verdict = 'APPROVED WITH CONDITIONS'
-        elif statuses == {
-            'Formal Integrity Team': 'mathematically sound',
-            'Physical Consistency Team': 'physically consistent',
-            'Implementation & Code Team': 'safe merge',
-        }:
+        elif statuses == APPROVED_STATUSES:
             verdict = 'APPROVED'
         else:
             verdict = 'REVISE'
+
+        if verdict in severity_order:
+            for report in reports:
+                if report.objections:
+                    dominant_team = report.team_name
+                    break
 
         return {
             'verdict': verdict,
