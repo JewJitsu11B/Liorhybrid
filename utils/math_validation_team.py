@@ -20,6 +20,7 @@ DEFAULT_LITERATURE: Dict[str, str] = {
     "fractional_memory": "Podlubny, Fractional Differential Equations (1998), Eq. power-law kernels",
     "index_contract": "Tensor index consistency requirement: contiguous block layout with exact offsets",
 }
+BRIDGE_AGENT_NAMES = ("Physics Agent", "Abstract Algebra Agent", "Differential Geometry Agent")
 
 
 @dataclass(frozen=True)
@@ -351,7 +352,7 @@ class MathValidationTeam:
             pseudocode=[
                 "Input T, config, evidence, history",
                 "Compute H[T], Λ_QR[T], and memory modulation w_mem",
-                "Assemble update dT = (dt/(i*hbar)) * (-effective_grad + Λ_QR + J)",
+                "Assemble update dT = (dt/(i*ℏ)) * (-effective_grad + Λ_QR + J)",
                 "Validate index contracts and record audit path/rationale",
                 "If gaps remain, dispatch to bridge agents until all checks pass",
             ],
@@ -371,19 +372,19 @@ class MathValidationTeam:
             bridge_steps.extend([
                 BridgeStep(
                     gap="Operator-level physical inconsistency",
-                    owner_agent="Physics Agent",
+                    owner_agent=BRIDGE_AGENT_NAMES[0],
                     action="Re-derive physical constraint and enforce admissible parameter regime.",
                     completion_criterion="All physics-tagged findings pass.",
                 ),
                 BridgeStep(
                     gap="Tensor/index contract ambiguity",
-                    owner_agent="Abstract Algebra Agent",
+                    owner_agent=BRIDGE_AGENT_NAMES[1],
                     action="Normalize tensor/index formalism and prove block-consistent mappings.",
                     completion_criterion="All index/layout findings pass with contiguous mappings.",
                 ),
                 BridgeStep(
                     gap="Geometry/operator transport mismatch",
-                    owner_agent="Differential Geometry Agent",
+                    owner_agent=BRIDGE_AGENT_NAMES[2],
                     action="Verify metric-connection compatibility and curvature-safe discretization assumptions.",
                     completion_criterion="Geometry-sensitive findings pass and no transport mismatch remains.",
                 ),

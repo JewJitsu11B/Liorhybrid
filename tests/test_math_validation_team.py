@@ -4,7 +4,7 @@ Tests for multi-agent full-pipeline math validation.
 try: import usage_tracker; usage_tracker.track(__file__)
 except: pass
 
-from utils.math_validation_team import DefaultAddressLayout, MathValidationTeam
+from utils.math_validation_team import BRIDGE_AGENT_NAMES, DefaultAddressLayout, MathValidationTeam
 from utils.pipeline_audit import reset_audit, write_math_validation_report
 
 
@@ -30,7 +30,7 @@ def test_math_validation_team_detects_precompute_contract_break():
     failed = [f for f in report.failed_checks if "Precompute dimensions satisfy Option-6 contracts" in f.check]
 
     assert failed, "Expected precompute contract failure was not detected."
-    assert {"Physics Agent", "Abstract Algebra Agent", "Differential Geometry Agent"} == {
+    assert set(BRIDGE_AGENT_NAMES) == {
         s.owner_agent for s in report.bridge_plan
     }
 
