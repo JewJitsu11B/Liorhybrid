@@ -1970,7 +1970,7 @@ def run_window(
             if velocity_acc is None:
                 velocity_acc = v.detach().clone()
             else:
-                velocity_acc.add_(v)
+                velocity_acc.add_(v.detach())
 
             # Push to geometric diagnostics buffer
             path_buffer.push(
@@ -2214,45 +2214,55 @@ def apply_manual_update(
                     # Rotor learning rate (smaller than metric lr)
                     rotor_lr = eta * 0.01
 
-                    # OPTIMIZATION: Vectorize rotor update to eliminate nested .item() calls
+                    # OPTIMIZATION: Fully vectorized rotor update - no CPU-GPU syncs
                     # Flatten rotor_layers to process all pairs at once
                     rotor_pairs = geom.rotor_layers.reshape(-1, 2)  # [layers*pairs, 2]
-                    valid_pairs = []
-                    valid_k_idx = []
+                    num_pairs = rotor_pairs.shape[0]
                     
-                    for k_idx, (i_j) in enumerate(rotor_pairs):
-                        i, j = int(i_j[0].item()), int(i_j[1].item())
-                        if i < v_mean.shape[-1] and j < v_mean.shape[-1] and k_idx < theta.shape[-1]:
-                            valid_pairs.append((i, j))
-                            valid_k_idx.append(k_idx)
-                    
-                    if valid_pairs:
-                        # Vectorized angle computation
-                        i_indices = torch.tensor([p[0] for p in valid_pairs], device=DEVICE)
-                        j_indices = torch.tensor([p[1] for p in valid_pairs], device=DEVICE)
+                    if num_pairs > 0:
+                        # All indices on GPU
+                        k_all = torch.arange(num_pairs, device=DEVICE, dtype=torch.long)
+                        i_all = rotor_pairs[:, 0].long()
+                        j_all = rotor_pairs[:, 1].long()
                         
-                        v_i = v_mean[i_indices]
-                        v_j = v_mean[j_indices]
-                        v_plane_mag = torch.sqrt(v_i**2 + v_j**2)
+                        # Base validity: indices within bounds of v_mean and theta
+                        base_mask = (
+                            (i_all < v_mean.shape[-1])
+                            & (j_all < v_mean.shape[-1])
+                            & (k_all < theta.shape[-1])
+                        )
                         
-                        # Filter out tiny magnitudes
-                        valid_mask = v_plane_mag >= 1e-6
-                        
-                        if valid_mask.any():
-                            v_angle = torch.atan2(v_j[valid_mask], v_i[valid_mask])
-                            delta_theta = rotor_lr * (-lior_diff_val) * v_angle * v_plane_mag[valid_mask]
+                        if base_mask.any():
+                            i_valid = i_all[base_mask]
+                            j_valid = j_all[base_mask]
+                            k_valid = k_all[base_mask]
                             
-                            # Filter finite values
-                            finite_mask = torch.isfinite(delta_theta)
-                            if finite_mask.any():
-                                valid_k = torch.tensor([valid_k_idx[i] for i, m in enumerate(valid_mask) if m], device=DEVICE)
-                                valid_k = valid_k[finite_mask]
-                                delta_theta = delta_theta[finite_mask]
+                            # Vectorized angle and magnitude computation
+                            v_i = v_mean[i_valid]
+                            v_j = v_mean[j_valid]
+                            v_plane_mag = torch.sqrt(v_i**2 + v_j**2)
+                            
+                            # Filter out tiny magnitudes
+                            mag_mask = v_plane_mag >= 1e-6
+                            if mag_mask.any():
+                                v_i = v_i[mag_mask]
+                                v_j = v_j[mag_mask]
+                                v_plane_mag = v_plane_mag[mag_mask]
+                                k_valid_mag = k_valid[mag_mask]
                                 
-                                # Apply updates
-                                theta.index_add_(theta.dim() - 1, valid_k, delta_theta)
-                                total_updates = len(delta_theta)
-                                total_delta_theta = delta_theta.abs().sum().item()
+                                v_angle = torch.atan2(v_j, v_i)
+                                delta_theta = rotor_lr * (-lior_diff_val) * v_angle * v_plane_mag
+                                
+                                # Filter finite values
+                                finite_mask = torch.isfinite(delta_theta)
+                                if finite_mask.any():
+                                    k_final = k_valid_mag[finite_mask]
+                                    delta_theta_final = delta_theta[finite_mask]
+                                    
+                                    # Apply updates
+                                    theta.index_add_(theta.dim() - 1, k_final, delta_theta_final)
+                                    total_updates = int(delta_theta_final.numel())
+                                    total_delta_theta = delta_theta_final.abs().sum().item()
 
                     if total_updates > 0:
                         # Wrap theta to [-π, π] (in-place)
@@ -2408,8 +2418,10 @@ def run_two_phase_and_update(
     if window_idx > 0 and window_idx % 50 == 0:  # Check less frequently
         mem_allocated = torch.cuda.memory_allocated(DEVICE)
         mem_reserved = torch.cuda.memory_reserved(DEVICE)
-        if mem_allocated / mem_reserved > 0.9:
-            torch.cuda.empty_cache()
+        if mem_reserved > 0:
+            usage_ratio = mem_allocated / mem_reserved
+            if usage_ratio > 0.9:
+                torch.cuda.empty_cache()
 
     return free, nudged
 
@@ -2768,12 +2780,35 @@ def maybe_capture_cudagraph(step_fn: Callable[..., Any], static_inputs: Any, cfg
         
         # Graph replay phase
         if graph_state['graph'] is not None:
-            # Copy input data to static buffers
-            for static_arg, arg in zip(graph_state['static_input'], args):
+            static_inputs = graph_state['static_input']
+            
+            # Validate that runtime inputs match captured static input shapes
+            if len(args) != len(static_inputs):
+                print(
+                    "[CUDAGRAPH] Input count mismatch during replay "
+                    f"(got {len(args)}, expected {len(static_inputs)}). "
+                    "Falling back to eager execution for this step."
+                )
+                return step_fn(*args, **kwargs)
+            
+            for static_arg, arg in zip(static_inputs, args):
+                if isinstance(static_arg, torch.Tensor) and isinstance(arg, torch.Tensor):
+                    if static_arg.shape != arg.shape:
+                        print(
+                            "[CUDAGRAPH] Input shape mismatch during replay "
+                            f"(static {tuple(static_arg.shape)} vs runtime {tuple(arg.shape)}). "
+                            "Falling back to eager execution for this step."
+                        )
+                        return step_fn(*args, **kwargs)
+            
+            # Copy input data to static buffers (shapes have been validated)
+            for static_arg, arg in zip(static_inputs, args):
                 if isinstance(static_arg, torch.Tensor) and isinstance(arg, torch.Tensor):
                     static_arg.copy_(arg)
             
             # Replay graph
+            # NOTE: kwargs are captured during graph creation and cannot be modified during replay.
+            # If your use case requires dynamic kwargs, CUDA graphs are not suitable.
             graph_state['graph'].replay()
             
             # Return static output (no copy needed, it's updated in-place)

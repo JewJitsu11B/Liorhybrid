@@ -109,36 +109,6 @@ class TestQuadFormFusion:
         # Verify match
         assert torch.allclose(dlior_ref, dlior_opt, rtol=1e-6, atol=1e-8)
         assert torch.allclose(spd_ref, spd_opt, rtol=1e-6, atol=1e-8)
-    
-    def test_fused_performance(self, sample_tensors, benchmark):
-        """Benchmark: fused should be faster."""
-        v = sample_tensors['v']
-        R_sc = sample_tensors['R_sc']
-        g0 = sample_tensors['g0']
-        g0_diag = sample_tensors['g0_diag']
-        eps = sample_tensors['eps']
-        
-        def run_separate():
-            dlior = self.lior_step_reference(R_sc, v, g0, g0_diag, eps)
-            v2 = v.unsqueeze(1)
-            spd = self.quad_form_batch(v2, g=g0, eps=eps, g_diag=g0_diag).squeeze(1)
-            return dlior, spd
-        
-        def run_fused():
-            return self.lior_step_fused(R_sc, v, g0, g0_diag, eps)
-        
-        # Warmup
-        for _ in range(10):
-            run_separate()
-            run_fused()
-        
-        torch.cuda.synchronize()
-        
-        # Note: pytest-benchmark required for this test
-        # Uncomment if available:
-        # time_separate = benchmark(run_separate)
-        # time_fused = benchmark(run_fused)
-        # assert time_fused < time_separate
 
 
 class TestRotorVectorization:
@@ -273,38 +243,6 @@ class TestRotorVectorization:
         assert updates_nested == updates_vec
         assert torch.allclose(theta_nested, theta_vec, rtol=1e-6, atol=1e-8)
         assert abs(delta_nested - delta_vec) < 1e-6
-
-
-class TestMemoryOptimizations:
-    """Test in-place operations don't change semantics."""
-    
-    def test_inplace_accumulation(self, device):
-        """Verify .add_() produces same result as +."""
-        batch_size = 4
-        n_coords = 8
-        steps = 10
-        
-        # Reference: creating new tensor
-        acc_ref = None
-        for step in range(steps):
-            v = torch.randn(batch_size, n_coords, device=device, dtype=torch.float32)
-            if acc_ref is None:
-                acc_ref = v.detach().clone()
-            else:
-                acc_ref = acc_ref.detach() + v.detach()
-        
-        # Optimized: in-place
-        acc_opt = None
-        torch.manual_seed(0)  # Reset for same random values
-        for step in range(steps):
-            v = torch.randn(batch_size, n_coords, device=device, dtype=torch.float32)
-            if acc_opt is None:
-                acc_opt = v.detach().clone()
-            else:
-                acc_opt.add_(v)
-        
-        # Note: Can't guarantee exact match due to different random seeds
-        # In real code with same inputs, results are identical
 
 
 class TestProgressMetricsBatching:
