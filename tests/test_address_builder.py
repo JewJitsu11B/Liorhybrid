@@ -293,9 +293,9 @@ def test_address_builder_with_address_probing_disabled():
     
     # Neighbors should be zero (not populated when probing disabled)
     neighbors = addr.neighbors_blocked
-    # With probing disabled, neighbors won't be filled by default logic
-    # The current implementation still fills them, so this test documents current behavior
-
+    # When probing is disabled, neighbors should be zero-initialized (not populated)
+    # If implementation fills them anyway, this assertion will fail and indicate the bug
+    assert neighbors.abs().sum() == 0, "Neighbors should be empty when probing is disabled"
 
 def test_individual_neighbor_access():
     """Test accessing individual neighbors by index."""
