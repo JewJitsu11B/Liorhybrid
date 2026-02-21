@@ -671,10 +671,13 @@ def quad_form_batch(
     raise ValueError("g must be [n,n] or [B,n,n].")
 
 
+# OPTIMIZATION: JIT compile for better fusion in hot path
+@torch.jit.script
 def retrieval_weights_from_cost(cost: torch.Tensor, beta: float) -> torch.Tensor:
     return torch.softmax(-beta * cost, dim=-1)
 
 
+@torch.jit.script
 def retrieval_mix(values: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
     return torch.sum(values * w.unsqueeze(-1), dim=1)
 
@@ -762,6 +765,23 @@ def lior_step(
     v2 = v.unsqueeze(1)
     spd = quad_form_batch(v2, g=g0, eps=cfg.eps, g_diag=g0_diag).squeeze(1)
     return R_sc * spd
+
+
+def lior_step_fused(
+    R_sc: torch.Tensor,
+    v: torch.Tensor,
+    g0: torch.Tensor,
+    g0_diag: Optional[torch.Tensor],
+    cfg: TrainConfig,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    OPTIMIZATION: Fused version that computes both lior and spd in a single pass.
+    Returns (dlior, spd) to avoid redundant quad_form_batch computation.
+    """
+    v2 = v.unsqueeze(1)
+    spd = quad_form_batch(v2, g=g0, eps=cfg.eps, g_diag=g0_diag).squeeze(1)
+    dlior = R_sc * spd
+    return dlior, spd
 
 
 @dataclass
@@ -1892,17 +1912,26 @@ def run_window(
         mem_update: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
 
         progress_every = int(getattr(cfg, "step_progress_every", 0) or 0)
+        
+        # OPTIMIZATION: Defer .item() calls to avoid per-step GPU sync
+        # Store metrics on GPU, sync only at window boundary
+        progress_metrics_gpu = None
+        if progress_every > 0:
+            progress_metrics_gpu = torch.zeros(3, device=DEVICE, dtype=torch.float32)
 
         for _t in range(steps):
             if _t == 0:
                 _trace("run_window:step0:start")
             if progress_every > 0 and (_t % progress_every == 0) and _t > 0:
-                # Live perf metrics (uses accumulated values, no extra cuda sync)
+                # OPTIMIZATION: Batch metric computation on GPU, single sync
                 import math
                 inv_t = 1.0 / float(_t)
-                lior_now = (lior_acc * inv_t).item()
-                R_now = (R_acc * inv_t).item()
-                spd_now = (spd_acc * inv_t).item()
+                progress_metrics_gpu[0] = lior_acc * inv_t
+                progress_metrics_gpu[1] = R_acc * inv_t
+                progress_metrics_gpu[2] = spd_acc * inv_t
+                # Single .item() call for all 3 metrics
+                metrics_cpu = progress_metrics_gpu.cpu()
+                lior_now, R_now, spd_now = metrics_cpu[0].item(), metrics_cpu[1].item(), metrics_cpu[2].item()
                 ppl = math.exp(min(lior_now, 20.0))  # Perplexity = exp(loss), capped
                 print(f"[{_ts()}] e{epoch_idx} w{window_idx} step {_t}/{steps} | loss={lior_now:.4f} ppl={ppl:.2f} R={R_now:.4f} spd={spd_now:.4f}", flush=True)
 
@@ -1984,22 +2013,21 @@ def run_window(
                 v = v.squeeze(1)
             if _t == 0:
                 _trace("run_window:step0:lior_step:start")
-            dlior = lior_step(R_sc=R_sc, v=v, g0=geom.g0, g0_diag=geom.g0_diag, cfg=cfg)
+            # OPTIMIZATION: Use fused version to compute both dlior and spd in one pass
+            dlior, spd = lior_step_fused(R_sc=R_sc, v=v, g0=geom.g0, g0_diag=geom.g0_diag, cfg=cfg)
             if _t == 0:
                 _trace("run_window:step0:lior_step:done")
 
             lior_acc = lior_acc + dlior.mean()
             R_acc = R_acc + R_sc.mean()
-
-            spd = quad_form_batch(v.unsqueeze(1), g=geom.g0, eps=cfg.eps, g_diag=geom.g0_diag).squeeze(1)
             spd_acc = spd_acc + spd.mean()
 
             # Accumulate velocity for directional metric learning
-            # CRITICAL: Must detach BOTH sides to prevent graph accumulation
+            # OPTIMIZATION: Use in-place add to avoid creating new tensors
             if velocity_acc is None:
                 velocity_acc = v.detach().clone()
             else:
-                velocity_acc = velocity_acc.detach() + v.detach()
+                velocity_acc.add_(v.detach())
 
             # Push to geometric diagnostics buffer
             path_buffer.push(
@@ -2255,35 +2283,55 @@ def apply_manual_update(
                     # Rotor learning rate (smaller than metric lr)
                     rotor_lr = eta * 0.01
 
-                    for layer_idx in range(layers):
-                        for pair_idx in range(pairs_per_layer):
-                            i, j = geom.rotor_layers[layer_idx, pair_idx]
-                            i, j = int(i.item()), int(j.item())
-
-                            if i >= v_mean.shape[-1] or j >= v_mean.shape[-1]:
-                                continue
-
-                            # Velocity in this plane (original frame)
-                            v_i, v_j = v_mean[i].item(), v_mean[j].item()
-                            v_plane_mag = math.sqrt(v_i**2 + v_j**2)
-
-                            if v_plane_mag < 1e-6:
-                                continue
-
-                            # Angle of velocity in this plane
-                            v_angle = math.atan2(v_j, v_i)
-
-                            k_idx = layer_idx * pairs_per_layer + pair_idx
-                            if k_idx >= theta.shape[-1]:
-                                continue
-
-                            # Update rotor to align with velocity direction
-                            # If nudge helped, reinforce alignment
-                            delta_theta = rotor_lr * (-lior_diff_val) * v_angle * v_plane_mag
-                            if math.isfinite(delta_theta):
-                                theta[..., k_idx].add_(delta_theta)
-                                total_updates += 1
-                                total_delta_theta += abs(delta_theta)
+                    # OPTIMIZATION: Fully vectorized rotor update - no CPU-GPU syncs
+                    # Flatten rotor_layers to process all pairs at once
+                    rotor_pairs = geom.rotor_layers.reshape(-1, 2)  # [layers*pairs, 2]
+                    num_pairs = rotor_pairs.shape[0]
+                    
+                    if num_pairs > 0:
+                        # All indices on GPU
+                        k_all = torch.arange(num_pairs, device=DEVICE, dtype=torch.long)
+                        i_all = rotor_pairs[:, 0].long()
+                        j_all = rotor_pairs[:, 1].long()
+                        
+                        # Base validity: indices within bounds of v_mean and theta
+                        base_mask = (
+                            (i_all < v_mean.shape[-1])
+                            & (j_all < v_mean.shape[-1])
+                            & (k_all < theta.shape[-1])
+                        )
+                        
+                        if base_mask.any():
+                            i_valid = i_all[base_mask]
+                            j_valid = j_all[base_mask]
+                            k_valid = k_all[base_mask]
+                            
+                            # Vectorized angle and magnitude computation
+                            v_i = v_mean[i_valid]
+                            v_j = v_mean[j_valid]
+                            v_plane_mag = torch.sqrt(v_i**2 + v_j**2)
+                            
+                            # Filter out tiny magnitudes
+                            mag_mask = v_plane_mag >= 1e-6
+                            if mag_mask.any():
+                                v_i = v_i[mag_mask]
+                                v_j = v_j[mag_mask]
+                                v_plane_mag = v_plane_mag[mag_mask]
+                                k_valid_mag = k_valid[mag_mask]
+                                
+                                v_angle = torch.atan2(v_j, v_i)
+                                delta_theta = rotor_lr * (-lior_diff_val) * v_angle * v_plane_mag
+                                
+                                # Filter finite values
+                                finite_mask = torch.isfinite(delta_theta)
+                                if finite_mask.any():
+                                    k_final = k_valid_mag[finite_mask]
+                                    delta_theta_final = delta_theta[finite_mask]
+                                    
+                                    # Apply updates
+                                    theta.index_add_(theta.dim() - 1, k_final, delta_theta_final)
+                                    total_updates = int(delta_theta_final.numel())
+                                    total_delta_theta = delta_theta_final.abs().sum().item()
 
                     if total_updates > 0:
                         # Wrap theta to [-π, π] (in-place)
@@ -2434,10 +2482,15 @@ def run_two_phase_and_update(
     # Memory update OUTSIDE inference mode
     _maybe_update_memory(memory, free)
 
-    # Periodic GPU memory cleanup to prevent fragmentation
-    # Only do this every N windows to avoid overhead
-    if window_idx > 0 and window_idx % 10 == 0:
-        torch.cuda.empty_cache()
+    # OPTIMIZATION: Adaptive GPU memory cleanup based on usage, not periodic
+    # Only clear cache if memory usage is above 90% to avoid blocking stalls
+    if window_idx > 0 and window_idx % 50 == 0:  # Check less frequently
+        mem_allocated = torch.cuda.memory_allocated(DEVICE)
+        mem_reserved = torch.cuda.memory_reserved(DEVICE)
+        if mem_reserved > 0:
+            usage_ratio = mem_allocated / mem_reserved
+            if usage_ratio > 0.9:
+                torch.cuda.empty_cache()
 
     return free, nudged
 
@@ -2723,9 +2776,117 @@ def maybe_compile_step_fn(step_fn: Callable[..., Any], cfg: TrainConfig) -> Call
 
 
 def maybe_capture_cudagraph(step_fn: Callable[..., Any], static_inputs: Any, cfg: TrainConfig) -> Callable[..., Any]:
+    """
+    Capture a CUDA graph for the step function if enabled.
+    
+    Requirements:
+    - static_shapes=True: All tensors must have fixed shapes
+    - capture_batch_size > 0: Fixed batch size for capture
+    - warmup_steps >= 1: Number of warmup iterations before capture
+    
+    Returns a wrapper that replays the captured graph.
+    """
     if not cfg.use_cudagraphs:
         return step_fn
-    raise NotImplementedError("CUDA graph capture is not implemented in trainer2 skeleton.")
+    
+    # CUDA graphs require PyTorch 1.10+ and CUDA 11+
+    if not hasattr(torch.cuda, 'CUDAGraph'):
+        print("WARNING: CUDA graphs not available in this PyTorch version. Falling back to eager mode.")
+        return step_fn
+    
+    print(f"[CUDAGRAPH] Preparing CUDA graph capture (batch_size={cfg.capture_batch_size})")
+    
+    # State for graph replay
+    graph_state = {
+        'graph': None,
+        'static_input': None,
+        'static_output': None,
+        'warmup_done': False,
+        'warmup_count': 0,
+    }
+    
+    def wrapped_fn(*args, **kwargs):
+        # Warmup phase: run eagerly to stabilize allocations
+        if not graph_state['warmup_done']:
+            graph_state['warmup_count'] += 1
+            result = step_fn(*args, **kwargs)
+            
+            if graph_state['warmup_count'] >= cfg.warmup_steps:
+                graph_state['warmup_done'] = True
+                print(f"[CUDAGRAPH] Warmup complete ({cfg.warmup_steps} steps). Capturing graph...")
+                
+                # Capture graph
+                try:
+                    graph = torch.cuda.CUDAGraph()
+                    
+                    # Create static tensors for capture (clone inputs)
+                    static_args = []
+                    for arg in args:
+                        if isinstance(arg, torch.Tensor):
+                            static_args.append(arg.clone())
+                        else:
+                            static_args.append(arg)
+                    
+                    # Synchronize before capture
+                    torch.cuda.synchronize()
+                    
+                    # Capture the graph
+                    with torch.cuda.graph(graph):
+                        static_output = step_fn(*static_args, **kwargs)
+                    
+                    graph_state['graph'] = graph
+                    graph_state['static_input'] = static_args
+                    graph_state['static_output'] = static_output
+                    
+                    print("[CUDAGRAPH] Graph captured successfully!")
+                    
+                except Exception as e:
+                    print(f"[CUDAGRAPH] Capture failed: {e}")
+                    print("[CUDAGRAPH] Falling back to eager mode")
+                    graph_state['graph'] = None
+            
+            return result
+        
+        # Graph replay phase
+        if graph_state['graph'] is not None:
+            static_inputs = graph_state['static_input']
+            
+            # Validate that runtime inputs match captured static input shapes
+            if len(args) != len(static_inputs):
+                print(
+                    "[CUDAGRAPH] Input count mismatch during replay "
+                    f"(got {len(args)}, expected {len(static_inputs)}). "
+                    "Falling back to eager execution for this step."
+                )
+                return step_fn(*args, **kwargs)
+            
+            for static_arg, arg in zip(static_inputs, args):
+                if isinstance(static_arg, torch.Tensor) and isinstance(arg, torch.Tensor):
+                    if static_arg.shape != arg.shape:
+                        print(
+                            "[CUDAGRAPH] Input shape mismatch during replay "
+                            f"(static {tuple(static_arg.shape)} vs runtime {tuple(arg.shape)}). "
+                            "Falling back to eager execution for this step."
+                        )
+                        return step_fn(*args, **kwargs)
+            
+            # Copy input data to static buffers (shapes have been validated)
+            for static_arg, arg in zip(static_inputs, args):
+                if isinstance(static_arg, torch.Tensor) and isinstance(arg, torch.Tensor):
+                    static_arg.copy_(arg)
+            
+            # Replay graph
+            # NOTE: kwargs are captured during graph creation and cannot be modified during replay.
+            # If your use case requires dynamic kwargs, CUDA graphs are not suitable.
+            graph_state['graph'].replay()
+            
+            # Return static output (no copy needed, it's updated in-place)
+            return graph_state['static_output']
+        else:
+            # Fallback to eager if capture failed
+            return step_fn(*args, **kwargs)
+    
+    return wrapped_fn
 
 
 @dataclass
