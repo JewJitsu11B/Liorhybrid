@@ -1,23 +1,23 @@
 {
   "__init__.py": {
-    "call_count": 24,
+    "call_count": 26,
     "first_called": "2026-01-23T23:34:38.855996",
-    "last_called": "2026-01-28T15:01:00.867900"
+    "last_called": "2026-02-15T04:30:30.481687"
   },
   "core/__init__.py": {
-    "call_count": 24,
+    "call_count": 26,
     "first_called": "2026-01-23T23:34:38.857088",
-    "last_called": "2026-01-28T15:01:00.868932"
+    "last_called": "2026-02-15T04:30:30.482698"
   },
   "core/config.py": {
-    "call_count": 24,
+    "call_count": 26,
     "first_called": "2026-01-23T23:34:38.860139",
-    "last_called": "2026-01-28T15:01:00.870021"
+    "last_called": "2026-02-15T04:30:30.483729"
   },
   "core/tensor_field.py": {
-    "call_count": 23,
+    "call_count": 25,
     "first_called": "2026-01-23T23:34:38.936975",
-    "last_called": "2026-01-28T15:01:02.166227"
+    "last_called": "2026-02-15T04:30:31.646043"
   },
   "core\\__init__.py": {
     "call_count": 2,
@@ -125,14 +125,14 @@
     "last_called": "2026-01-28T04:03:35.851722"
   },
   "kernels/bayesian.py": {
-    "call_count": 22,
+    "call_count": 26,
     "first_called": "2026-01-23T23:34:38.941164",
-    "last_called": "2026-01-28T15:01:02.170058"
+    "last_called": "2026-02-15T04:30:32.096258"
   },
   "kernels/fractional_memory.py": {
-    "call_count": 22,
+    "call_count": 26,
     "first_called": "2026-01-23T23:34:38.942419",
-    "last_called": "2026-01-28T15:01:02.171941"
+    "last_called": "2026-02-15T04:30:32.097219"
   },
   "kernels/gradients.py": {
     "call_count": 3,
@@ -143,6 +143,11 @@
     "call_count": 21,
     "first_called": "2026-01-23T23:34:38.939933",
     "last_called": "2026-01-28T04:03:35.852493"
+  },
+  "kernels/metric_context.py": {
+    "call_count": 2,
+    "first_called": "2026-01-28T14:46:54.474315",
+    "last_called": "2026-01-28T14:47:07.992128"
   },
   "kernels\\__init__.py": {
     "call_count": 2,
@@ -180,19 +185,19 @@
     "last_called": "2026-01-28T04:03:36.164014"
   },
   "models/biquaternion.py": {
-    "call_count": 20,
+    "call_count": 25,
     "first_called": "2026-01-23T23:22:05.011579",
-    "last_called": "2026-01-28T04:03:36.163252"
+    "last_called": "2026-01-29T07:29:20.513012"
   },
   "models/causal_field.py": {
-    "call_count": 20,
+    "call_count": 25,
     "first_called": "2026-01-23T23:22:05.009741",
-    "last_called": "2026-01-28T04:03:36.162649"
+    "last_called": "2026-01-29T07:29:20.511955"
   },
   "models/complex_metric.py": {
-    "call_count": 20,
+    "call_count": 25,
     "first_called": "2026-01-23T23:22:05.005439",
-    "last_called": "2026-01-28T04:03:36.161185"
+    "last_called": "2026-01-29T07:29:20.510002"
   },
   "models/language_head.py": {
     "call_count": 21,
@@ -200,14 +205,14 @@
     "last_called": "2026-01-29T07:36:22.704343"
   },
   "models/lior_kernel.py": {
-    "call_count": 20,
+    "call_count": 25,
     "first_called": "2026-01-23T23:22:05.003870",
-    "last_called": "2026-01-28T04:03:36.160583"
+    "last_called": "2026-01-29T07:29:20.508871"
   },
   "models/manifold.py": {
-    "call_count": 20,
+    "call_count": 25,
     "first_called": "2026-01-23T23:22:05.007271",
-    "last_called": "2026-01-28T04:03:36.161886"
+    "last_called": "2026-01-29T07:29:20.510963"
   },
   "models\\__init__.py": {
     "call_count": 2,
@@ -249,10 +254,30 @@
     "first_called": "2026-01-27T18:39:25.458245",
     "last_called": "2026-01-27T22:53:12.440713"
   },
+  "test_address_attention_integration.py": {
+    "call_count": 3,
+    "first_called": "2026-01-28T14:50:55.136150",
+    "last_called": "2026-01-28T14:55:31.415863"
+  },
+  "test_address_standalone.py": {
+    "call_count": 2,
+    "first_called": "2026-01-28T14:47:47.137267",
+    "last_called": "2026-01-28T14:55:24.173608"
+  },
   "test_file.py": {
     "call_count": 1,
     "first_called": "2026-01-23T23:22:11.653335",
     "last_called": "2026-01-23T23:22:11.653335"
+  },
+  "tests/__init__.py": {
+    "call_count": 2,
+    "first_called": "2026-02-15T04:18:18.442258",
+    "last_called": "2026-02-15T04:30:32.080470"
+  },
+  "tests/test_math_validation_team.py": {
+    "call_count": 2,
+    "first_called": "2026-02-15T04:18:18.443478",
+    "last_called": "2026-02-15T04:30:32.087426"
   },
   "training/__init__.py": {
     "call_count": 19,
@@ -405,24 +430,34 @@
     "last_called": "2026-01-27T22:53:11.997818"
   },
   "utils/__init__.py": {
-    "call_count": 27,
+    "call_count": 38,
     "first_called": "2026-01-23T23:34:38.943397",
-    "last_called": "2026-01-28T19:34:59.139991"
+    "last_called": "2026-02-15T04:30:32.088377"
+  },
+  "utils/comprehensive_similarity.py": {
+    "call_count": 5,
+    "first_called": "2026-01-29T07:28:16.099386",
+    "last_called": "2026-01-29T07:29:08.030279"
   },
   "utils/cpu_tasks.py": {
-    "call_count": 25,
+    "call_count": 34,
     "first_called": "2026-01-23T23:35:40.766749",
-    "last_called": "2026-01-28T19:34:59.498514"
+    "last_called": "2026-02-15T04:30:32.091250"
+  },
+  "utils/math_validation_team.py": {
+    "call_count": 2,
+    "first_called": "2026-02-15T04:18:18.450736",
+    "last_called": "2026-02-15T04:30:32.094938"
   },
   "utils/metrics.py": {
-    "call_count": 27,
+    "call_count": 37,
     "first_called": "2026-01-23T23:34:38.944903",
-    "last_called": "2026-01-28T19:34:59.141200"
+    "last_called": "2026-02-15T04:30:32.089420"
   },
   "utils/pipeline_audit.py": {
-    "call_count": 5,
+    "call_count": 7,
     "first_called": "2026-01-23T23:41:00.149159",
-    "last_called": "2026-01-28T04:08:52.610555"
+    "last_called": "2026-02-15T04:30:32.102742"
   },
   "utils/spectral_primes.py": {
     "call_count": 6,
@@ -430,9 +465,9 @@
     "last_called": "2026-01-28T19:34:59.503498"
   },
   "utils/visualization.py": {
-    "call_count": 27,
+    "call_count": 37,
     "first_called": "2026-01-23T23:34:38.945866",
-    "last_called": "2026-01-28T19:34:59.142108"
+    "last_called": "2026-02-15T04:30:32.090341"
   },
   "utils\\__init__.py": {
     "call_count": 2,

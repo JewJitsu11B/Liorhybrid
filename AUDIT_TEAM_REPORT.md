@@ -34,3 +34,14 @@ Roles covered per file: Code Reviewer (CR), Physics Expert (PE), Crazy Idea (CI)
 
 ---
 Summary: Highest attention areas are **kernels** and **models** (ratings 4) due to math sensitivity and optional paths. trainer/inference/core are moderate (3) and main.py is low (2).
+
+## Six-Agent Specialist Review Plan (How to Proceed)
+
+1. **Coordinator Agent**: Owns scope, creates review queue by risk order (`kernels` → `models` → `training`/`inference` → `core` → CLI/docs), enforces deadlines, and resolves blockers.
+2. **Math Agent**: Verifies derivations, tensor-shape invariants, stability bounds, and numerical assumptions in `kernels/`, `models/`, and `utils/` math paths.
+3. **Physics Agent**: Checks physical consistency (causality, metric signature, conservation behavior, manifold assumptions) across `kernels/`, `models/`, and training dynamics.
+4. **Code Reviewer Agent**: Audits correctness, edge-case handling, error paths, and test coverage gaps; proposes minimal diffs for high-risk defects only.
+5. **Scribe Agent**: Produces a single decision log with findings, severity, evidence (file + line), and recommended next actions; keeps cross-agent terminology consistent.
+6. **Morale Agent**: Maintains team throughput and focus by flagging overload early, balancing workload, and keeping review cadence sustainable.
+
+Execution cadence: each specialist submits findings in parallel per module batch, then coordinator runs a short synthesis pass; proceed only when math + physics + code reviewer agree on blocking risks and the scribe publishes the consolidated action list.

@@ -603,6 +603,7 @@ if torch.cuda.is_available():
 | **Data Loading** | **100%** ✅ | Chunked text, image-text, video-text |
 | **Checkpointing** | **100%** ✅ | Save/load/inspect/resume |
 | **Logging** | **100%** ✅ | Metrics, telemetry, diagnostics |
+| **Token/Telemetry Audit** | **Added** ✅ | See `docs/TOKEN_TELEMETRY_AUDIT.md` |
 | **Retrieval Memory** | **0%** ⚠️ | SDM integration TODO (optional) |
 | **SPSA Optimizer** | **0%** ⚠️ | Stub (fallback only, optional) |
 | **CUDA Graphs** | **0%** ⚠️ | Stub (advanced optimization) |

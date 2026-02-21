@@ -8,7 +8,7 @@ on:
 
 jobs:
   convert-to-pdf:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest,windows-latest,self-hosted
     permissions:
       contents: write
     
@@ -20,7 +20,7 @@ jobs:
         uses: baileyjm02/markdown-to-pdf@v1
         with:
           input_path: comparison_report.md
-          output_dir: .
+          output_dir: output
           
       - name: Commit PDF
         run: |

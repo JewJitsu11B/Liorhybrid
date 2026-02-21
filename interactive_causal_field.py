@@ -209,8 +209,15 @@ def create_isosurface_figure(T_tensor, title):
     T_3d = np.abs(T_tensor).sum(axis=0)  # [4, 4, 4]
 
     # Interpolate to finer grid for smoother isosurface
-    from scipy.ndimage import zoom
-    T_fine = zoom(T_3d, 4, order=3)  # [16, 16, 16]
+    # Replace scipy zoom with PyTorch interpolation
+    T_3d_torch = torch.from_numpy(T_3d).unsqueeze(0).unsqueeze(0).float()  # [1, 1, 4, 4, 4]
+    T_fine_torch = torch.nn.functional.interpolate(
+        T_3d_torch,
+        scale_factor=4,
+        mode='trilinear',
+        align_corners=True
+    )
+    T_fine = T_fine_torch.squeeze().numpy()  # [16, 16, 16]
 
     # Create meshgrid
     n = T_fine.shape[0]
@@ -373,8 +380,15 @@ fig2 = go.Figure()
 
 # Add initial isosurface
 T_sum = np.abs(T_init).sum(axis=0)  # [4, 4, 4]
-from scipy.ndimage import zoom
-T_fine = zoom(T_sum, 4, order=1)
+# Replace scipy zoom with PyTorch interpolation
+T_sum_torch = torch.from_numpy(T_sum).unsqueeze(0).unsqueeze(0).float()  # [1, 1, 4, 4, 4]
+T_fine_torch = torch.nn.functional.interpolate(
+    T_sum_torch,
+    scale_factor=4,
+    mode='trilinear',
+    align_corners=True
+)
+T_fine = T_fine_torch.squeeze().numpy()
 n = T_fine.shape[0]
 X, Y, Z = np.mgrid[0:4:complex(n), 0:4:complex(n), 0:4:complex(n)]
 

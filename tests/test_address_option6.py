@@ -6,7 +6,7 @@ Verifies:
 - NeighborSelector with strict metric-only selection
 - AddressBuilder integration
 - Collision detection with route_hash
-- 64-slot population (32 nearest, 16 attractors, 16 repulsors)
+- 64-slot population (32 nearest, 16 high_sim, 16 low_sim)
 - Fail-fast semantics when metric missing or invalid
 """
 try:
@@ -34,8 +34,8 @@ class TestAddressConfig:
         assert config.m == 6, "Should have 6 score channels (not 8)"
         assert config.n_neighbors == 64, "Should have 64 neighbors"
         assert config.n_nearest == 32
-        assert config.n_attractors == 16
-        assert config.n_repulsors == 16
+        assert config.n_high_sim == 16
+        assert config.n_low_sim == 16
     
     def test_d_block_calculation(self):
         """Verify d_block = d_prime + m + k = 64 + 6 + 16 = 86."""
@@ -359,13 +359,13 @@ class TestAddressStructure:
         address = Address.zeros(2, config=config)
         
         nearest = address.nearest_neighbors
-        attractors = address.attractor_neighbors
-        repulsors = address.repulsor_neighbors
+        high_sim = address.high_sim_neighbors
+        low_sim = address.low_sim_neighbors
         
         # Check shapes
         assert nearest.shape == (2, 32, config.d_block)
-        assert attractors.shape == (2, 16, config.d_block)
-        assert repulsors.shape == (2, 16, config.d_block)
+        assert high_sim.shape == (2, 16, config.d_block)
+        assert low_sim.shape == (2, 16, config.d_block)
     
     def test_neighbor_scores_6_channels(self):
         """Verify neighbor scores have 6 channels."""

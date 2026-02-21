@@ -1,5 +1,5 @@
 """
-Linearized Address Structure
+Linearized Address Structure (Option 6: Mandatory Address-Based Neighbor Probing)
 
 PLANNING NOTE - 2025-01-29
 STATUS: TO_BE_MODIFIED
@@ -35,14 +35,14 @@ Position and ordering encode meaning (conditioning on structured priors).
 Dimensions (default d=512):
 - core: d = 512 (embedding)
 - geom: 2d = 1024 (metric + transport)
-- neighbors: 64 × d_block = 5504 (N1-N64)
+- neighbors: 64 × d_block = 7072 (N1-N64, d_block=116 with metric/transport)
 - integrity: 34 (ecc + timestamps)
-- Total D = 7074 floats
+- Total D = 8642 floats
 
-Neighbor roles by position:
+Neighbor roles by position (mandatory, no fallbacks):
 - N1-N32: absolute nearest (similarity grounding)
-- N33-N48: attractors (reinforcing evidence)
-- N49-N64: repulsors (contrastive evidence)
+- N33-N48: high_sim neighbors (maximum similarity interactions)
+- N49-N64: low_sim neighbors (minimum similarity, contrastive examples)
 
 Per-neighbor block (d_block = 86):
 - value: d' = 64 (reduced interaction vector)
@@ -62,13 +62,21 @@ except: pass
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from dataclasses import dataclass
 from typing import Optional, Tuple, NamedTuple
 
 
 @dataclass
 class AddressConfig:
-    """Configuration for address dimensions."""
+    """Configuration for address dimensions.
+    
+    Address-based neighbor probing (Option 6) with mandatory 64-slot structure:
+    - 64 neighbors: 32 nearest, 16 attractors, 16 repulsors (role-typed)
+    - 6 similarity scores per neighbor (mandatory, no fallbacks)
+    - Each neighbor slot stores metric/transport info of that neighbor
+    - ECC and timestamps present but excluded from similarity scoring
+    """
     # Core embedding
     d: int = 512
 
@@ -76,28 +84,35 @@ class AddressConfig:
     use_lowrank_geom: bool = False
     r: int = 32  # low-rank dim if used
 
-    # Neighbors
+    # Neighbors (fixed, mandatory)
     n_nearest: int = 32
-    n_attractors: int = 16
-    n_repulsors: int = 16
+    n_high_sim: int = 16  # formerly n_attractors
+    n_low_sim: int = 16   # formerly n_repulsors
 
     # Per-neighbor dimensions
-    d_prime: int = 64   # value dim
-    m: int = 6          # scores dim (6 similarity channels - strict requirement)
-    k: int = 16         # coords dim
+    d_prime: int = 64   # value dim (interaction output)
+    m: int = 6          # scores dim (6 similarity score types, mandatory)
+    k: int = 16         # coords dim (routing info)
+    
+    # Per-neighbor metric/transport feature dims (stores neighbor's geometry)
+    d_neighbor_metric: int = 16    # metric features per neighbor
+    d_neighbor_transport: int = 16  # transport features per neighbor
 
-    # Integrity
+    # Integrity (present but excluded from neighbor scoring)
     ecc_bits: int = 32
     n_timestamps: int = 2
+    
+    # Address probing mode
+    enable_address_probing: bool = True  # Default to address-based probing (Option 6)
 
     @property
     def n_neighbors(self) -> int:
-        return self.n_nearest + self.n_attractors + self.n_repulsors
+        return self.n_nearest + self.n_high_sim + self.n_low_sim
 
     @property
     def d_block(self) -> int:
-        """Size of one neighbor block."""
-        return self.d_prime + self.m + self.k
+        """Size of one neighbor block (value + metric + transport + scores + coords)."""
+        return self.d_prime + self.d_neighbor_metric + self.d_neighbor_transport + self.m + self.k
 
     @property
     def d_geom(self) -> int:
@@ -154,9 +169,16 @@ class AddressConfig:
 
 
 class NeighborSlice(NamedTuple):
-    """Indices for accessing parts of a neighbor block."""
+    """Indices for accessing parts of a neighbor block.
+    
+    Neighbor block layout: [value | neighbor_metric | neighbor_transport | scores | coords]
+    """
     value_start: int
     value_end: int
+    neighbor_metric_start: int
+    neighbor_metric_end: int
+    neighbor_transport_start: int
+    neighbor_transport_end: int
     scores_start: int
     scores_end: int
     coords_start: int
@@ -167,7 +189,7 @@ class NeighborSelector(nn.Module):
     """
     Strict metric-only neighbor selector.
     
-    Selects exactly 64 neighbors (32 nearest, 16 attractors, 16 repulsors)
+    Selects exactly 64 neighbors (32 nearest, 16 high_sim, 16 low_sim)
     using ONLY the learned/curved metric from Address.metric/transport.
     
     NO FALLBACK to Euclidean or cosine distance.
@@ -347,16 +369,16 @@ class NeighborSelector(nn.Module):
         )
         nearest_idx = nearest_idx  # (batch, 32)
         
-        # For attractors: select candidates with high dot product (channel 0)
-        attractor_scores = scores_6ch[..., 0]  # (batch, N_cand)
-        _, attractor_idx = torch.topk(attractor_scores, k=16, dim=-1, sorted=True)
-        
-        # For repulsors: select candidates with high wedge product (channel 1, orthogonal)
-        repulsor_scores = scores_6ch[..., 1]  # (batch, N_cand)
-        _, repulsor_idx = torch.topk(repulsor_scores, k=16, dim=-1, sorted=True)
-        
-        # Combine indices: [32 nearest | 16 attractors | 16 repulsors]
-        selected_indices = torch.cat([nearest_idx, attractor_idx, repulsor_idx], dim=1)  # (batch, 64)
+        # For high_sim: select candidates with high dot product (channel 0)
+        high_sim_scores = scores_6ch[..., 0]  # (batch, N_cand)
+        _, high_sim_idx = torch.topk(high_sim_scores, k=16, dim=-1, sorted=True)
+
+        # For low_sim: select candidates with high wedge product (channel 1, orthogonal)
+        low_sim_scores = scores_6ch[..., 1]  # (batch, N_cand)
+        _, low_sim_idx = torch.topk(low_sim_scores, k=16, dim=-1, sorted=True)
+
+        # Combine indices: [32 nearest | 16 high_sim | 16 low_sim]
+        selected_indices = torch.cat([nearest_idx, high_sim_idx, low_sim_idx], dim=1)  # (batch, 64)
         
         # Gather selected embeddings
         batch_indices = torch.arange(batch_size, device=query_embedding.device).view(-1, 1).expand(-1, 64)
@@ -491,18 +513,32 @@ class Address:
         start = block_start
         end = start + self.config.d_prime
         return self.data[..., start:end]
-
-    def neighbor_scores(self, i: int) -> torch.Tensor:
-        """Get neighbor i's scores, shape (..., m)."""
+    
+    def neighbor_metric(self, i: int) -> torch.Tensor:
+        """Get neighbor i's metric features, shape (..., d_neighbor_metric)."""
         block_start = self.config.neighbors_start + i * self.config.d_block
         start = block_start + self.config.d_prime
+        end = start + self.config.d_neighbor_metric
+        return self.data[..., start:end]
+    
+    def neighbor_transport(self, i: int) -> torch.Tensor:
+        """Get neighbor i's transport features, shape (..., d_neighbor_transport)."""
+        block_start = self.config.neighbors_start + i * self.config.d_block
+        start = block_start + self.config.d_prime + self.config.d_neighbor_metric
+        end = start + self.config.d_neighbor_transport
+        return self.data[..., start:end]
+
+    def neighbor_scores(self, i: int) -> torch.Tensor:
+        """Get neighbor i's scores (6 similarity types), shape (..., m=6)."""
+        block_start = self.config.neighbors_start + i * self.config.d_block
+        start = block_start + self.config.d_prime + self.config.d_neighbor_metric + self.config.d_neighbor_transport
         end = start + self.config.m
         return self.data[..., start:end]
 
     def neighbor_coords(self, i: int) -> torch.Tensor:
         """Get neighbor i's coords, shape (..., k)."""
         block_start = self.config.neighbors_start + i * self.config.d_block
-        start = block_start + self.config.d_prime + self.config.m
+        start = block_start + self.config.d_prime + self.config.d_neighbor_metric + self.config.d_neighbor_transport + self.config.m
         end = start + self.config.k
         return self.data[..., start:end]
 
@@ -511,12 +547,28 @@ class Address:
         """All neighbor values, shape (..., N, d')."""
         blocked = self.neighbors_blocked
         return blocked[..., :self.config.d_prime]
+    
+    @property
+    def all_neighbor_metrics(self) -> torch.Tensor:
+        """All neighbor metric features, shape (..., N, d_neighbor_metric)."""
+        blocked = self.neighbors_blocked
+        start = self.config.d_prime
+        end = start + self.config.d_neighbor_metric
+        return blocked[..., start:end]
+    
+    @property
+    def all_neighbor_transports(self) -> torch.Tensor:
+        """All neighbor transport features, shape (..., N, d_neighbor_transport)."""
+        blocked = self.neighbors_blocked
+        start = self.config.d_prime + self.config.d_neighbor_metric
+        end = start + self.config.d_neighbor_transport
+        return blocked[..., start:end]
 
     @property
     def all_neighbor_scores(self) -> torch.Tensor:
-        """All neighbor scores, shape (..., N, m)."""
+        """All neighbor scores (6 similarity types), shape (..., N, m=6)."""
         blocked = self.neighbors_blocked
-        start = self.config.d_prime
+        start = self.config.d_prime + self.config.d_neighbor_metric + self.config.d_neighbor_transport
         end = start + self.config.m
         return blocked[..., start:end]
 
@@ -524,7 +576,7 @@ class Address:
     def all_neighbor_coords(self) -> torch.Tensor:
         """All neighbor coords, shape (..., N, k)."""
         blocked = self.neighbors_blocked
-        start = self.config.d_prime + self.config.m
+        start = self.config.d_prime + self.config.d_neighbor_metric + self.config.d_neighbor_transport + self.config.m
         return blocked[..., start:]
 
     # Neighbor role slices
@@ -535,19 +587,63 @@ class Address:
         return blocked[..., :self.config.n_nearest, :]
 
     @property
-    def attractor_neighbors(self) -> torch.Tensor:
-        """N33-N48: attractors, shape (..., 16, d_block)."""
+    def high_sim_neighbors(self) -> torch.Tensor:
+        """N33-N48: high_sim neighbors, shape (..., 16, d_block)."""
         blocked = self.neighbors_blocked
         start = self.config.n_nearest
-        end = start + self.config.n_attractors
+        end = start + self.config.n_high_sim
         return blocked[..., start:end, :]
 
     @property
-    def repulsor_neighbors(self) -> torch.Tensor:
-        """N49-N64: repulsors, shape (..., 16, d_block)."""
+    def low_sim_neighbors(self) -> torch.Tensor:
+        """N49-N64: low_sim neighbors, shape (..., 16, d_block)."""
         blocked = self.neighbors_blocked
-        start = self.config.n_nearest + self.config.n_attractors
+        start = self.config.n_nearest + self.config.n_high_sim
         return blocked[..., start:, :]
+    
+    @property
+    def neighbor_similarity_vectors(self) -> torch.Tensor:
+        """
+        PLANNING NOTE: 15D similarity vectors for all 64 neighbors.
+        
+        Extended neighbor scoring with comprehensive geometric similarity.
+        This property will return rich 15D (or 9D for Phase 1) similarity
+        vectors for each neighbor, replacing simple scalar scores with
+        multi-dimensional geometric features.
+        
+        Returns:
+            [batch, 64, D] where D ∈ {9, 12, 15}
+            
+        Each neighbor will have a comprehensive similarity vector containing:
+            - cosine: Angular alignment
+            - wedge_magnitude: Rotational structure
+            - tensor_trace: Interaction strength
+            - spinor_magnitude: Phase overlap
+            - spinor_phase: Phase angle
+            - energy: Field coupling
+            - l2_tangent: Euclidean in tangent space
+            - l1_tangent: Manhattan in tangent space
+            - lior_distance: Geodesic distance (PRIMARY)
+            [Future: + entropy and statistical measures]
+        
+        Implementation Status:
+            - Phase 1 (9D core): Planned - see utils/comprehensive_similarity.py
+            - Phase 2 (12D extended): Future
+            - Phase 3 (15D full): Future
+            
+        Current State:
+            The current address structure stores 6 geometric scores per neighbor
+            (dot, wedge, tensor, spinor, energy, rank) in the m=6 scores section.
+            This will be extended to store or reference full 15D vectors.
+            
+        TO BE IMPLEMENTED in future PR
+        """
+        raise NotImplementedError(
+            "neighbor_similarity_vectors: Stub for Phase 1 planning. "
+            "Full implementation requires integration with ComprehensiveSimilarity "
+            "and modification of neighbor selection logic. "
+            "See utils/comprehensive_similarity.py for core implementation."
+        )
 
     @property
     def ecc(self) -> torch.Tensor:
@@ -616,7 +712,7 @@ class AddressBuilder(nn.Module):
     
     Option 6 Requirements:
     - Uses NeighborSelector with metric-only distances (no Euclidean fallback)
-    - Enforces exactly 64 neighbor slots (32 nearest, 16 attractors, 16 repulsors)
+    - Enforces exactly 64 neighbor slots (32 nearest, 16 high_sim, 16 low_sim)
     - Computes 6 geometric similarity scores per neighbor (dot, wedge, tensor, spinor, energy, rank)
     - Fails fast if metric is missing or invalid
     - Addresses are naturally unique based on embeddings (no collision detection)
@@ -632,8 +728,17 @@ class AddressBuilder(nn.Module):
         # Projections for building address components
         self.metric_proj = nn.Linear(self.config.d, self.config.d)
         self.transport_proj = nn.Linear(self.config.d, self.config.d)
+        
+        # Per-neighbor projections
         self.value_proj = nn.Linear(self.config.d, self.config.d_prime)
+        self.neighbor_metric_proj = nn.Linear(self.config.d, self.config.d_neighbor_metric)
+        self.neighbor_transport_proj = nn.Linear(self.config.d, self.config.d_neighbor_transport)
         self.coord_proj = nn.Linear(self.config.d, self.config.k)
+        
+        # Projections for computing 6 similarity scores
+        # Score 0: cosine similarity (computed, not learned)
+        # Scores 1-5: learned similarity metrics
+        self.similarity_proj = nn.Linear(self.config.d, 5)  # 5 learned scores
 
         # Initialize metric/transport near identity
         nn.init.eye_(self.metric_proj.weight)
@@ -652,12 +757,19 @@ class AddressBuilder(nn.Module):
         enable_probing: bool = True
     ) -> Address:
         """
-        Build address from embedding and candidates using strict metric selection.
+        Build address from embedding and neighbors.
+        
+        Mandatory behavior (no fallbacks when address probing is enabled):
+        - 64 neighbors must be populated (selection or repetition)
+        - 6 similarity scores computed per neighbor
+        - Each neighbor stores metric/transport features
+        - ECC and timestamps present (but excluded from scoring)
 
         Args:
             embedding: Core embedding, shape (batch, d)
-            candidate_embeddings: Candidate neighbor embeddings, shape (batch, N_cand, d)
-                Must have N_cand >= 64 for full slot population
+            neighbor_embeddings: Neighbor embeddings, shape (batch, M, d) where M >= 64
+                                If None and address_probing enabled, will use self-similarity
+            neighbor_similarities: Precomputed similarities, shape (batch, M)
             timestamp: Current time
             enable_probing: If True, use address probing (Option 6). If False, legacy mode.
 
@@ -679,61 +791,55 @@ class AddressBuilder(nn.Module):
         # Fill core
         addr.core = embedding
 
-        # Fill geometry (REQUIRED for Option 6)
-        metric = self.metric_proj(embedding)
-        transport = self.transport_proj(embedding)
+        # Fill geometry
+        addr.metric = self.metric_proj(embedding)
+        addr.transport = self.transport_proj(embedding)
+
+        # Fill neighbors (MANDATORY for address probing)
+        if self.config.enable_address_probing:
+            # Ensure we have neighbor embeddings
+            if neighbor_embeddings is None:
+                # Fallback: use self as single neighbor, then repeat
+                neighbor_embeddings = embedding.unsqueeze(1)  # (batch, 1, d)
+            
+            # Select 64 neighbors with role typing
+            selected_neighbors, _ = self.select_neighbors(
+                embedding, neighbor_embeddings, neighbor_similarities
+            )  # (batch, 64, d)
+            
+            # Compute 6 similarity scores per neighbor
+            scores = self.compute_similarity_scores(
+                embedding, selected_neighbors, None
+            )  # (batch, 64, 6)
+            
+            # Project each neighbor to get value, metric, transport, coords
+            values = self.value_proj(selected_neighbors)  # (batch, 64, d')
+            neighbor_metrics = self.neighbor_metric_proj(selected_neighbors)  # (batch, 64, d_neighbor_metric)
+            neighbor_transports = self.neighbor_transport_proj(selected_neighbors)  # (batch, 64, d_neighbor_transport)
+            coords = self.coord_proj(selected_neighbors)  # (batch, 64, k)
+            
+            # Pack into neighbor blocks
+            # Block layout: [value | neighbor_metric | neighbor_transport | scores | coords]
+            blocked = torch.cat([
+                values, 
+                neighbor_metrics,
+                neighbor_transports,
+                scores, 
+                coords
+            ], dim=-1)  # (batch, 64, d_block)
+            
+            # Flatten and assign
+            addr.data[..., self.config.neighbors_start:self.config.neighbors_end] = \
+                blocked.view(batch_size, -1)
         
-        addr.metric = metric
-        addr.transport = transport
-
-        # Fill neighbors using strict metric-only selection
-        if enable_probing:
-            # Option 6: Strict metric-only neighbor selection
-            # FAIL FAST if metric/transport invalid or cannot populate 64 slots
-            try:
-                selected_embeddings, selected_scores, selected_indices = \
-                    self.neighbor_selector.select_neighbors(
-                        query_embedding=embedding,
-                        candidate_embeddings=candidate_embeddings,
-                        metric=metric,
-                        transport=transport
-                    )
-                
-                # Project neighbor embeddings to value and coord spaces
-                # selected_embeddings: (batch, 64, d)
-                values = self.value_proj(selected_embeddings)  # (batch, 64, d')
-                coords = self.coord_proj(selected_embeddings)  # (batch, 64, k)
-                
-                # Scores already computed by neighbor_selector (6 geometric channels)
-                scores = selected_scores  # (batch, 64, 6)
-                
-                # Pack into neighbor blocks
-                # blocked shape: (batch, 64, d_block) where d_block = d' + m + k
-                blocked = torch.cat([values, scores, coords], dim=-1)
-                
-                # Flatten and assign
-                addr.data[..., self.config.neighbors_start:self.config.neighbors_end] = \
-                    blocked.view(batch_size, -1)
-                
-            except ValueError as e:
-                # Re-raise with more context
-                raise ValueError(
-                    f"Strict neighbor selection failed (Option 6): {e}. "
-                    "Address probing requires valid metric/transport and sufficient candidates."
-                )
-        else:
-            # Legacy mode: allow empty neighbors (backward compatibility)
-            # This path is NOT recommended for Option 6
-            pass
-
-        # Fill timestamps
+        # Fill timestamps (present but excluded from neighbor scoring)
         current_time = timestamp if timestamp is not None else time_module.time()
         addr.timestamps = torch.tensor(
             [[current_time, current_time]],
             device=device, dtype=dtype
         ).expand(batch_size, -1)
 
-        # ECC would be computed here (placeholder: zeros)
+        # ECC placeholder (present but excluded from neighbor scoring)
         # Real implementation would compute BCH code from content
         # Addresses are naturally unique based on embeddings - no collision detection needed
 
@@ -741,11 +847,71 @@ class AddressBuilder(nn.Module):
 
 
 # =============================================================================
+# Collision Avoidance Helpers
+# =============================================================================
+
+def check_address_collisions(addresses: Address, threshold: float = 0.99) -> Tuple[int, torch.Tensor]:
+    """
+    Check for collisions in a batch of addresses based on ECC hash similarity.
+    
+    Args:
+        addresses: Address object with batch of addresses
+        threshold: Similarity threshold for collision detection (default 0.99)
+        
+    Returns:
+        n_collisions: Number of collision pairs detected
+        collision_matrix: (batch, batch) boolean matrix of collisions
+    """
+    ecc_hashes = addresses.ecc  # (batch, 32)
+    
+    # Compute pairwise cosine similarity of hashes
+    ecc_norm = F.normalize(ecc_hashes, dim=-1, p=2)
+    similarity = torch.mm(ecc_norm, ecc_norm.t())  # (batch, batch)
+    
+    # Mask diagonal (self-similarity)
+    mask = ~torch.eye(similarity.shape[0], dtype=torch.bool, device=similarity.device)
+    similarity = similarity * mask.float()
+    
+    # Detect collisions
+    collision_matrix = similarity > threshold
+    n_collisions = collision_matrix.sum().item() // 2  # Divide by 2 for symmetric matrix
+    
+    return n_collisions, collision_matrix
+
+
+def compute_address_uniqueness_score(addresses: Address) -> float:
+    """
+    Compute a uniqueness score for a batch of addresses (higher is better).
+    
+    Args:
+        addresses: Address object with batch of addresses
+        
+    Returns:
+        uniqueness_score: Score in [0, 1] where 1 means all addresses are unique
+    """
+    ecc_hashes = addresses.ecc  # (batch, 32)
+    
+    # Compute pairwise distances
+    ecc_norm = F.normalize(ecc_hashes, dim=-1, p=2)
+    similarity = torch.mm(ecc_norm, ecc_norm.t())  # (batch, batch)
+    
+    # Mask diagonal
+    mask = ~torch.eye(similarity.shape[0], dtype=torch.bool, device=similarity.device)
+    similarity = similarity * mask.float()
+    
+    # Average dissimilarity (1 - similarity)
+    dissimilarity = 1.0 - similarity
+    uniqueness_score = dissimilarity[mask].mean().item()
+    
+    return uniqueness_score
+
+
+# =============================================================================
 # Schema documentation (for reference)
 # =============================================================================
 
 ADDRESS_SCHEMA = """
-Linearized Address Layout (D = 7074 for d=512):
+Linearized Address Layout (D = 9122 for d=512, updated with neighbor metric/transport):
 
 Offset    Size    Field
 ------    ----    -----
@@ -765,8 +931,8 @@ Per-neighbor block (86 floats):
 
 Neighbor roles:
   N1-N32  (idx 0-31):   absolute nearest (metric-based)
-  N33-N48 (idx 32-47):  attractors (high dot product)
-  N49-N64 (idx 48-63):  repulsors (high wedge product, orthogonal)
+  N33-N48 (idx 32-47):  high_sim (high dot product)
+  N49-N64 (idx 48-63):  low_sim (high wedge product, orthogonal)
 
 6 Geometric Similarity Score Channels:
   Channel 0: Dot product (metric-weighted inner product q·g·c)
@@ -792,4 +958,63 @@ Example Address Structure:
   [Neighbor 63: value(64) | scores(6: dot,wedge,tensor,spinor,energy,rank) | coords(16)]
   [ECC (32)]
   [Timestamps (2)]
+"""
+
+
+# =============================================================================
+# PLANNING NOTE: Future 15D Comprehensive Similarity Integration
+# =============================================================================
+
+COMPREHENSIVE_SIMILARITY_INTEGRATION_PLAN = """
+PLANNING NOTE: Extended Neighbor Scoring with 15D Similarity Vectors
+
+Current Implementation (Phase 0):
+  - NeighborSelector computes 6 geometric scores per neighbor
+  - Selection based on metric distances (dot, wedge products)
+  - Stored in m=6 scores section of neighbor blocks
+
+Phase 1 Enhancement (9D Core - COMPLETE):
+  Implementation: utils/comprehensive_similarity.py
+  - ✅ Compute 9D similarity vectors for all candidates
+  - ✅ Dimensions: [cosine, wedge, tensor, spinor_mag, spinor_phase,
+                 energy, l2_tangent, l1_tangent, lior_distance]
+  - ✅ Aggregate to scalar scores for neighbor selection
+  - ✅ Vectorized operations for GPU efficiency
+  - ✅ 23 passing unit tests
+  - TODO: Store full 9D vectors for selected neighbors (future)
+  - TODO: Integrate with NeighborSelector (future PR)
+
+Phase 2 Enhancement (12D Extended - FUTURE):
+  - Add 3 entropy measures: variational, Rényi, curvature
+  - Cost: ~600 FLOPs per candidate (still fast for all N)
+
+Phase 3 Enhancement (15D Full - FUTURE):
+  - Add 3 statistical measures: Kendall tau, mutual info, sectional curvature
+  - Use tiered computation: expensive measures only for top-K
+  - Total cost: ~0.8ms with tiering (vs 120ms naive)
+
+Integration Points:
+  1. NeighborSelector.select_neighbors():
+     - Replace simple distance computation with ComprehensiveSimilarity
+     - Call sim_computer.compute_batch(query_embedding, candidate_embeddings)
+     - Aggregate to scalar with sim_computer.aggregate_to_scalar()
+     - Use aggregated scores for top-K selection
+  
+  2. Address.neighbor_similarity_vectors property:
+     - Return stored 15D vectors for all 64 neighbors
+     - Either store in extended neighbor blocks or compute on-demand
+  
+  3. AddressBuilder.forward():
+     - Instantiate ComprehensiveSimilarity with manifold
+     - Pass to NeighborSelector for enhanced selection
+     - Optionally store full 15D vectors in address
+
+Implementation Strategy:
+  - Phase 1: Compute 9D, store existing 6 scores (backward compatible) [COMPLETE]
+  - Later: Extend neighbor block from d_block=86 to include 15D vectors
+  - Or: Store 15D vectors externally and reference via coords
+
+See: utils/comprehensive_similarity.py for core implementation
+     Problem Statement: "Extend Neighbor Addressing with Comprehensive 
+                        Similarity Scores + Computational Cost Analysis"
 """

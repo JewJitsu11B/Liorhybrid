@@ -110,3 +110,44 @@ def write_summary() -> Path:
                 f.write(f"- `{fp}`\n")
         return out
 
+
+def write_math_validation_report(label: str = "full_pipeline_math_validation") -> Path:
+    """
+    Run multi-agent math validation and append findings to the audit markdown.
+    """
+    from .math_validation_team import MathValidationTeam
+
+    report = MathValidationTeam().validate_all()
+    out = _audit_path()
+    out.parent.mkdir(parents=True, exist_ok=True)
+
+    with _LOCK:
+        with out.open("a", encoding="utf-8") as f:
+            f.write(f"\n## Math Validation Team ({label})\n")
+            f.write(f"- Overall: `{'PASS' if report.passed else 'FAIL'}`\n")
+            for finding in report.findings:
+                status = "PASS" if finding.passed else "FAIL"
+                f.write(
+                    f"- `{status}` | `{finding.agent}` | `{finding.check}` | "
+                    f"{finding.details} | path: {finding.logic_path} | "
+                    f"why: {finding.rationale} | ref: {finding.literature}\n"
+                )
+            f.write("\n### Logic Audit Comments\n")
+            for comment in report.logic_audit_comments:
+                f.write(f"- {comment}\n")
+            f.write("\n### Stub Team: Pseudocode\n")
+            for line in report.stub_output.pseudocode:
+                f.write(f"- {line}\n")
+            f.write("\n### Stub Team: Formalisms\n")
+            for line in report.stub_output.formalisms:
+                f.write(f"- {line}\n")
+            f.write("\n### Bridge Plan\n")
+            if report.bridge_plan:
+                for step in report.bridge_plan:
+                    f.write(
+                        f"- `{step.owner_agent}` | gap: {step.gap} | action: {step.action} | "
+                        f"done-when: {step.completion_criterion}\n"
+                    )
+            else:
+                f.write("- No unresolved gaps; bridge agents not required.\n")
+    return out

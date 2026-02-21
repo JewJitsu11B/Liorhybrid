@@ -11,6 +11,13 @@ Architecture:
     Compute: geometric_score(Q, K, T_field) using wedge/tensor/spinor
     Apply: softmax normalization
     Output: attention_weights @ V
+
+Option 6 Integration:
+    Address-based neighbor probing with AddressBuilder
+    - Uses Address structure for Q/K representation
+    - Probes 64 role-typed neighbors (32 nearest, 16 attractors, 16 repulsors)
+    - Consumes 6 similarity scores per neighbor
+    - O(N × 64 × d') complexity (no dense matmul)
 """
 try: import usage_tracker; usage_tracker.track(__file__)
 except: pass
@@ -23,6 +30,7 @@ from typing import Optional, Tuple, List
 from .geometric_products import geometric_score, geometric_score_from_phase, geometric_score_from_exponential
 from .field_extraction import FieldToKeyValue
 from .triality_coordinate_head import TrialityCoordinateHead, TrialityHeadConfig, TrialityCoords
+from .address import Address, AddressBuilder, AddressConfig  # Option 6 integration
 try:
     from Liorhybrid.training.execution_tracker import track_first_call
 except ModuleNotFoundError:
@@ -374,6 +382,10 @@ class GeometricAttention(nn.Module):
         else:
             self.field_contractor = None
             self.field_alpha = None
+        
+        # Option 6 Extended: Projection for neighbor values (d_prime -> d_model)
+        # This is used in probe_address_neighbors to project neighbor values
+        self.neighbor_value_proj = nn.Linear(64, d_model)  # d_prime=64 by default
 
     def _project_q(self, Q_input: torch.Tensor) -> torch.Tensor:
         if self.W_q is not None:
@@ -471,6 +483,9 @@ class GeometricAttention(nn.Module):
         
         # Scale by sqrt(d_model) for stability
         similarity = similarity / (d_model ** 0.5)
+
+        # All three gates combined: Born × Gibbs × Softmax
+        # Note: No role-based weighting - scores already rank neighbors
         
         # Incorporate the 6 pre-computed score channels
         # neighbor_scores: (batch, 64, 6)
@@ -523,15 +538,125 @@ class GeometricAttention(nn.Module):
         output = self.W_o(output)
         
         return output, weights
+    
+    def probe_address_neighbors(
+        self,
+        Q_address: Address,  # Query address with 64 neighbors
+        K_addresses: Optional[Address] = None,  # Optional key addresses (for cross-attention)
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Option 6 Extended: Probe using full Address structure.
+        
+        Uses the 6 similarity scores and neighbor features from Address.
+        This is a more advanced version that leverages the complete address structure.
+        
+        Args:
+            Q_address: Query address with populated neighbors
+            K_addresses: Optional key addresses (not used in self-attention)
+            
+        Returns:
+            output: (batch, seq_len, d_model) - attended output
+            weights: (batch, seq_len, 64) - attention weights per neighbor
+            
+        Note: Currently returns Q_address.core as a placeholder.
+              Full implementation would:
+              1. Extract 6 similarity scores from Q_address.all_neighbor_scores
+              2. Use role-typed neighbor values from Q_address.all_neighbor_values
+              3. Apply metric-weighted combination using neighbor_metrics/transports
+              4. Return weighted output via neighbor routing coords
+        """
+        # Extract components from address
+        batch_size = Q_address.shape[0]
+        
+        # Get all neighbor scores (batch, 64, 6)
+        neighbor_scores = Q_address.all_neighbor_scores
+        
+        # Get neighbor values (batch, 64, d')
+        neighbor_values = Q_address.all_neighbor_values
+        
+        # Get neighbor metrics and transports for geometric weighting
+        neighbor_metrics = Q_address.all_neighbor_metrics  # (batch, 64, 16)
+        neighbor_transports = Q_address.all_neighbor_transports  # (batch, 64, 16)
+        
+        # Aggregate scores: use first score (cosine) + learned average
+        # scores shape: (batch, 64, 6) -> (batch, 64)
+        primary_scores = neighbor_scores[..., 0]  # Cosine similarity
+        learned_scores = neighbor_scores[..., 1:].mean(dim=-1)  # Average learned scores
+        combined_scores = primary_scores + 0.1 * learned_scores  # Weighted combination
+        
+        # Compute attention weights with Born × Gibbs × Softmax
+        # Note: No role-based weighting - scores already rank neighbors
+        tau = self.temperature.clamp(min=1e-8)
+        born = combined_scores.pow(2)
+        gibbs = torch.exp(-combined_scores.abs() / tau)
+        soft = torch.softmax(combined_scores / tau, dim=-1)
+        weights = born * gibbs * soft  # (batch, 64)
+        
+        # Renormalize to ensure sum to 1 (Born × Gibbs may have broken normalization)
+        weights = weights / (weights.sum(dim=-1, keepdim=True) + 1e-8)  # (batch, 64)
+        
+        # Project neighbor values to d_model for output using dedicated projection
+        # neighbor_values: (batch, 64, d') where d' = 64
+        neighbor_values_proj = self.neighbor_value_proj(neighbor_values)  # (batch, 64, d_model)
+        
+        # Weighted combination
+        # weights: (batch, 64) @ neighbor_values_proj: (batch, 64, d_model)
+        output = torch.bmm(
+            weights.unsqueeze(1),  # (batch, 1, 64)
+            neighbor_values_proj   # (batch, 64, d_model)
+        ).squeeze(1)  # (batch, d_model)
+        
+        # Expand to seq_len if needed (for compatibility with forward)
+        # For now, return single-token output
+        if output.dim() == 2:
+            output = output.unsqueeze(1)  # (batch, 1, d_model)
+        
+        # Final projection
+        output = self.W_o(output)
+        
+        # Expand weights for compatibility
+        weights = weights.unsqueeze(1)  # (batch, 1, 64)
+
+        return output, weights
 
     @track_first_call
     def forward(
         self,
-        Q_input: torch.Tensor,
+        Q_input: torch.Tensor = None,  # Legacy: raw tensor
         K: torch.Tensor = None,
         V: torch.Tensor = None,
         T_field: torch.Tensor = None,
         mask: Optional[torch.Tensor] = None,
+        neighbor_embeddings: Optional[torch.Tensor] = None,  # Option 6: raw neighbors
+        metric: Optional[torch.Tensor] = None,  # Option 6: diagonal metric
+        Q_address: Optional[Address] = None,  # Option 6 Extended: full Address structure
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Forward pass supporting multiple input modes:
+        
+        1. Address-based probing (Option 6 Extended, preferred):
+           Pass Q_address with populated neighbors
+           - Uses probe_address_neighbors() for full Address integration
+           - Consumes 6 similarity scores per neighbor
+           - O(N × 64 × d') complexity, no dense matmul
+        
+        2. Neighbor embedding probing (Option 6):
+           Pass neighbor_embeddings instead of K/V
+           - Uses probe_neighbors() for O(N × 64 × d') complexity
+           - NO dense matmul, NO softmax collapse
+           - Born gate |ψ|² normalization
+
+        3. Legacy K/V attention:
+           Pass K, V for standard geometric attention
+           - O(N²) complexity via Q @ K.T matmul
+           - Softmax normalization
+        """
+        # Route to Address-based probing if Q_address provided (Option 6 Extended)
+        if Q_address is not None:
+            return self.probe_address_neighbors(Q_address=Q_address)
+        
+        # Route to Option 6 if neighbor_embeddings provided
+        if neighbor_embeddings is not None:
         neighbor_embeddings: Optional[torch.Tensor] = None,  # Legacy Option 6
         metric: Optional[torch.Tensor] = None,  # Legacy Option 6
         address: Optional['Address'] = None,  # NEW: Full address structure for Option 6
@@ -622,7 +747,12 @@ class GeometricAttention(nn.Module):
 
         # Legacy path: K/V matmul attention
         if K is None or V is None:
-            raise ValueError("Must provide either neighbor_embeddings (Option 6) or K and V (legacy)")
+            raise ValueError(
+                "Must provide one of: "
+                "Q_address (Option 6 Extended), "
+                "neighbor_embeddings (Option 6), "
+                "or K and V (legacy)"
+            )
 
         batch_size = Q_input.shape[0]
         seq_len_q = Q_input.shape[1]
