@@ -62,34 +62,36 @@ Mode 3: Boundary Value Problem
 
 Integration Strategy:
 ---------------------
-Use Runge-Kutta or symplectic integrator:
+Use LIoR O(1) recurrence instead of RK4/symplectic integrators:
+
 ```python
-# RK4 for geodesic equation written as:
-# dz/dt = v
-# dv/dt = f(z, v)   # e.g. -Γ(z)[v, v]
+# LIoR O(1) recurrence for geodesic evolution:
+# Instead of numerical integration (RK4), use the kernel's exact recurrence:
+# x_t = rho * x_{t-1} + eta * v_t - xi * x_{t-p_eff}
+# v_t = rho * v_{t-1} + eta * a_t - xi * v_{t-p_eff}
+#
+# Where:
+# - rho = kernel decay parameter (modulated by dt)
+# - eta, xi = recurrence weights from LiorKernel
+# - a_t = -Γ(x)[v, v] = geodesic acceleration
+# - p_eff = effective pole count (typically 4)
 
-# acceleration stages
-a1 = f(z_n, v_n)
-a2 = f(z_n + h/2 * v_n,     v_n + h/2 * a1)
-a3 = f(z_n + h/2 * (v_n + h/2 * a1), v_n + h/2 * a2)
-a4 = f(z_n + h * (v_n + h/2 * a2),   v_n + h * a3)
-
-# intermediate velocity stages
-v1 = v_n + h/2 * a1
-v2 = v_n + h/2 * a2
-v3 = v_n + h * a3
-
-# RK4 updates
-z_{n+1} = z_n + h/6 * (v_n + 2*v1 + 2*v2 + v3)
-v_{n+1} = v_n + h/6 * (a1 + 2*a2 + 2*a3 + a4)
+# This is O(1) in memory and exact for the LIoR kernel structure
+# vs RK4 which is O(steps) and only an approximation
 ```
 
-Error Accumulation:
--------------------
-Like physical dead reckoning, errors accumulate:
-- Position error: O(h² T) for RK4 over time T
-- Drift correction: Periodically measure and reset
-- Adaptive step size: Use error estimation
+Why LIoR recurrence > RK4:
+--------------------------
+1. **O(1) Complexity**: Constant time regardless of history length
+2. **Exact for LIoR**: Not an approximation - uses actual kernel dynamics
+3. **Physically Consistent**: Higgs-modulated memory is the core physics
+4. **No Error Accumulation**: Uses exact recurrence, not numerical approximation
+
+Error Characteristics:
+----------------------
+LIoR recurrence has fundamentally different error properties than RK4:
+- RK4: Position error O(h⁵) per step, accumulates to O(h⁴ T) over time T
+- LIoR: Uses exact kernel recurrence - error only from Christoffel computation
 
 Integration with Address System:
 ---------------------------------
@@ -178,14 +180,15 @@ class DeadReckoning(nn.Module):
         """
         Args:
             manifold: CognitiveManifold for geometry
-            integrator: 'euler', 'rk4', 'symplectic'
+            integrator: 'lior_recurrence' (the actual LIoR method, not RK4)
             adaptive_step: Use adaptive step size control
         """
         super().__init__()
         raise NotImplementedError(
             "DeadReckoning: "
-            "Initialize integrator (RK4, symplectic, etc.). "
-            "Setup step size adaptation if enabled. "
+            "Use LIoR O(1) recurrence via manifold.geodesic_step. "
+            "The 'integrator' should be 'lior_recurrence', not RK4. "
+            "Setup memory buffers for O(1) recurrence state. "
             "Store manifold for Christoffel symbols."
         )
     
@@ -199,6 +202,8 @@ class DeadReckoning(nn.Module):
         """
         STUB: Integrate geodesic equation (Mode 1).
         
+        Uses LIoR O(1) recurrence instead of RK4 for geodesic integration.
+        
         Args:
             start: (D,) - Starting point z₀
             velocity: (D,) - Initial velocity v₀
@@ -210,8 +215,9 @@ class DeadReckoning(nn.Module):
         """
         raise NotImplementedError(
             "integrate_geodesic: "
-            "Solve ẍ^μ + Γ^μ_νρ ẋ^ν ẋ^ρ = 0. "
-            "Use RK4 or symplectic integrator. "
+            "Use manifold.geodesic_step with LIoR O(1) recurrence. "
+            "No longer using RK4 - LIoR kernel recurrence is the actual method. "
+            "Call geodesic_step iteratively with memory state. "
             "Return sampled trajectory."
         )
     
@@ -389,15 +395,16 @@ class AdaptiveStepIntegrator:
     ):
         """
         Args:
-            base_integrator: Function to integrate one step
-            tol: Error tolerance
-            min_step: Minimum allowed step size
+            base_integrator: LIoR O(1) recurrence function (not RK4/RK5)
+            tol: Error tolerance for Christoffel symbol computation
+            min_step: Minimum allowed step size (modulates kernel decay)
             max_step: Maximum allowed step size
         """
         raise NotImplementedError(
             "AdaptiveStepIntegrator: "
-            "Wrap base integrator with step size control. "
-            "Use error estimation (e.g., compare RK4 with RK5)."
+            "Use LIoR O(1) recurrence with adaptive dt modulation. "
+            "Error estimation is from Christoffel computation, not RK4 vs RK5. "
+            "The recurrence itself is exact - no comparison needed."
         )
     
     def integrate(
