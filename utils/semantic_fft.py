@@ -158,8 +158,12 @@ References:
 - cuFFT: NVIDIA's FFT library
 - FFTW: Fastest Fourier Transform in the West
 """
-try: import usage_tracker; usage_tracker.track(__file__)
-except: pass
+try:
+    import usage_tracker
+    usage_tracker.track(__file__)
+except ImportError:
+    # usage_tracker is optional; ignore if not installed
+    pass
 
 import torch
 from typing import Optional, Union, Tuple

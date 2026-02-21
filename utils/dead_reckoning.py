@@ -150,8 +150,12 @@ References:
 - Symplectic integrators: Hamiltonian mechanics
 - Optimal control: Boundary value problems
 """
-try: import usage_tracker; usage_tracker.track(__file__)
-except: pass
+try:
+    import usage_tracker
+    usage_tracker.track(__file__)
+except ImportError:
+    # usage_tracker is optional; ignore if not installed
+    pass
 
 import torch
 import torch.nn as nn

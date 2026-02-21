@@ -12,7 +12,7 @@ TESTING: Unit tests for transform accuracy, gradient flow, GPU compatibility
 
 Purpose:
 --------
-Fast Lior Transform provides efficient local coordinate transformations on the cognitive
+Fast Local Transform provides efficient local coordinate transformations on the cognitive
 field using pure PyTorch operations. This enables:
 1. GPU-accelerated field analysis
 2. Measurement-based field analysis (no autograd)
@@ -67,12 +67,16 @@ References:
 - Window functions: torch.hamming_window, torch.hann_window
 - Complex tensors: torch.complex64, torch.complex128
 """
-try: import usage_tracker; usage_tracker.track(__file__)
-except: pass
+try:
+    import usage_tracker
+    usage_tracker.track(__file__)
+except ImportError:
+    # usage_tracker is optional; ignore if not installed
+    pass
 
 import torch
 import torch.nn as nn
-from typing import Tuple, Optional
+from typing import Tuple
 
 
 class FastLocalTransform(nn.Module):

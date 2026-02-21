@@ -92,12 +92,16 @@ References:
 - Information geometry: Fisher metric, entropy divergence
 - Symplectic geometry: Darboux coordinates, Poisson brackets
 """
-try: import usage_tracker; usage_tracker.track(__file__)
-except: pass
+try:
+    import usage_tracker
+    usage_tracker.track(__file__)
+except ImportError:
+    # usage_tracker is optional; ignore if not installed
+    pass
 
 import torch
 import torch.nn as nn
-from typing import Optional, Tuple
+from typing import Optional
 
 
 class ComprehensiveSimilarity(nn.Module):

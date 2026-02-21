@@ -149,8 +149,12 @@ References:
 - Dimensionality reduction: PCA, UMAP, t-SNE
 - Scientific visualization: ColorBrewer color schemes, cmocean colormaps (matplotlib package)
 """
-try: import usage_tracker; usage_tracker.track(__file__)
-except: pass
+try:
+    import usage_tracker
+    usage_tracker.track(__file__)
+except ImportError:
+    # usage_tracker is optional; ignore if not installed
+    pass
 
 import torch
 import torch.nn as nn

@@ -99,14 +99,17 @@ References:
 - Performance counters: perf (Linux), Instruments (macOS)
 - Proper time in GR: τ² = -g_μν dx^μ dx^ν
 """
-try: import usage_tracker; usage_tracker.track(__file__)
-except: pass
+try:
+    import usage_tracker
+    usage_tracker.track(__file__)
+except ImportError:
+    # usage_tracker is optional; ignore if not installed
+    pass
 
 import torch
 import time
 from typing import Callable, Optional, Dict
 from dataclasses import dataclass
-import platform
 
 
 @dataclass

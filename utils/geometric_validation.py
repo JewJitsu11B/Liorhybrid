@@ -102,8 +102,12 @@ References:
 - Arnold, V.I. (1989): "Mathematical Methods of Classical Mechanics"
 - Amari & Nagaoka (2000): "Methods of Information Geometry"
 """
-try: import usage_tracker; usage_tracker.track(__file__)
-except: pass
+try:
+    import usage_tracker
+    usage_tracker.track(__file__)
+except ImportError:
+    # usage_tracker is optional; ignore if not installed
+    pass
 
 import torch
 import torch.nn as nn

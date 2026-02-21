@@ -20,9 +20,9 @@ Mathematical Foundation:
 LIoR Action: S = ∫ R(x) √(g_μν ẋ^μ ẋ^ν) dτ
 
 Analytic gradients:
-1. ∂S/∂α = -∫ R(x) · (∂R/∂α) · √(g_μν ẋ^μ ẋ^ν) dτ
-2. ∂S/∂g_μν = ½ ∫ R(x) · (g^μν / √(g_μν ẋ^μ ẋ^ν)) · ẋ^μ ẋ^ν dτ
-3. ∂S/∂ẋ^μ = ∫ R(x) · (g_μν ẋ^ν / √(g_μν ẋ^μ ẋ^ν)) dτ
+1. ∂S/∂α = ∫ (∂R/∂α) · √(g_μν ẋ^μ ẋ^ν) dτ
+2. ∂S/∂g_μν = ½ ∫ R(x) · (ẋ^μ ẋ^ν / √(g_αβ ẋ^α ẋ^β)) dτ
+3. ∂S/∂ẋ^μ = ∫ R(x) · (g_μν ẋ^ν / √(g_αβ ẋ^α ẋ^β)) dτ
 
 Key insight: All gradients can be expressed as combinations of:
 - Field measurements: R(x), g_μν(x)
@@ -84,12 +84,15 @@ References:
 - Riemannian geometry: Christoffel symbols, covariant derivatives
 - Hamiltonian mechanics: Symplectic gradients
 """
-try: import usage_tracker; usage_tracker.track(__file__)
-except: pass
+try:
+    import usage_tracker
+    usage_tracker.track(__file__)
+except ImportError:
+    # usage_tracker is optional; ignore if not installed
+    pass
 
 import torch
-import torch.nn as nn
-from typing import Dict, Tuple, Optional, NamedTuple
+from typing import Dict, Optional, NamedTuple
 
 
 class TrajectoryMeasurements(NamedTuple):
@@ -148,6 +151,7 @@ def measure_trajectory(
     )
 
 
+@torch.inference_mode()
 def compute_action_gradient(
     measurements: TrajectoryMeasurements,
     field_params: Dict[str, torch.Tensor]
