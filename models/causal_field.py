@@ -42,7 +42,10 @@ import math
 from .manifold import CognitiveManifold
 from .lior_kernel import LiorKernel, LiorMemoryState
 from .biquaternion import BiQuatCausalLayer
-from ..training.execution_tracker import track_first_call
+try:
+    from ..training.execution_tracker import track_first_call
+except ImportError:
+    from training.execution_tracker import track_first_call
 
 
 class AssociatorCurrent(nn.Module):

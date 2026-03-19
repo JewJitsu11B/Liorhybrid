@@ -673,52 +673,6 @@ class GeometricAttention(nn.Module):
         
         # Route to Option 6 if neighbor_embeddings provided
         if neighbor_embeddings is not None:
-        neighbor_embeddings: Optional[torch.Tensor] = None,  # Legacy Option 6
-        metric: Optional[torch.Tensor] = None,  # Legacy Option 6
-        address: Optional['Address'] = None,  # NEW: Full address structure for Option 6
-        enable_address_probing: bool = True,  # Default to address probing (Option 6)
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Forward pass supporting Option 6 address probing and legacy K/V attention.
-
-        Option 6 (RECOMMENDED): Pass address for strict metric-based probing.
-            - Uses probe_neighbors() with Address structure
-            - O(N × 64 × d') complexity
-            - NO dense matmul, NO softmax collapse
-            - Born gate |ψ|² normalization
-            - REQUIRES valid metric/transport in address
-
-        Legacy Option 6: Pass neighbor_embeddings + metric (deprecated).
-            - Backward compatible but missing 6 score channels
-            - Will be converted to Address internally if possible
-
-        Legacy Attention: Pass K, V for standard geometric attention.
-            - O(N²) complexity via Q @ K.T matmul
-            - Softmax normalization
-            - NOT RECOMMENDED for Option 6
-            
-        Args:
-            Q_input: Query input (batch, seq_len, d_model)
-            K, V: Legacy keys/values for dense attention
-            T_field: Cognitive tensor field
-            mask: Attention mask
-            neighbor_embeddings: Legacy neighbor embeddings (deprecated)
-            metric: Legacy metric (deprecated)
-            address: NEW: Address structure with 64 neighbors
-            enable_address_probing: Use address probing (default True)
-        """
-        from .address import Address  # Import here to avoid circular dependency
-        
-        # Route 1: Address-based probing (RECOMMENDED for Option 6)
-        if enable_address_probing and address is not None:
-            return self.probe_neighbors(
-                Q=Q_input,
-                address=address,
-                enable_dense_fallback=False  # Strict mode
-            )
-        
-        # Route 2: Legacy neighbor_embeddings probing (deprecated, for backward compat)
-        if neighbor_embeddings is not None:
             # Convert to temporary Address if possible
             # This is a compatibility shim - full Address is preferred
             import warnings

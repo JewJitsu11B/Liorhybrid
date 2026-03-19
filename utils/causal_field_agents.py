@@ -161,6 +161,11 @@ class AbstractAlgebraAgent:
         for loc in locations:
             if "core implementation" not in loc.role:
                 continue
+            # Only run deep algebraic checks on model/core source files,
+            # not on agent utilities, tests, or documentation that happen to
+            # reference the same symbols.
+            if any(loc.path.startswith(skip) for skip in ("utils/", "tests/", "docs/")):
+                continue
             text = source_text.get(loc.path, "")
             findings.extend(self._check_sign(text, loc.path))
             findings.extend(self._check_alpha_parameter(text, loc.path))
@@ -170,13 +175,21 @@ class AbstractAlgebraAgent:
 
     # ------------------------------------------------------------------
     def _check_sign(self, text: str, path: str) -> List[AgentFinding]:
-        """T = alpha*J - (1-alpha)*memory  (minus, not plus)."""
-        # Look for the combination expression
+        """T = alpha*J - (1-alpha)*memory  (minus, not plus).
+
+        Only emits a finding for files that actually contain the T_flat
+        combination expression.  Files that don't implement the formula
+        (wrappers, tests, docs) are silently skipped.
+        """
+        # Require T_flat and J_flat both present before checking sign
+        if 'T_flat' not in text or 'J_flat' not in text:
+            return []
+
         has_correct_sign = bool(
-            re.search(r'alpha\s*\*\s*J_flat\s*-\s*\(1\s*-\s*alpha\)', text)
+            re.search(r'T_flat\s*=\s*alpha\s*\*\s*J_flat\s*-\s*\(1', text)
         )
         has_wrong_sign = bool(
-            re.search(r'alpha\s*\*\s*J_flat\s*\+\s*\(1\s*-\s*alpha\)', text)
+            re.search(r'T_flat\s*=\s*alpha\s*\*\s*J_flat\s*\+\s*\(1', text)
         )
         if has_wrong_sign:
             return [AgentFinding(
@@ -185,14 +198,14 @@ class AbstractAlgebraAgent:
                 passed=False,
                 severity="critical",
                 details=(
-                    "Found 'alpha * J_flat + (1 - alpha) * memory_out'. "
+                    "Assignment T_flat = alpha * J_flat + (1 - alpha) * ... found. "
                     "The causal accumulation law requires a minus sign: "
                     "T = alpha*J - (1-alpha)*integral_{J^-}(...)."
                 ),
                 file_path=path,
                 fix_hint=(
-                    "Change 'alpha * J_flat + (1 - alpha) * memory_out' to "
-                    "'alpha * J_flat - (1 - alpha) * memory_out'."
+                    "Change T_flat = alpha * J_flat + (1 - alpha) * memory_out "
+                    "to T_flat = alpha * J_flat - (1 - alpha) * memory_out."
                 ),
             )]
         return [AgentFinding(
@@ -203,14 +216,21 @@ class AbstractAlgebraAgent:
             details=(
                 "Correct minus sign found in combination expression."
                 if has_correct_sign
-                else "Could not locate the T_flat combination expression to verify sign."
+                else "T_flat and J_flat present but sign expression not recognised."
             ),
             file_path=path,
             fix_hint="Ensure 'T_flat = alpha * J_flat - (1 - alpha) * memory_out'.",
         )]
 
     def _check_alpha_parameter(self, text: str, path: str) -> List[AgentFinding]:
-        """alpha must be a dedicated nn.Parameter (phase angle), not kernel.weights[0]."""
+        """alpha must be a dedicated nn.Parameter (phase angle), not kernel.weights[0].
+
+        Only emits a finding for files that actually use alpha in the causal
+        accumulation law combination (``alpha * J_flat``).
+        """
+        # Skip files that don't implement the alpha * J_flat combination
+        if 'alpha * J_flat' not in text and 'alpha*J_flat' not in text:
+            return []
         uses_kernel_weight = bool(
             re.search(r'self\.memory\.kernel\.weights\[0\]', text)
         )
