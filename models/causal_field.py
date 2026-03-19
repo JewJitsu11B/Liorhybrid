@@ -283,6 +283,12 @@ class CausalFieldLayer(nn.Module):
         self.kernel_size = kernel_size
 
         # === Core tensors ===
+        # alpha: phase angle interpolator (theta = alpha * pi/2).
+        # Governs the balance between the direct (J) term and the
+        # history-integrated memory term.  Initialised to 0.5 so
+        # both contributions start equally weighted.
+        self.alpha = nn.Parameter(torch.tensor(0.5))
+
         # Phi^[rho sigma] - bivector field (RAISED indices)
         self.Phi = nn.Parameter(
             torch.randn(d_field, d_field) / d_field
@@ -384,13 +390,16 @@ class CausalFieldLayer(nn.Module):
         memory_out, new_memory = self.memory(transported_flat, memory, diagnose=diagnose)
         check_tensor("memory_out", memory_out)
 
-        # === Combine: T = alpha * J + (1-alpha) * memory_term ===
-        alpha = self.memory.kernel.weights[0]  # Instantaneous weight
+        # === Combine: T = alpha * J - (1-alpha) * memory_term ===
+        # This matches the causal accumulation law exactly:
+        #   T = alpha*J - (1-alpha) * integral_{J^-(x)} k Pi P P Phi P J d^4x'
+        # alpha is the phase-angle interpolator (theta = alpha*pi/2).
+        alpha = torch.clamp(self.alpha, 0.0, 1.0)
         if diagnose:
-            print(f"  [INFO] alpha (kernel weight[0]) = {alpha.item():.4g}", flush=True)
+            print(f"  [INFO] alpha (phase angle interpolator) = {alpha.item():.4g}", flush=True)
 
         J_flat = J.view(B, N, -1)
-        T_flat = alpha * J_flat + (1 - alpha) * memory_out
+        T_flat = alpha * J_flat - (1 - alpha) * memory_out
         check_tensor("T_flat_combined", T_flat)
 
         # === Project to output ===
