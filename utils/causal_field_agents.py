@@ -1,17 +1,18 @@
 """
 Causal Field Agent Team.
 
-Four specialised agents that collaborate to locate the causal field
-implementation in the repository, audit it against the formal law, and
-propose targeted fixes.
+Five specialised agents that collaborate to locate the causal field
+implementation in the repository, audit it against the formal law,
+propose targeted fixes, and — once the causal-field audit is complete —
+audit the end-to-end data pipeline to ensure proper flow.
 
 Roles
 -----
 CoordinatorScribeAgent
     Scans the repository for every file that touches the causal
     accumulation law, broadcasts the discovered locations to the three
-    specialist agents, orchestrates their audit passes, and writes a
-    consolidated action log.
+    specialist agents, orchestrates their audit passes, then triggers a
+    full data-pipeline audit, and writes a consolidated action log.
 
 AbstractAlgebraAgent
     Verifies the algebraic structure of the law:
@@ -35,6 +36,32 @@ ValidationAgent
     Runs a suite of numerical checks against a small CausalFieldLayer
     instance and consolidates the findings into a ValidationReport that
     can be handed back to the CoordinatorScribeAgent.
+
+DataPipelineAuditAgent
+    Audits the end-to-end data pipeline for correct flow.  Invoked by
+    the CoordinatorScribeAgent *after* the causal-field audit finishes.
+
+    Stage checks (source-text):
+      1. Batch schema  – datasets produce dicts with required keys
+         (``input_ids``, ``labels``, ``attention_mask``, ``modality``).
+      2. Device move   – trainer batch-to-device loop present.
+      3. Audit markers – ``audit_file_once()`` calls at all key trainer
+         stages (init, train_epoch, training_step, save/load checkpoint).
+      4. Loss inputs   – ``language_modeling_loss`` validates shapes and
+         applies the correct causal shift (logits[:,:-1] vs labels[:,1:]).
+      5. Combined loss – ``combined_loss`` gates on both ``logits`` and
+         ``labels`` keys before computing LM loss.
+      6. Memory threading – causal field forward returns
+         ``(output, new_memory)`` and the trainer can pass ``new_memory``
+         back as ``memory`` on the next call.
+
+    Stage checks (numerical):
+      7. Mock-batch LM loss  – a synthetic batch with correct keys
+         produces a finite scalar loss with a valid gradient.
+      8. Gradient flow       – loss.backward() reaches ``CausalFieldLayer.alpha``
+         and ``CausalFieldLayer.Phi`` (not detached).
+      9. Memory re-threading – ``new_memory`` returned by one forward call
+         can be fed back unchanged to the next forward call without error.
 
 Usage
 -----
@@ -89,14 +116,18 @@ class CausalFieldReport:
     findings: List[AgentFinding]
     action_log: List[str]
     transport_plan: List[str]
+    pipeline_findings: List[AgentFinding] = field(default_factory=list)
 
     @property
     def passed(self) -> bool:
-        return all(f.passed for f in self.findings)
+        return all(f.passed for f in self.findings) and all(
+            f.passed for f in self.pipeline_findings
+        )
 
     @property
     def critical_failures(self) -> List[AgentFinding]:
-        return [f for f in self.findings if not f.passed and f.severity == "critical"]
+        all_findings = self.findings + self.pipeline_findings
+        return [f for f in all_findings if not f.passed and f.severity == "critical"]
 
 
 # ---------------------------------------------------------------------------
@@ -581,6 +612,455 @@ class ValidationAgent:
             )]
 
 
+
+# ---------------------------------------------------------------------------
+# Data Pipeline Audit Agent
+# ---------------------------------------------------------------------------
+
+class DataPipelineAuditAgent:
+    """
+    Audits the end-to-end data pipeline to ensure proper flow.
+
+    Invoked by the CoordinatorScribeAgent *after* the causal-field audit.
+
+    Source-text checks (no model instantiation required)
+    ----------------------------------------------------
+    1. Batch schema        – dataset ``__getitem__`` / ``_make_example``
+                             returns dicts with required keys.
+    2. Device move         – trainer moves batch tensors to device before
+                             any forward pass.
+    3. Audit markers       – ``audit_file_once()`` calls present at all key
+                             trainer entry points.
+    4. Loss shape guard    – ``language_modeling_loss`` validates that
+                             ``labels.shape[:2] == (batch, seq_len)``.
+    5. Causal LM shift     – ``language_modeling_loss`` shifts logits and
+                             labels by one position for autoregressive loss.
+    6. Combined-loss gates – ``combined_loss`` only computes LM loss when
+                             both ``'logits'`` and ``'labels'`` are present.
+    7. Memory threading    – ``CausalFieldLayer.forward`` returns a tuple
+                             ``(output, new_memory)`` so the trainer can
+                             re-thread state across time steps.
+
+    Numerical checks (small toy instances)
+    ---------------------------------------
+    8. Mock-batch LM loss  – a synthetic [B, T, V] logits + [B, T] labels
+                             batch produces a finite scalar loss with grad.
+    9. Gradient flow       – after loss.backward(), ``CausalFieldLayer.alpha``
+                             and ``CausalFieldLayer.Phi`` have non-None .grad.
+    10. Memory re-threading – new_memory from step t can be passed as memory
+                              at step t+1 without raising an exception.
+    """
+
+    NAME = "Data Pipeline Audit Agent"
+
+    # Required keys every text-mode dataset item must carry
+    _REQUIRED_BATCH_KEYS = ("input_ids", "labels", "attention_mask", "modality")
+
+    def audit(
+        self,
+        repo_root: Path,
+        run_numerical: bool = True,
+        d_model: int = 16,
+        d_field: int = 4,
+        d_spinor: int = 4,
+        vocab_size: int = 32,
+    ) -> List[AgentFinding]:
+        """
+        Run the full pipeline audit.
+
+        Args:
+            repo_root:      Root path of the repository.
+            run_numerical:  When False only source-text checks are run.
+            d_model / d_field / d_spinor:
+                            Dimensions for the toy CausalFieldLayer used in
+                            numerical checks.
+            vocab_size:     Vocabulary size for the mock LM loss check.
+
+        Returns:
+            List of AgentFinding items.
+        """
+        findings: List[AgentFinding] = []
+
+        # ── Load pipeline source files ─────────────────────────────────
+        def _read(rel: str) -> str:
+            try:
+                return (repo_root / rel).read_text(encoding='utf-8', errors='replace')
+            except OSError:
+                return ""
+
+        datasets_src = _read("training/datasets.py")
+        trainer_src  = _read("training/trainer.py")
+        losses_src   = _read("training/losses.py")
+        field_src    = _read("models/causal_field.py")
+
+        # ── Source-text checks ─────────────────────────────────────────
+        findings.extend(self._check_batch_schema(datasets_src))
+        findings.extend(self._check_device_move(trainer_src))
+        findings.extend(self._check_audit_markers(trainer_src))
+        findings.extend(self._check_loss_shape_guard(losses_src))
+        findings.extend(self._check_causal_lm_shift(losses_src))
+        findings.extend(self._check_combined_loss_gates(losses_src))
+        findings.extend(self._check_memory_threading_source(field_src))
+
+        # ── Numerical checks ───────────────────────────────────────────
+        if run_numerical:
+            findings.extend(self._check_mock_batch_loss(vocab_size))
+            findings.extend(self._check_gradient_flow(d_model, d_field, d_spinor, vocab_size))
+            findings.extend(self._check_memory_rethreading(d_model, d_field, d_spinor))
+
+        return findings
+
+    # ------------------------------------------------------------------
+    # Source-text checks
+    # ------------------------------------------------------------------
+
+    def _check_batch_schema(self, src: str) -> List[AgentFinding]:
+        """Dataset items must carry all required batch keys."""
+        missing = [k for k in self._REQUIRED_BATCH_KEYS if f"'{k}'" not in src]
+        passed = not missing
+        return [AgentFinding(
+            agent=self.NAME,
+            check="Dataset items carry all required batch keys",
+            passed=passed,
+            severity="critical",
+            details=(
+                "All required keys found in dataset source."
+                if passed
+                else f"Missing key(s) in training/datasets.py: {missing}"
+            ),
+            file_path="training/datasets.py",
+            fix_hint=(
+                "Ensure every dataset __getitem__/_make_example returns a dict "
+                "containing all of: " + ", ".join(f"'{k}'" for k in self._REQUIRED_BATCH_KEYS)
+            ),
+        )]
+
+    def _check_device_move(self, src: str) -> List[AgentFinding]:
+        """Trainer must move batch tensors to device before the forward pass."""
+        has_move = bool(re.search(
+            r'\.to\(self\.device\)',
+            src
+        ))
+        return [AgentFinding(
+            agent=self.NAME,
+            check="Trainer moves batch tensors to device before forward pass",
+            passed=has_move,
+            severity="critical",
+            details=(
+                "batch.to(self.device) call found in trainer."
+                if has_move
+                else "No .to(self.device) call found in training/trainer.py."
+            ),
+            file_path="training/trainer.py",
+            fix_hint=(
+                "Add: batch = {k: v.to(self.device) if isinstance(v, torch.Tensor) "
+                "else v for k, v in batch.items()} before the forward pass."
+            ),
+        )]
+
+    def _check_audit_markers(self, src: str) -> List[AgentFinding]:
+        """Key trainer entry points must log an audit_file_once() marker."""
+        required_labels = [
+            "trainer",
+            "train_epoch",
+            "training_step",
+            "save_checkpoint",
+            "load_checkpoint",
+        ]
+        missing = [l for l in required_labels
+                   if not re.search(rf'audit_file_once\(["\']' + l, src)]
+        passed = not missing
+        return [AgentFinding(
+            agent=self.NAME,
+            check="Pipeline audit markers present at all key trainer stages",
+            passed=passed,
+            severity="minor",
+            details=(
+                "All expected audit_file_once() markers found."
+                if passed
+                else f"Missing audit markers for: {missing}"
+            ),
+            file_path="training/trainer.py",
+            fix_hint=(
+                "Add audit_file_once('<stage>', __file__) at the start of each "
+                "missing stage: " + str(missing)
+            ),
+        )]
+
+    def _check_loss_shape_guard(self, src: str) -> List[AgentFinding]:
+        """language_modeling_loss must guard logits/labels shape compatibility."""
+        has_guard = bool(re.search(
+            r'labels\.shape\[:2\]\s*!=.*batch_size.*seq_len|'
+            r'raise ValueError.*labels shape',
+            src
+        ))
+        return [AgentFinding(
+            agent=self.NAME,
+            check="language_modeling_loss guards logits/labels shape compatibility",
+            passed=has_guard,
+            severity="major",
+            details=(
+                "Shape compatibility guard found in language_modeling_loss."
+                if has_guard
+                else "No labels.shape[:2] != (batch, seq_len) guard found."
+            ),
+            file_path="training/losses.py",
+            fix_hint=(
+                "Add: if labels.shape[:2] != (batch_size, seq_len): "
+                "raise ValueError(...) before the shift step."
+            ),
+        )]
+
+    def _check_causal_lm_shift(self, src: str) -> List[AgentFinding]:
+        """language_modeling_loss must shift logits and labels by 1 for causal LM."""
+        has_shift = bool(re.search(
+            r'logits\[:.*:-1.*\]|shift_logits|logits\[.*,\s*:-1',
+            src
+        ))
+        return [AgentFinding(
+            agent=self.NAME,
+            check="language_modeling_loss applies causal-LM shift (logits[:,:-1] vs labels[:,1:])",
+            passed=has_shift,
+            severity="critical",
+            details=(
+                "Causal-LM shift (logits[:, :-1] / labels[:, 1:]) found."
+                if has_shift
+                else "No causal-LM shift found; loss may be computed on the wrong positions."
+            ),
+            file_path="training/losses.py",
+            fix_hint=(
+                "Ensure shift_logits = logits[:, :-1, :] and "
+                "shift_labels = labels[:, 1:] in language_modeling_loss."
+            ),
+        )]
+
+    def _check_combined_loss_gates(self, src: str) -> List[AgentFinding]:
+        """combined_loss must gate on 'logits' and 'labels' before computing LM loss."""
+        has_gate = bool(re.search(
+            r"'logits'\s+in\s+outputs\s+and\s+'labels'\s+in\s+batch|"
+            r"if\s+'logits'\s+in\s+outputs",
+            src
+        ))
+        return [AgentFinding(
+            agent=self.NAME,
+            check="combined_loss gates on 'logits' and 'labels' keys before LM loss",
+            passed=has_gate,
+            severity="major",
+            details=(
+                "combined_loss has 'logits' in outputs gate."
+                if has_gate
+                else "combined_loss may attempt LM loss without checking for required keys."
+            ),
+            file_path="training/losses.py",
+            fix_hint=(
+                "Guard LM loss computation with: "
+                "if 'logits' in outputs and 'labels' in batch: ..."
+            ),
+        )]
+
+    def _check_memory_threading_source(self, src: str) -> List[AgentFinding]:
+        """CausalFieldLayer.forward must return (output, new_memory) for re-threading."""
+        returns_tuple = bool(re.search(
+            r'return\s+output\s*,\s*new_memory',
+            src
+        ))
+        return [AgentFinding(
+            agent=self.NAME,
+            check="CausalFieldLayer.forward returns (output, new_memory) tuple",
+            passed=returns_tuple,
+            severity="major",
+            details=(
+                "return output, new_memory found; memory can be re-threaded."
+                if returns_tuple
+                else "CausalFieldLayer.forward does not appear to return new_memory; "
+                     "stateful inference across time steps will be broken."
+            ),
+            file_path="models/causal_field.py",
+            fix_hint=(
+                "Ensure the last line of CausalFieldLayer.forward is "
+                "'return output, new_memory'."
+            ),
+        )]
+
+    # ------------------------------------------------------------------
+    # Numerical checks
+    # ------------------------------------------------------------------
+
+    def _check_mock_batch_loss(self, vocab_size: int) -> List[AgentFinding]:
+        """A synthetic [B, T, V] / [B, T] batch must produce a finite scalar loss."""
+        try:
+            from training.losses import language_modeling_loss  # type: ignore
+        except ImportError:
+            return [AgentFinding(
+                agent=self.NAME,
+                check="Mock-batch language_modeling_loss produces finite scalar with grad",
+                passed=False,
+                severity="major",
+                details="Could not import language_modeling_loss from training.losses.",
+                file_path="training/losses.py",
+                fix_hint="Ensure training/losses.py is on sys.path.",
+            )]
+
+        B, T, V = 2, 8, vocab_size
+        logits = torch.randn(B, T, V, requires_grad=True)
+        labels = torch.randint(0, V, (B, T))
+        mask   = torch.ones(B, T, dtype=torch.long)
+
+        try:
+            loss = language_modeling_loss(logits, labels, attention_mask=mask)
+            finite   = bool(torch.isfinite(loss))
+            has_grad = loss.requires_grad
+            passed   = finite and has_grad
+            return [AgentFinding(
+                agent=self.NAME,
+                check="Mock-batch language_modeling_loss produces finite scalar with grad",
+                passed=passed,
+                severity="critical",
+                details=(
+                    f"loss={loss.item():.4f}, finite={finite}, requires_grad={has_grad}"
+                ),
+                file_path="training/losses.py",
+                fix_hint="Ensure loss computation does not produce NaN/Inf and keeps grad.",
+            )]
+        except Exception as exc:
+            return [AgentFinding(
+                agent=self.NAME,
+                check="Mock-batch language_modeling_loss produces finite scalar with grad",
+                passed=False,
+                severity="critical",
+                details=f"language_modeling_loss raised: {exc}",
+                file_path="training/losses.py",
+                fix_hint="Fix language_modeling_loss so it runs without errors.",
+            )]
+
+    def _check_gradient_flow(
+        self,
+        d_model: int,
+        d_field: int,
+        d_spinor: int,
+        vocab_size: int,
+    ) -> List[AgentFinding]:
+        """
+        loss.backward() must reach CausalFieldLayer.alpha and .Phi.
+        """
+        try:
+            from models.causal_field import CausalFieldLayer  # type: ignore
+        except ImportError:
+            return [AgentFinding(
+                agent=self.NAME,
+                check="Gradient flows back to CausalFieldLayer.alpha and .Phi",
+                passed=False,
+                severity="major",
+                details="Could not import CausalFieldLayer.",
+                file_path="models/causal_field.py",
+                fix_hint="Ensure models/causal_field.py is on sys.path.",
+            )]
+
+        try:
+            layer = CausalFieldLayer(d_model=d_model, d_field=d_field, d_spinor=d_spinor)
+            layer.train()
+
+            # Run a small causal-field + linear-head mini-graph
+            lm_head = nn.Linear(d_model, vocab_size, bias=False)
+
+            x = torch.randn(1, 4, d_model)
+            out, _ = layer(x)
+            logits = lm_head(out)                          # [1, 4, V]
+            labels = torch.randint(0, vocab_size, (1, 4))
+
+            from training.losses import language_modeling_loss  # type: ignore
+            loss = language_modeling_loss(logits, labels)
+            loss.backward()
+
+            alpha_grad = layer.alpha.grad is not None
+            phi_grad   = layer.Phi.grad is not None
+            passed     = alpha_grad and phi_grad
+
+            return [AgentFinding(
+                agent=self.NAME,
+                check="Gradient flows back to CausalFieldLayer.alpha and .Phi",
+                passed=passed,
+                severity="major",
+                details=(
+                    f"alpha.grad present: {alpha_grad}, Phi.grad present: {phi_grad}"
+                ),
+                file_path="models/causal_field.py",
+                fix_hint=(
+                    "Ensure no .detach() calls break the computational graph "
+                    "between the loss and alpha/Phi."
+                ),
+            )]
+        except Exception as exc:
+            return [AgentFinding(
+                agent=self.NAME,
+                check="Gradient flows back to CausalFieldLayer.alpha and .Phi",
+                passed=False,
+                severity="major",
+                details=f"Backward pass raised: {exc}",
+                file_path="models/causal_field.py",
+                fix_hint="Fix the forward/backward pass so it runs without errors.",
+            )]
+
+    def _check_memory_rethreading(
+        self,
+        d_model: int,
+        d_field: int,
+        d_spinor: int,
+    ) -> List[AgentFinding]:
+        """
+        new_memory from step t must be accepted as memory at step t+1.
+        """
+        try:
+            from models.causal_field import CausalFieldLayer  # type: ignore
+        except ImportError:
+            return [AgentFinding(
+                agent=self.NAME,
+                check="CausalFieldLayer memory can be re-threaded across time steps",
+                passed=False,
+                severity="major",
+                details="Could not import CausalFieldLayer.",
+                file_path="models/causal_field.py",
+                fix_hint="Ensure models/causal_field.py is on sys.path.",
+            )]
+
+        try:
+            layer = CausalFieldLayer(d_model=d_model, d_field=d_field, d_spinor=d_spinor)
+            layer.eval()
+            x = torch.randn(1, 4, d_model)
+
+            with torch.no_grad():
+                out1, mem1 = layer(x, memory=None)
+                out2, mem2 = layer(x, memory=mem1)   # re-thread step 1 → step 2
+
+            shapes_ok = out1.shape == out2.shape
+            return [AgentFinding(
+                agent=self.NAME,
+                check="CausalFieldLayer memory can be re-threaded across time steps",
+                passed=shapes_ok,
+                severity="major",
+                details=(
+                    f"Re-threaded forward succeeded; output shapes match: {list(out1.shape)}."
+                    if shapes_ok
+                    else f"Output shapes differ: {list(out1.shape)} vs {list(out2.shape)}."
+                ),
+                file_path="models/causal_field.py",
+                fix_hint=(
+                    "Ensure CausalFieldLayer.forward accepts the dict returned by "
+                    "LiorMemoryState as the 'memory' argument without modification."
+                ),
+            )]
+        except Exception as exc:
+            return [AgentFinding(
+                agent=self.NAME,
+                check="CausalFieldLayer memory can be re-threaded across time steps",
+                passed=False,
+                severity="major",
+                details=f"Memory re-threading raised: {exc}",
+                file_path="models/causal_field.py",
+                fix_hint="Fix CausalFieldLayer.forward to accept LiorMemoryState output.",
+            )]
+
+
 # ---------------------------------------------------------------------------
 # Coordinator / Scribe Agent
 # ---------------------------------------------------------------------------
@@ -644,6 +1124,7 @@ class CoordinatorScribeAgent:
         self._algebra_agent = AbstractAlgebraAgent()
         self._geometry_agent = GeometryAgent()
         self._validation_agent = ValidationAgent()
+        self._pipeline_agent = DataPipelineAuditAgent()
 
     # ------------------------------------------------------------------
     # Public interface
@@ -659,25 +1140,29 @@ class CoordinatorScribeAgent:
         """
         Execute the full audit pipeline.
 
+        Sequence
+        --------
         1. Scan repo for causal field files.
         2. Run AbstractAlgebraAgent and GeometryAgent on source text.
         3. Optionally run ValidationAgent numerical checks.
-        4. Compile findings into a CausalFieldReport.
+        4. Run DataPipelineAuditAgent (source-text + optional numerical).
+        5. Compile findings into a CausalFieldReport.
 
         Args:
-            run_numerical: Whether to instantiate a layer and run numerical
-                checks (requires models/ on sys.path).
+            run_numerical: Whether to instantiate layers and run numerical
+                checks (requires models/ and training/ on sys.path).
             d_model: Feature dimension for the numerical validation layer.
             d_field: Field index dimension for the numerical validation layer.
             d_spinor: Spinor dimension for the numerical validation layer.
 
         Returns:
-            CausalFieldReport with all locations, findings, and the
-            transport-operator implementation plan.
+            CausalFieldReport with all locations, findings, pipeline_findings,
+            and the transport-operator implementation plan.
         """
         locations = self._scan_repo()
         source_text = self._load_source(locations)
 
+        # ── Causal-field audit ─────────────────────────────────────────
         findings: List[AgentFinding] = []
         findings.extend(
             self._algebra_agent.audit(locations, source_text)
@@ -692,13 +1177,23 @@ class CoordinatorScribeAgent:
                 )
             )
 
-        action_log = self._write_action_log(locations, findings)
+        # ── Data pipeline audit (runs after causal-field audit) ────────
+        pipeline_findings: List[AgentFinding] = self._pipeline_agent.audit(
+            repo_root=self.repo_root,
+            run_numerical=run_numerical,
+            d_model=d_model,
+            d_field=d_field,
+            d_spinor=d_spinor,
+        )
+
+        action_log = self._write_action_log(locations, findings, pipeline_findings)
 
         return CausalFieldReport(
             locations=locations,
             findings=findings,
             action_log=action_log,
             transport_plan=list(self._TRANSPORT_PLAN),
+            pipeline_findings=pipeline_findings,
         )
 
     # ------------------------------------------------------------------
@@ -756,8 +1251,12 @@ class CoordinatorScribeAgent:
         self,
         locations: List[CausalFieldLocation],
         findings: List[AgentFinding],
+        pipeline_findings: Optional[List[AgentFinding]] = None,
     ) -> List[str]:
         """Produce the consolidated scribe action log."""
+        if pipeline_findings is None:
+            pipeline_findings = []
+
         log: List[str] = []
         log.append("=== Causal Field Audit – Coordinator/Scribe Action Log ===")
         log.append("")
@@ -766,7 +1265,9 @@ class CoordinatorScribeAgent:
             lines_str = ", ".join(str(l) for l in loc.relevant_lines[:5])
             log.append(f"  [{loc.role}] {loc.path}  (lines: {lines_str})")
         log.append("")
-        log.append("--- Findings ---")
+
+        # ── Causal-field findings ──────────────────────────────────────
+        log.append("--- Causal Field Findings ---")
         for f in findings:
             status = "PASS" if f.passed else f"FAIL [{f.severity.upper()}]"
             log.append(f"  [{f.agent}] {status}: {f.check}")
@@ -774,10 +1275,26 @@ class CoordinatorScribeAgent:
                 log.append(f"    Details: {f.details}")
                 log.append(f"    Fix:     {f.fix_hint}")
         log.append("")
-        total = len(findings)
-        passed = sum(1 for f in findings if f.passed)
+
+        # ── Data pipeline findings ─────────────────────────────────────
+        log.append("--- Data Pipeline Findings ---")
+        if pipeline_findings:
+            for f in pipeline_findings:
+                status = "PASS" if f.passed else f"FAIL [{f.severity.upper()}]"
+                log.append(f"  [{f.agent}] {status}: {f.check}")
+                if not f.passed:
+                    log.append(f"    Details: {f.details}")
+                    log.append(f"    Fix:     {f.fix_hint}")
+        else:
+            log.append("  (pipeline audit not run)")
+        log.append("")
+
+        # ── Summary ───────────────────────────────────────────────────
+        all_findings = findings + pipeline_findings
+        total = len(all_findings)
+        passed = sum(1 for f in all_findings if f.passed)
         log.append(f"--- Summary: {passed}/{total} checks passed ---")
-        critical = [f for f in findings if not f.passed and f.severity == "critical"]
+        critical = [f for f in all_findings if not f.passed and f.severity == "critical"]
         if critical:
             log.append(f"  *** {len(critical)} CRITICAL failure(s) require immediate attention ***")
         log.append("")
