@@ -36,6 +36,12 @@ try:
 except ModuleNotFoundError:
     from training.execution_tracker import track_first_call
 
+try:
+    from models.entropy_softmax import EntropySoftmax
+    _ENTROPY_SOFTMAX_AVAILABLE = True
+except ImportError:
+    _ENTROPY_SOFTMAX_AVAILABLE = False
+
 
 # =============================================================================
 # OPTION 3: TRIALITY-PROJECTED BIQUATERNION STRUCTURE
@@ -324,6 +330,7 @@ class GeometricAttention(nn.Module):
         q_lowrank_r: Optional[int] = None,
         field_dim: int = 16,  # Field tensor dimension D (T_field is D x D)
         use_field_contraction: bool = True,  # Enable true tensor contraction
+        use_entropy_softmax: bool = False,   # Replace softmax with entropy-gated belief collapse
     ):
         super().__init__()
 
