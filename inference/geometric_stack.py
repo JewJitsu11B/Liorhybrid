@@ -60,6 +60,12 @@ from .geometric_attention import GeometricAttention
 from .geometric_products import geometric_score
 from Liorhybrid.models.causal_field import CausalFieldBlock, BiQuatCausalBlock
 
+try:
+    from models.entropy_softmax import EntropySoftmax as _EntropySoftmax, entropy_gated_softmax
+    _ENTROPY_SOFTMAX_AVAILABLE = True
+except ImportError:
+    _ENTROPY_SOFTMAX_AVAILABLE = False
+
 
 class SBERTPooling(nn.Module):
     """
@@ -77,16 +83,21 @@ class SBERTPooling(nn.Module):
     def __init__(
         self,
         d_model: int = 512,
-        pooling_mode: str = 'mean'  # 'mean', 'max', 'attention'
+        pooling_mode: str = 'mean',  # 'mean', 'max', 'attention'
+        use_entropy_softmax: bool = False,  # Replace softmax with Def-4 entropy gating
     ):
         super().__init__()
 
         self.d_model = d_model
         self.pooling_mode = pooling_mode
+        self.use_entropy_softmax = use_entropy_softmax and _ENTROPY_SOFTMAX_AVAILABLE
 
         if pooling_mode == 'attention':
             # Learnable attention weights for pooling
             self.attention = nn.Linear(d_model, 1)
+            # Entropy-gated pooling: field Ψ = embeddings, observer = pooling query
+            if self.use_entropy_softmax:
+                self.pool_entropy = _EntropySoftmax(d_model=d_model)
 
     def forward(
         self,
@@ -125,9 +136,30 @@ class SBERTPooling(nn.Module):
 
         elif self.pooling_mode == 'attention':
             # Attention-weighted pooling
-            attn_weights = self.attention(embeddings)  # (batch, seq, 1)
+            # attn_weights: (batch, seq, 1) — raw logits from the linear scorer
+            attn_weights = self.attention(embeddings)
             attn_weights = attn_weights.masked_fill(attention_mask.unsqueeze(-1) == 0, -1e9)
-            attn_weights = torch.softmax(attn_weights, dim=1)
+
+            if self.use_entropy_softmax and hasattr(self, 'pool_entropy'):
+                # Definition 4 (Belief Collapse Probability) pooling.
+                # Ψ = embeddings (field), observer = each position attending the sequence.
+                # scores shape: (batch, seq, 1) → squeeze to (batch, 1, seq) for N_q=1, N_k=seq
+                # key_features: (batch, seq, d_model)
+                # query_features: (batch, 1, d_model) — mean embedding as the pooling query
+                B, S, D = embeddings.shape
+                scores_bqk = attn_weights.squeeze(-1).unsqueeze(1)  # (B, 1, S)
+                q_feat = embeddings.mean(dim=1, keepdim=True)        # (B, 1, D)
+                mask_bqk = (attention_mask.unsqueeze(1) != 0)        # (B, 1, S) bool
+                w_entropy = self.pool_entropy(
+                    scores_bqk,
+                    key_features=embeddings,
+                    query_features=q_feat,
+                    mask=mask_bqk,
+                )                                                     # (B, 1, S)
+                attn_weights = w_entropy.transpose(1, 2)             # (B, S, 1)
+            else:
+                attn_weights = torch.softmax(attn_weights, dim=1)
+
             pooled = (embeddings * attn_weights).sum(dim=1)
 
         else:
