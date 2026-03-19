@@ -102,8 +102,8 @@ class CausalFieldTensor:
         # M = memory integral
         M = self.compute_memory_integral(transported, rho, kappa, N)
 
-        # T = α·J + (1-α)·M
-        T = alpha * J + (1 - alpha) * M
+        # T = α·J − (1−α)·M  (causal accumulation law: minus sign)
+        T = alpha * J - (1 - alpha) * M
 
         # Project to rank-4 tensor [B, N, 4, 4, 4, 4]
         T_flat = T.view(B, N, -1)  # [B, N, 256]

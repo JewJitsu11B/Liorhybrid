@@ -22,6 +22,12 @@ from inference.input_adapters import load_text_from_source
 from Liorhybrid.training.tokenizer import CognitiveTokenizer
 from Liorhybrid.training.embeddings import MultimodalEmbedding
 
+try:
+    from models.entropy_softmax import entropy_gated_softmax as _entropy_gated_softmax
+    _ENTROPY_SOFTMAX_AVAILABLE = True
+except ImportError:
+    _ENTROPY_SOFTMAX_AVAILABLE = False
+
 
 class InferenceEngine:
     """
@@ -243,7 +249,16 @@ class InferenceEngine:
             return torch.softmax(energy / float(max(tau, 1.0e-8)), dim=-1)
         if selector == "gibbsmax":
             return torch.softmax(scores / float(max(tau, 1.0e-8)), dim=-1)
-        raise ValueError(f"Unknown selector: {selector} (expected softmax|bornmax|gibbsmax)")
+        if selector == "entropymax":
+            # Definition 4 (Belief Collapse Probability): replace standard softmax
+            # with P_i = exp(-|s_i|^{2ν}/τ) / Σ_j exp(-|s_j|^{2ν}/τ)
+            # Uses nu_inference (fractional phase angle α from the causal field theory).
+            nu = float(getattr(self, "nu_inference", 1.0))
+            if _ENTROPY_SOFTMAX_AVAILABLE:
+                return _entropy_gated_softmax(scores, nu=nu, tau=float(max(tau, 1.0e-8)), dim=-1)
+            # Fallback when entropy_softmax module is unavailable
+            return torch.softmax(scores / float(max(tau, 1.0e-8)), dim=-1)
+        raise ValueError(f"Unknown selector: {selector} (expected softmax|bornmax|gibbsmax|entropymax)")
 
     def generate(
         self,

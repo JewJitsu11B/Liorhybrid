@@ -36,6 +36,12 @@ try:
 except ModuleNotFoundError:
     from training.execution_tracker import track_first_call
 
+try:
+    from models.entropy_softmax import EntropySoftmax
+    _ENTROPY_SOFTMAX_AVAILABLE = True
+except ImportError:
+    _ENTROPY_SOFTMAX_AVAILABLE = False
+
 
 # =============================================================================
 # OPTION 3: TRIALITY-PROJECTED BIQUATERNION STRUCTURE
@@ -324,6 +330,7 @@ class GeometricAttention(nn.Module):
         q_lowrank_r: Optional[int] = None,
         field_dim: int = 16,  # Field tensor dimension D (T_field is D x D)
         use_field_contraction: bool = True,  # Enable true tensor contraction
+        use_entropy_softmax: bool = False,   # Replace softmax with entropy-gated belief collapse
     ):
         super().__init__()
 
@@ -382,6 +389,15 @@ class GeometricAttention(nn.Module):
         else:
             self.field_contractor = None
             self.field_alpha = None
+
+        # Entropy-gated softmax (Definition 4 – Belief Collapse Probability).
+        # Replaces F.softmax(attention_scores, dim=-1) when use_entropy_softmax=True.
+        # Features are derived from the per-head key/query slices projected to d_k.
+        self.use_entropy_softmax = use_entropy_softmax and _ENTROPY_SOFTMAX_AVAILABLE
+        if self.use_entropy_softmax:
+            self.entropy_softmax = EntropySoftmax(d_model=self.d_k)
+        else:
+            self.entropy_softmax = None
         
         # Option 6 Extended: Projection for neighbor values (d_prime -> d_model)
         # This is used in probe_address_neighbors to project neighbor values
@@ -657,52 +673,6 @@ class GeometricAttention(nn.Module):
         
         # Route to Option 6 if neighbor_embeddings provided
         if neighbor_embeddings is not None:
-        neighbor_embeddings: Optional[torch.Tensor] = None,  # Legacy Option 6
-        metric: Optional[torch.Tensor] = None,  # Legacy Option 6
-        address: Optional['Address'] = None,  # NEW: Full address structure for Option 6
-        enable_address_probing: bool = True,  # Default to address probing (Option 6)
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Forward pass supporting Option 6 address probing and legacy K/V attention.
-
-        Option 6 (RECOMMENDED): Pass address for strict metric-based probing.
-            - Uses probe_neighbors() with Address structure
-            - O(N × 64 × d') complexity
-            - NO dense matmul, NO softmax collapse
-            - Born gate |ψ|² normalization
-            - REQUIRES valid metric/transport in address
-
-        Legacy Option 6: Pass neighbor_embeddings + metric (deprecated).
-            - Backward compatible but missing 6 score channels
-            - Will be converted to Address internally if possible
-
-        Legacy Attention: Pass K, V for standard geometric attention.
-            - O(N²) complexity via Q @ K.T matmul
-            - Softmax normalization
-            - NOT RECOMMENDED for Option 6
-            
-        Args:
-            Q_input: Query input (batch, seq_len, d_model)
-            K, V: Legacy keys/values for dense attention
-            T_field: Cognitive tensor field
-            mask: Attention mask
-            neighbor_embeddings: Legacy neighbor embeddings (deprecated)
-            metric: Legacy metric (deprecated)
-            address: NEW: Address structure with 64 neighbors
-            enable_address_probing: Use address probing (default True)
-        """
-        from .address import Address  # Import here to avoid circular dependency
-        
-        # Route 1: Address-based probing (RECOMMENDED for Option 6)
-        if enable_address_probing and address is not None:
-            return self.probe_neighbors(
-                Q=Q_input,
-                address=address,
-                enable_dense_fallback=False  # Strict mode
-            )
-        
-        # Route 2: Legacy neighbor_embeddings probing (deprecated, for backward compat)
-        if neighbor_embeddings is not None:
             # Convert to temporary Address if possible
             # This is a compatibility shim - full Address is preferred
             import warnings
@@ -831,8 +801,27 @@ class GeometricAttention(nn.Module):
             neg = torch.finfo(attention_scores.dtype).min
             attention_scores = attention_scores.masked_fill(~mask_bool, neg)
 
-        # Softmax normalization (THIS IS THE KEY STEP)
-        attention_weights = F.softmax(attention_scores, dim=-1)
+        # Softmax normalization
+        # Definition 4 (Belief Collapse Probability) replaces F.softmax when
+        # use_entropy_softmax=True: P_ij = exp(-H_ij/τ_i) / Σ_k exp(-H_ik/τ_i)
+        # where H_ij = |K_j|^{2ν_i} φ(Q_i, K_j).  Falls back to standard
+        # F.softmax when entropy softmax is disabled or unavailable.
+        if self.use_entropy_softmax and self.entropy_softmax is not None:
+            # Fold (batch, n_heads) into a single leading dimension so
+            # EntropySoftmax sees a plain [B', N_q, N_k] score tensor.
+            B_h = batch_size * self.n_heads
+            scores_flat = attention_scores.reshape(B_h, seq_len_q, seq_len_k)
+            # Per-head key/query slices for the entropy functional
+            K_feat = K.reshape(B_h, seq_len_k, self.d_k)
+            Q_feat = Q.reshape(B_h, seq_len_q, self.d_k)
+            weights_flat = self.entropy_softmax(
+                scores_flat,
+                key_features=K_feat,
+                query_features=Q_feat,
+            )
+            attention_weights = weights_flat.view(batch_size, self.n_heads, seq_len_q, seq_len_k)
+        else:
+            attention_weights = F.softmax(attention_scores, dim=-1)
         attention_weights = self.dropout(attention_weights)
 
         # Apply attention to values
