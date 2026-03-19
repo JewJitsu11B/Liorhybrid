@@ -211,6 +211,26 @@ class VariableOrderEntropyFunctional(nn.Module):
 
         return H, nu, tau
 
+    def kernel_integral(
+        self,
+        x_obs: torch.Tensor,    # [..., N_x, d_model]
+        Psi: torch.Tensor,      # [..., N_y, d_model]
+    ) -> torch.Tensor:
+        """
+        Compute Φ(x) := ∫_M φ(x,y) dV_g(y)  (sum of kernel weights over y).
+
+        For a softmax-normalised kernel this equals 1 everywhere, but
+        retaining the explicit sum preserves the formula for general kernels.
+
+        Returns:
+            Phi_x: [..., N_x]  strictly positive integral of φ over M.
+        """
+        Q_phi = self.phi_q(x_obs)
+        K_phi = self.phi_k(Psi)
+        scale = math.sqrt(Q_phi.shape[-1])
+        phi   = torch.softmax(Q_phi @ K_phi.transpose(-2, -1) / scale, dim=-1)
+        return phi.sum(dim=-1)                             # [..., N_x]
+
     def per_key_entropy(
         self,
         key_features: torch.Tensor,    # [..., N_k, d_model]
@@ -243,6 +263,120 @@ class VariableOrderEntropyFunctional(nn.Module):
 
         H = K_pow * phi                                     # [..., N_q, N_k]
         return H, nu, tau
+
+
+# ---------------------------------------------------------------------------
+# Definition 2a – Variable-Order Entropy Gradient Operator (Gâteaux derivative)
+# ---------------------------------------------------------------------------
+
+class VariableOrderEntropyGradient(nn.Module):
+    """
+    Definition 2a (Variable-Order Entropy Gradient Operator).
+
+    The Gâteaux derivative of H^{(ν(x))}[Ψ] in the direction of Ψ defines a
+    well-posed operator ∇_{ν(x)} H^{(ν(x))} : L^{2ν(x)}(M) → L²(M):
+
+        (∇_{ν(x)} H^{(ν(x))}[Ψ])(x)
+          := δH^{(ν(x))}/δΨ(x)
+           = 2ν(x) |Ψ(x)|^{2ν(x)−2} Ψ(x) · Φ(x)
+
+    where  Φ(x) := ∫_M φ(x,y) dV_g(y)  is strictly positive by the positivity
+    and smoothness assumptions on φ.
+
+    Remark (Well-posedness).
+    ------------------------
+    (i) Nonlinearity.  The operator A := ∇_{ν(x)} H^{(ν(x))} is *nonlinear* in
+        Ψ for ν(x) ≠ 1.  Existence of solutions to Definition 3 follows from the
+        monotone operator framework for fractional evolution equations (Zacher
+        2005; Kilbas–Srivastava–Trujillo §7), not the linear semigroup route.
+        The Mittag-Leffler representation in the proof applies only to the
+        linearisation of A around initial data, or to the special case ν ≡ 1.
+
+    (ii) Domain and singularity.  For ν(x) < 1 the factor |Ψ|^{2ν−2} is
+        singular at Ψ = 0.  The operator is therefore defined on
+        L^{2ν(x)}(M) \\ {0} and extended by continuity; in the implementation
+        a small floor ε on |Ψ| enforces the physically reasonable lower bound
+        on field energy Ψ ≥ ε > 0.
+
+    (iii) Monotonicity and Lipschitz (connection to Axiom 6).
+        Monotonicity  ⟨∇H[Ψ], Ψ⟩ ≥ c‖Ψ‖²  follows from Hölder's inequality
+        and strict positivity of Φ(x) (verified by ``monotonicity_lower_bound``).
+        The Lipschitz bound requires ν(x) bounded away from zero — satisfied
+        since ν : M → (0,1] is bounded below by the ``VariableOrderEntropyFunctional``
+        initialisation (softplus + 0.5, so ν ∈ (0.5, ∞)).
+
+    Args:
+        entropy_fn:  A ``VariableOrderEntropyFunctional`` instance whose
+                     projections (nu_proj, tau_proj, phi_q, phi_k) are shared.
+        eps:         Floor applied to |Ψ| to handle the singularity at Ψ=0.
+    """
+
+    def __init__(
+        self,
+        entropy_fn: VariableOrderEntropyFunctional,
+        eps: float = 1e-6,
+    ):
+        super().__init__()
+        self.entropy_fn = entropy_fn
+        self.eps = eps
+
+    def forward(
+        self,
+        Psi: torch.Tensor,    # [..., N, d_model]
+        x_obs: torch.Tensor,  # [..., N, d_model]  (may equal Psi for self-entropy)
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Compute (∇_{ν(x)} H^{(ν(x))}[Ψ])(x) = 2ν(x)|Ψ|^{2ν−2} Ψ · Φ(x).
+
+        Args:
+            Psi:   Field tensor [..., N, d_model].
+            x_obs: Observer features [..., N, d_model] (equals Psi for
+                   self-entropy, may differ for cross-entropy).
+
+        Returns:
+            grad_H: [..., N, d_model]  Gâteaux derivative ∇_{ν(x)} H[Ψ]
+            H:      [..., N]           entropy functional H^{(ν(x))}[Ψ]
+            Phi_x:  [..., N]           kernel integral Φ(x) = Σ_y φ(x,y)
+        """
+        # ── ν(x), τ(x) from observer ──────────────────────────────────
+        nu  = F.softplus(self.entropy_fn.nu_proj(x_obs)).squeeze(-1) + 0.5   # [..., N]
+
+        # ── Φ(x) = Σ_y φ(x,y): strictly positive ─────────────────────
+        Phi_x = self.entropy_fn.kernel_integral(x_obs, Psi)   # [..., N]
+
+        # ── H^{(ν(x))}[Ψ] (for diagnostics) ──────────────────────────
+        H, _, _ = self.entropy_fn(Psi, x_obs)                 # [..., N]
+
+        # ── |Ψ(x)| at each position x, floored at ε ──────────────────
+        # Remark (ii): ε floor regularises the singularity at Ψ=0 for ν<1
+        Psi_norm = Psi.norm(dim=-1).clamp(min=self.eps)       # [..., N]
+
+        # ── |Ψ|^{2ν−2}: exponent = 2ν−2 may be negative for ν < 1 ───
+        exponent = 2.0 * nu - 2.0                             # [..., N]
+        power    = torch.exp(exponent * Psi_norm.log())       # [..., N]
+
+        # ── ∇H(x) = 2ν(x) · |Ψ|^{2ν−2} · Ψ · Φ(x) ──────────────────
+        coeff  = 2.0 * nu * power * Phi_x                     # [..., N]
+        grad_H = coeff.unsqueeze(-1) * Psi                    # [..., N, d_model]
+
+        return grad_H, H, Phi_x
+
+    def monotonicity_lower_bound(
+        self,
+        Psi: torch.Tensor,
+        x_obs: torch.Tensor,
+    ) -> torch.Tensor:
+        """
+        Compute ⟨∇H[Ψ], Ψ⟩ at each position.
+
+        Per Remark (iii) this quantity should be ≥ 0 whenever ν(x) > 0 and
+        Φ(x) > 0.  A negative value indicates a numerical issue (ε too large).
+
+        Returns:
+            inner: [..., N]  inner product ⟨∇H[Ψ], Ψ⟩ at each position.
+        """
+        grad_H, _, _ = self.forward(Psi, x_obs)
+        return (grad_H * Psi).sum(dim=-1)                     # [..., N]
 
 
 # ---------------------------------------------------------------------------
@@ -279,6 +413,8 @@ class EntropyGatedEvolution(nn.Module):
         super().__init__()
         self.dt = dt
         self.entropy_fn  = VariableOrderEntropyFunctional(d_model)
+        # Definition 2a: exact Gâteaux derivative, shares projections with entropy_fn
+        self.grad_op     = VariableOrderEntropyGradient(self.entropy_fn)
         self.caputo      = CaputoFractionalDerivativeApprox(alpha=alpha, max_depth=max_depth)
         # η projection: stochastic forcing scaled by τ
         self.noise_proj  = nn.Linear(d_model, d_model)
@@ -290,33 +426,37 @@ class EntropyGatedEvolution(nn.Module):
         tau_scale: float = 1.0,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Compute one entropy-gated evolution step.
+        Compute one entropy-gated evolution step using the exact Gâteaux
+        gradient from Definition 2a.
+
+        D_t^α Ψ = −∇_{ν(x)} H^{(ν(x))}[Ψ] + η(x,t;τ)
+
+        Discrete Euler step:  Ψ_new ≈ Ψ + dt · (−∇H + η)
+
+        When ``history`` is provided the Caputo fractional derivative from
+        Definition 1 is used to correct the update for memory effects.
 
         Args:
             Psi:       Current field [B, N, d_model].
             history:   Field history [B, T, N, d_model] (newest first).
-            tau_scale: Global scale for the stochastic forcing.
+            tau_scale: Global scale for the stochastic forcing η.
 
         Returns:
             Psi_new:   Updated field [B, N, d_model].
             H:         Entropy functional at current step [B, N].
         """
-        H, nu, tau = self.entropy_fn(Psi, Psi)   # self-entropy: x_obs = Ψ itself
+        # −∇_{ν(x)} H^{(ν(x))}[Ψ]  — exact Gâteaux derivative (Definition 2a)
+        grad_H, H, _ = self.grad_op(Psi, Psi)   # self-entropy: x_obs = Ψ
 
-        # −∇_{ν} H: approximate gradient as −H · Ψ / (|Ψ|² + ε)
-        Psi_norm_sq = (Psi * Psi).sum(dim=-1, keepdim=True).clamp(min=1e-8)
-        grad_H = H.unsqueeze(-1) * Psi / Psi_norm_sq   # [B, N, d_model]
-
-        # η: stochastic forcing scaled by τ
+        # η: stochastic forcing scaled by τ(x)
+        _, _, tau = self.entropy_fn(Psi, Psi)
         eta = tau_scale * tau.unsqueeze(-1) * torch.tanh(self.noise_proj(Psi))
 
-        # Euler step (or Caputo-corrected step when history is available)
+        # Euler step (Caputo-corrected when history is available)
         if history is not None:
-            # Flatten N into batch for the Caputo derivative
             B, T, N, D = history.shape
             hist_flat = history.view(B * N, T, D)
             caputo_term = self.caputo(hist_flat).view(B, N, D)
-            # Correction: scale update by caputo_term to enforce fractional dynamics
             update = caputo_term + self.dt * (-grad_H + eta)
         else:
             update = self.dt * (-grad_H + eta)

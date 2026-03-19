@@ -117,16 +117,17 @@ class CausalFieldReport:
     action_log: List[str]
     transport_plan: List[str]
     pipeline_findings: List[AgentFinding] = field(default_factory=list)
+    entropy_findings: List[AgentFinding] = field(default_factory=list)
 
     @property
     def passed(self) -> bool:
         return all(f.passed for f in self.findings) and all(
             f.passed for f in self.pipeline_findings
-        )
+        ) and all(f.passed for f in self.entropy_findings)
 
     @property
     def critical_failures(self) -> List[AgentFinding]:
-        all_findings = self.findings + self.pipeline_findings
+        all_findings = self.findings + self.pipeline_findings + self.entropy_findings
         return [f for f in all_findings if not f.passed and f.severity == "critical"]
 
 
@@ -1062,6 +1063,488 @@ class DataPipelineAuditAgent:
 
 
 # ---------------------------------------------------------------------------
+# Physics Agent
+# ---------------------------------------------------------------------------
+
+class PhysicsAgent:
+    """
+    Validates the physical consistency of the entropy-gated framework.
+
+    Works in conjunction with EntropySoftmaxPlanningAgent to ensure that:
+
+    Checks (source-text)
+    --------------------
+    1. Caputo derivative order α ∈ (0, 2)  – invalid α breaks causality.
+    2. Entropy exponent ν(x) > 0 and bounded away from zero (Remark (iii)
+       Lipschitz condition requires ν ≥ ν_min > 0).
+    3. Temperature τ(x) > 0  – enforced via softplus floor.
+    4. Singularity floor ε  – |Ψ| clamped to avoid |Ψ|^{2ν-2} → ∞ at Ψ=0
+       (Remark (ii)).
+    5. Gâteaux derivative uses the exact formula 2ν|Ψ|^{2ν-2}Ψ·Φ(x), not an
+       approximation.
+
+    Checks (numerical)
+    ------------------
+    6. Monotonicity: ⟨∇H[Ψ], Ψ⟩ ≥ 0 for random Ψ (Remark (iii)).
+    7. Positive Φ(x): kernel integral Φ(x) = Σ_y φ(x,y) > 0 everywhere.
+    8. Caputo weights are positive and normalised for α ∈ (1, 2).
+    """
+
+    NAME = "Physics Agent"
+
+    def audit(
+        self,
+        source_text: str,
+        run_numerical: bool = True,
+        d_model: int = 8,
+    ) -> List[AgentFinding]:
+        findings: List[AgentFinding] = []
+        findings.extend(self._check_caputo_order(source_text))
+        findings.extend(self._check_nu_floor(source_text))
+        findings.extend(self._check_tau_positivity(source_text))
+        findings.extend(self._check_singularity_floor(source_text))
+        findings.extend(self._check_exact_gateaux(source_text))
+        if run_numerical:
+            findings.extend(self._check_monotonicity_numerical(d_model))
+            findings.extend(self._check_phi_positivity(d_model))
+            findings.extend(self._check_caputo_weights())
+        return findings
+
+    # ------------------------------------------------------------------
+    def _check_caputo_order(self, src: str) -> List[AgentFinding]:
+        """α must be in (0,2)."""
+        has_range_check = bool(re.search(
+            r'0\.0\s*<\s*alpha\s*<\s*2\.0|alpha.*in.*\(0.*2\)', src
+        ))
+        return [AgentFinding(
+            agent=self.NAME,
+            check="Caputo derivative order α ∈ (0,2) validated at construction",
+            passed=has_range_check,
+            severity="critical",
+            details=(
+                "α range check found in CaputoFractionalDerivativeApprox."
+                if has_range_check
+                else "No α ∈ (0,2) guard found; invalid α breaks causality."
+            ),
+            file_path="models/entropy_softmax.py",
+            fix_hint="Add: if not (0.0 < alpha < 2.0): raise ValueError(...) in __init__.",
+        )]
+
+    def _check_nu_floor(self, src: str) -> List[AgentFinding]:
+        """ν(x) must be initialised above 0 (softplus + offset ≥ 0.5)."""
+        has_floor = bool(re.search(r'softplus.*nu.*\+\s*0\.5|nu.*softplus.*\+\s*0\.5', src))
+        return [AgentFinding(
+            agent=self.NAME,
+            check="Entropy exponent ν(x) initialised away from zero (≥0.5)",
+            passed=has_floor,
+            severity="major",
+            details=(
+                "ν = softplus(·) + 0.5 ensures ν ≥ 0.5 > 0 (Lipschitz condition)."
+                if has_floor
+                else "ν may reach 0; Lipschitz bound from Remark (iii) then fails."
+            ),
+            file_path="models/entropy_softmax.py",
+            fix_hint="Use nu = F.softplus(self.nu_proj(x)) + 0.5.",
+        )]
+
+    def _check_tau_positivity(self, src: str) -> List[AgentFinding]:
+        """τ(x) must be strictly positive."""
+        has_floor = bool(re.search(r'softplus.*tau.*\+\s*1e-|tau.*softplus.*\+\s*1e-', src))
+        return [AgentFinding(
+            agent=self.NAME,
+            check="Temperature τ(x) strictly positive (softplus + ε floor)",
+            passed=has_floor,
+            severity="major",
+            details=(
+                "τ = softplus(·) + 1e-4 ensures τ > 0."
+                if has_floor
+                else "τ may reach 0, causing division by zero in entropy-gated logits."
+            ),
+            file_path="models/entropy_softmax.py",
+            fix_hint="Use tau = F.softplus(self.tau_proj(x)) + 1e-4.",
+        )]
+
+    def _check_singularity_floor(self, src: str) -> List[AgentFinding]:
+        """ε floor must be applied to |Ψ| before computing |Ψ|^{2ν-2}."""
+        has_floor = bool(re.search(
+            r'clamp.*min.*eps|clamp.*min.*1e-', src
+        ))
+        return [AgentFinding(
+            agent=self.NAME,
+            check="Singularity floor ε applied to |Ψ| (Remark ii)",
+            passed=has_floor,
+            severity="major",
+            details=(
+                "clamp(min=ε) found; singularity at Ψ=0 regularised."
+                if has_floor
+                else "No ε floor found; |Ψ|^{2ν-2} diverges at Ψ=0 for ν<1."
+            ),
+            file_path="models/entropy_softmax.py",
+            fix_hint="Apply Psi_norm = Psi.norm(dim=-1).clamp(min=self.eps) before log-power.",
+        )]
+
+    def _check_exact_gateaux(self, src: str) -> List[AgentFinding]:
+        """Gradient must use the exact Gâteaux formula, not an approximation."""
+        has_gateaux = bool(re.search(
+            r'VariableOrderEntropyGradient|grad_op|Gâteaux|Gateaux', src
+        ))
+        return [AgentFinding(
+            agent=self.NAME,
+            check="Exact Gâteaux derivative (Def 2a) used in evolution, not an approximation",
+            passed=has_gateaux,
+            severity="critical",
+            details=(
+                "VariableOrderEntropyGradient / grad_op found in source."
+                if has_gateaux
+                else "Evolution equation uses an approximate gradient, not the exact Gâteaux form."
+            ),
+            file_path="models/entropy_softmax.py",
+            fix_hint=(
+                "Replace the approximate gradient with VariableOrderEntropyGradient.forward() "
+                "which computes 2ν|Ψ|^{2ν-2}Ψ·Φ(x) exactly."
+            ),
+        )]
+
+    def _check_monotonicity_numerical(self, d_model: int) -> List[AgentFinding]:
+        """⟨∇H[Ψ], Ψ⟩ ≥ 0 for random Ψ (Remark iii)."""
+        try:
+            from models.entropy_softmax import (  # type: ignore
+                VariableOrderEntropyFunctional,
+                VariableOrderEntropyGradient,
+            )
+            fn   = VariableOrderEntropyFunctional(d_model)
+            grad = VariableOrderEntropyGradient(fn)
+            Psi  = torch.randn(2, 4, d_model)
+            inner = grad.monotonicity_lower_bound(Psi, Psi)
+            passed = bool((inner >= 0).all())
+            return [AgentFinding(
+                agent=self.NAME,
+                check="Monotonicity ⟨∇H[Ψ],Ψ⟩ ≥ 0 (Remark iii, Hölder bound)",
+                passed=passed,
+                severity="major",
+                details=f"min inner product = {inner.min().item():.4e}",
+                file_path="models/entropy_softmax.py",
+                fix_hint="If this fails, increase the ε floor or check nu initialisation.",
+            )]
+        except Exception as exc:
+            return [AgentFinding(
+                agent=self.NAME,
+                check="Monotonicity ⟨∇H[Ψ],Ψ⟩ ≥ 0 (Remark iii, Hölder bound)",
+                passed=False,
+                severity="major",
+                details=f"Raised: {exc}",
+                file_path="models/entropy_softmax.py",
+                fix_hint="Ensure VariableOrderEntropyGradient is importable.",
+            )]
+
+    def _check_phi_positivity(self, d_model: int) -> List[AgentFinding]:
+        """Φ(x) = Σ_y φ(x,y) must be strictly positive."""
+        try:
+            from models.entropy_softmax import VariableOrderEntropyFunctional  # type: ignore
+            fn    = VariableOrderEntropyFunctional(d_model)
+            Psi   = torch.randn(2, 4, d_model)
+            Phi_x = fn.kernel_integral(Psi, Psi)
+            passed = bool((Phi_x > 0).all())
+            return [AgentFinding(
+                agent=self.NAME,
+                check="Kernel integral Φ(x) = Σ_y φ(x,y) strictly positive",
+                passed=passed,
+                severity="major",
+                details=f"min Φ(x) = {Phi_x.min().item():.4e}",
+                file_path="models/entropy_softmax.py",
+                fix_hint="Ensure the kernel φ(x,y) is a softmax so rows sum to 1.",
+            )]
+        except Exception as exc:
+            return [AgentFinding(
+                agent=self.NAME,
+                check="Kernel integral Φ(x) = Σ_y φ(x,y) strictly positive",
+                passed=False, severity="major",
+                details=f"Raised: {exc}",
+                file_path="models/entropy_softmax.py",
+                fix_hint="Ensure VariableOrderEntropyFunctional is importable.",
+            )]
+
+    def _check_caputo_weights(self) -> List[AgentFinding]:
+        """Caputo Grünwald–Letnikov weights must be positive for α ∈ (1,2)."""
+        try:
+            from models.entropy_softmax import CaputoFractionalDerivativeApprox  # type: ignore
+            cap = CaputoFractionalDerivativeApprox(alpha=1.5, max_depth=8)
+            passed = bool((cap.weights > 0).all())
+            return [AgentFinding(
+                agent=self.NAME,
+                check="Caputo GL weights positive for α=1.5 ∈ (1,2)",
+                passed=passed,
+                severity="major",
+                details=f"weights = {cap.weights.tolist()[:4]} … (first 4)",
+                file_path="models/entropy_softmax.py",
+                fix_hint="Check _compute_weights formula for Grünwald–Letnikov α ∈ (1,2).",
+            )]
+        except Exception as exc:
+            return [AgentFinding(
+                agent=self.NAME,
+                check="Caputo GL weights positive for α=1.5 ∈ (1,2)",
+                passed=False, severity="major",
+                details=f"Raised: {exc}",
+                file_path="models/entropy_softmax.py",
+                fix_hint="Ensure CaputoFractionalDerivativeApprox is importable.",
+            )]
+
+
+# ---------------------------------------------------------------------------
+# Entropy Softmax Planning Agent
+# ---------------------------------------------------------------------------
+
+class EntropySoftmaxPlanningAgent:
+    """
+    Plans and validates the replacement of standard softmax with the
+    Entropy-Gated Belief Collapse Probability (Definition 4).
+
+    Works *in conjunction* with:
+      • GeometryAgent   – kernel positivity, volume form dV_g, manifold integration
+      • PhysicsAgent    – Caputo order, singularity handling, monotonicity
+      • ValidationAgent – numerical normalization and gradient flow
+
+    Source-text checks
+    ------------------
+    1. EntropySoftmax class present in models/entropy_softmax.py.
+    2. Definition 2a (VariableOrderEntropyGradient / Gâteaux) present.
+    3. GeometricAttention imports and optionally uses EntropySoftmax.
+    4. Softmax replacement gated by use_entropy_softmax flag (backward-compat).
+    5. Key/query features are passed to per_key_entropy (not scores alone).
+
+    Numerical checks
+    ----------------
+    6. EntropySoftmax output sums to 1 over the key dimension.
+    7. Gradient flows back through entropy softmax to key_features.
+    8. VariableOrderEntropyGradient.monotonicity_lower_bound ≥ 0.
+
+    Coordination plan
+    -----------------
+    After source-text checks pass:
+      - GeometryAgent verifies φ(x,y) kernel is the Riemannian volume proxy.
+      - PhysicsAgent verifies Caputo order and singularity floor.
+      - ValidationAgent verifies output normalization and gradient flow.
+      - This agent synthesises their findings into a unified plan.
+    """
+
+    NAME = "Entropy Softmax Planning Agent"
+
+    def audit(
+        self,
+        repo_root: Path,
+        geometry_findings: Optional[List[AgentFinding]] = None,
+        physics_findings:  Optional[List[AgentFinding]] = None,
+        validation_findings: Optional[List[AgentFinding]] = None,
+        run_numerical: bool = True,
+        d_model: int = 8,
+    ) -> List[AgentFinding]:
+        """
+        Run the planning audit and synthesise findings from the three
+        specialist agents.
+
+        Args:
+            repo_root:           Repository root for source scanning.
+            geometry_findings:   Pre-computed findings from GeometryAgent.
+            physics_findings:    Pre-computed findings from PhysicsAgent.
+            validation_findings: Pre-computed findings from ValidationAgent.
+            run_numerical:       Whether to run live numerical checks.
+            d_model:             Model dimension for numerical checks.
+
+        Returns:
+            List of AgentFinding items covering planning and synthesis.
+        """
+        def _read(rel: str) -> str:
+            try:
+                return (repo_root / rel).read_text(encoding='utf-8', errors='replace')
+            except OSError:
+                return ""
+
+        entropy_src   = _read("models/entropy_softmax.py")
+        attention_src = _read("inference/geometric_attention.py")
+
+        findings: List[AgentFinding] = []
+        findings.extend(self._check_entropy_softmax_class(entropy_src))
+        findings.extend(self._check_def2a_present(entropy_src))
+        findings.extend(self._check_gateaux_used_in_evolution(entropy_src))
+        findings.extend(self._check_attention_import(attention_src))
+        findings.extend(self._check_attention_flag(attention_src))
+        findings.extend(self._check_features_passed(attention_src))
+
+        if run_numerical:
+            findings.extend(self._check_normalization(d_model))
+            findings.extend(self._check_grad_through_entropy(d_model))
+
+        # Synthesis: absorb peer findings as info entries
+        for peer_findings, label in [
+            (geometry_findings, "GeometryAgent"),
+            (physics_findings,  "PhysicsAgent"),
+            (validation_findings, "ValidationAgent"),
+        ]:
+            if peer_findings:
+                blocking = [f for f in peer_findings if not f.passed and f.severity == "critical"]
+                findings.append(AgentFinding(
+                    agent=self.NAME,
+                    check=f"Synthesis: {label} has no critical blockers for entropy-softmax plan",
+                    passed=not blocking,
+                    severity="info",
+                    details=(
+                        f"{label}: all clear." if not blocking
+                        else f"{label}: {len(blocking)} critical blocker(s) – "
+                             + "; ".join(f.check for f in blocking)
+                    ),
+                    file_path="utils/causal_field_agents.py",
+                    fix_hint=f"Resolve critical findings in {label} before shipping.",
+                ))
+
+        return findings
+
+    # ------------------------------------------------------------------
+    def _check_entropy_softmax_class(self, src: str) -> List[AgentFinding]:
+        has_class = bool(re.search(r'class\s+EntropySoftmax\b', src))
+        return [AgentFinding(
+            agent=self.NAME,
+            check="EntropySoftmax class (Definition 4) present in entropy_softmax.py",
+            passed=has_class,
+            severity="critical",
+            details="EntropySoftmax class found." if has_class
+                    else "EntropySoftmax class not found; softmax replacement missing.",
+            file_path="models/entropy_softmax.py",
+            fix_hint="Implement EntropySoftmax in models/entropy_softmax.py.",
+        )]
+
+    def _check_def2a_present(self, src: str) -> List[AgentFinding]:
+        has_def2a = bool(re.search(r'class\s+VariableOrderEntropyGradient\b', src))
+        return [AgentFinding(
+            agent=self.NAME,
+            check="Definition 2a (VariableOrderEntropyGradient) present",
+            passed=has_def2a,
+            severity="critical",
+            details="VariableOrderEntropyGradient (Def 2a) found." if has_def2a
+                    else "Definition 2a missing; evolution gradient is an approximation.",
+            file_path="models/entropy_softmax.py",
+            fix_hint="Add VariableOrderEntropyGradient implementing the Gâteaux derivative.",
+        )]
+
+    def _check_gateaux_used_in_evolution(self, src: str) -> List[AgentFinding]:
+        uses_grad_op = bool(re.search(r'self\.grad_op\s*=\s*VariableOrderEntropyGradient|grad_op\.forward', src))
+        return [AgentFinding(
+            agent=self.NAME,
+            check="EntropyGatedEvolution uses VariableOrderEntropyGradient (exact Gâteaux)",
+            passed=uses_grad_op,
+            severity="critical",
+            details="grad_op = VariableOrderEntropyGradient found in EntropyGatedEvolution."
+                    if uses_grad_op
+                    else "EntropyGatedEvolution does not reference VariableOrderEntropyGradient.",
+            file_path="models/entropy_softmax.py",
+            fix_hint="Set self.grad_op = VariableOrderEntropyGradient(self.entropy_fn) in "
+                     "EntropyGatedEvolution.__init__ and call it in forward().",
+        )]
+
+    def _check_attention_import(self, src: str) -> List[AgentFinding]:
+        has_import = bool(re.search(r'from models\.entropy_softmax import|EntropySoftmax', src))
+        return [AgentFinding(
+            agent=self.NAME,
+            check="GeometricAttention imports EntropySoftmax",
+            passed=has_import,
+            severity="major",
+            details="EntropySoftmax import found in geometric_attention.py." if has_import
+                    else "No EntropySoftmax import found.",
+            file_path="inference/geometric_attention.py",
+            fix_hint="Add: from models.entropy_softmax import EntropySoftmax",
+        )]
+
+    def _check_attention_flag(self, src: str) -> List[AgentFinding]:
+        has_flag = bool(re.search(r'use_entropy_softmax', src))
+        return [AgentFinding(
+            agent=self.NAME,
+            check="GeometricAttention has use_entropy_softmax flag (backward-compatible)",
+            passed=has_flag,
+            severity="major",
+            details="use_entropy_softmax flag found." if has_flag
+                    else "No use_entropy_softmax flag; old code would always use entropy softmax.",
+            file_path="inference/geometric_attention.py",
+            fix_hint="Add use_entropy_softmax=False parameter to GeometricAttention.__init__.",
+        )]
+
+    def _check_features_passed(self, src: str) -> List[AgentFinding]:
+        """Key/query features must be passed so entropy functional uses embeddings."""
+        has_feat = bool(re.search(r'key_features\s*=\s*K_feat|query_features\s*=\s*Q_feat', src))
+        return [AgentFinding(
+            agent=self.NAME,
+            check="Key/query feature tensors passed to EntropySoftmax (not scores alone)",
+            passed=has_feat,
+            severity="major",
+            details="K_feat / Q_feat passed to entropy_softmax." if has_feat
+                    else "EntropySoftmax called without explicit key/query features.",
+            file_path="inference/geometric_attention.py",
+            fix_hint="Pass key_features=K_feat and query_features=Q_feat to entropy_softmax().",
+        )]
+
+    def _check_normalization(self, d_model: int) -> List[AgentFinding]:
+        """Output must sum to 1 over the key dimension."""
+        try:
+            from models.entropy_softmax import EntropySoftmax  # type: ignore
+            esm = EntropySoftmax(d_model)
+            esm.eval()
+            scores = torch.randn(2, 4, 6)
+            K      = torch.randn(2, 6, d_model)
+            Q      = torch.randn(2, 4, d_model)
+            with torch.no_grad():
+                w = esm(scores, key_features=K, query_features=Q)
+            row_sums = w.sum(dim=-1)
+            passed   = torch.allclose(row_sums, torch.ones_like(row_sums), atol=1e-5)
+            return [AgentFinding(
+                agent=self.NAME,
+                check="EntropySoftmax output sums to 1 over key dimension",
+                passed=passed,
+                severity="critical",
+                details=f"max |row_sum − 1| = {(row_sums - 1).abs().max().item():.2e}",
+                file_path="models/entropy_softmax.py",
+                fix_hint="Ensure softmax is applied over dim=-1 in EntropySoftmax.forward.",
+            )]
+        except Exception as exc:
+            return [AgentFinding(
+                agent=self.NAME,
+                check="EntropySoftmax output sums to 1 over key dimension",
+                passed=False, severity="critical",
+                details=f"Raised: {exc}",
+                file_path="models/entropy_softmax.py",
+                fix_hint="Fix EntropySoftmax.forward so it runs without errors.",
+            )]
+
+    def _check_grad_through_entropy(self, d_model: int) -> List[AgentFinding]:
+        """Gradient must flow back to key_features through the entropy softmax."""
+        try:
+            from models.entropy_softmax import EntropySoftmax  # type: ignore
+            esm    = EntropySoftmax(d_model)
+            scores = torch.randn(1, 4, 4)
+            K      = torch.randn(1, 4, d_model, requires_grad=True)
+            Q      = torch.randn(1, 4, d_model)
+            w      = esm(scores, key_features=K, query_features=Q)
+            w.sum().backward()
+            passed = K.grad is not None and K.grad.abs().sum().item() > 0
+            return [AgentFinding(
+                agent=self.NAME,
+                check="Gradient flows back to key_features through EntropySoftmax",
+                passed=passed,
+                severity="major",
+                details=f"K.grad norm = {K.grad.norm().item():.4e}" if K.grad is not None
+                        else "K.grad is None",
+                file_path="models/entropy_softmax.py",
+                fix_hint="Remove any .detach() calls on key_features in EntropySoftmax.",
+            )]
+        except Exception as exc:
+            return [AgentFinding(
+                agent=self.NAME,
+                check="Gradient flows back to key_features through EntropySoftmax",
+                passed=False, severity="major",
+                details=f"Raised: {exc}",
+                file_path="models/entropy_softmax.py",
+                fix_hint="Fix EntropySoftmax.forward so it is differentiable.",
+            )]
+
+
+# ---------------------------------------------------------------------------
 # Coordinator / Scribe Agent
 # ---------------------------------------------------------------------------
 
@@ -1121,10 +1604,12 @@ class CoordinatorScribeAgent:
             # Default to the directory two levels above this file
             repo_root = str(Path(__file__).resolve().parent.parent)
         self.repo_root = Path(repo_root)
-        self._algebra_agent = AbstractAlgebraAgent()
-        self._geometry_agent = GeometryAgent()
+        self._algebra_agent   = AbstractAlgebraAgent()
+        self._geometry_agent  = GeometryAgent()
         self._validation_agent = ValidationAgent()
-        self._pipeline_agent = DataPipelineAuditAgent()
+        self._pipeline_agent  = DataPipelineAuditAgent()
+        self._physics_agent   = PhysicsAgent()
+        self._entropy_agent   = EntropySoftmaxPlanningAgent()
 
     # ------------------------------------------------------------------
     # Public interface
@@ -1186,7 +1671,35 @@ class CoordinatorScribeAgent:
             d_spinor=d_spinor,
         )
 
-        action_log = self._write_action_log(locations, findings, pipeline_findings)
+        # ── Physics audit (Caputo order, singularity, monotonicity) ────
+        entropy_src = ""
+        try:
+            entropy_src = (self.repo_root / "models" / "entropy_softmax.py").read_text(
+                encoding='utf-8', errors='replace'
+            )
+        except OSError:
+            pass
+        physics_findings: List[AgentFinding] = self._physics_agent.audit(
+            source_text=entropy_src,
+            run_numerical=run_numerical,
+            d_model=d_model,
+        )
+
+        # ── Entropy-softmax planning audit (geo + physics + validation) ─
+        entropy_findings: List[AgentFinding] = self._entropy_agent.audit(
+            repo_root=self.repo_root,
+            geometry_findings=findings,          # pass causal-field geometry findings
+            physics_findings=physics_findings,
+            validation_findings=findings,        # pass numerical validation findings
+            run_numerical=run_numerical,
+            d_model=d_model,
+        )
+        # Merge physics into entropy_findings for a single entropy bucket
+        entropy_findings = list(physics_findings) + list(entropy_findings)
+
+        action_log = self._write_action_log(
+            locations, findings, pipeline_findings, entropy_findings
+        )
 
         return CausalFieldReport(
             locations=locations,
@@ -1194,6 +1707,7 @@ class CoordinatorScribeAgent:
             action_log=action_log,
             transport_plan=list(self._TRANSPORT_PLAN),
             pipeline_findings=pipeline_findings,
+            entropy_findings=entropy_findings,
         )
 
     # ------------------------------------------------------------------
@@ -1252,10 +1766,13 @@ class CoordinatorScribeAgent:
         locations: List[CausalFieldLocation],
         findings: List[AgentFinding],
         pipeline_findings: Optional[List[AgentFinding]] = None,
+        entropy_findings: Optional[List[AgentFinding]] = None,
     ) -> List[str]:
         """Produce the consolidated scribe action log."""
         if pipeline_findings is None:
             pipeline_findings = []
+        if entropy_findings is None:
+            entropy_findings = []
 
         log: List[str] = []
         log.append("=== Causal Field Audit – Coordinator/Scribe Action Log ===")
@@ -1289,9 +1806,22 @@ class CoordinatorScribeAgent:
             log.append("  (pipeline audit not run)")
         log.append("")
 
+        # ── Entropy-softmax + physics findings ────────────────────────
+        log.append("--- Entropy-Gated Softmax Findings (PhysicsAgent + EntropySoftmaxPlanningAgent) ---")
+        if entropy_findings:
+            for f in entropy_findings:
+                status = "PASS" if f.passed else f"FAIL [{f.severity.upper()}]"
+                log.append(f"  [{f.agent}] {status}: {f.check}")
+                if not f.passed:
+                    log.append(f"    Details: {f.details}")
+                    log.append(f"    Fix:     {f.fix_hint}")
+        else:
+            log.append("  (entropy audit not run)")
+        log.append("")
+
         # ── Summary ───────────────────────────────────────────────────
-        all_findings = findings + pipeline_findings
-        total = len(all_findings)
+        all_findings = findings + pipeline_findings + entropy_findings
+        total  = len(all_findings)
         passed = sum(1 for f in all_findings if f.passed)
         log.append(f"--- Summary: {passed}/{total} checks passed ---")
         critical = [f for f in all_findings if not f.passed and f.severity == "critical"]

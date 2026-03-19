@@ -389,6 +389,15 @@ class GeometricAttention(nn.Module):
         else:
             self.field_contractor = None
             self.field_alpha = None
+
+        # Entropy-gated softmax (Definition 4 – Belief Collapse Probability).
+        # Replaces F.softmax(attention_scores, dim=-1) when use_entropy_softmax=True.
+        # Features are derived from the per-head key/query slices projected to d_k.
+        self.use_entropy_softmax = use_entropy_softmax and _ENTROPY_SOFTMAX_AVAILABLE
+        if self.use_entropy_softmax:
+            self.entropy_softmax = EntropySoftmax(d_model=self.d_k)
+        else:
+            self.entropy_softmax = None
         
         # Option 6 Extended: Projection for neighbor values (d_prime -> d_model)
         # This is used in probe_address_neighbors to project neighbor values
@@ -838,8 +847,27 @@ class GeometricAttention(nn.Module):
             neg = torch.finfo(attention_scores.dtype).min
             attention_scores = attention_scores.masked_fill(~mask_bool, neg)
 
-        # Softmax normalization (THIS IS THE KEY STEP)
-        attention_weights = F.softmax(attention_scores, dim=-1)
+        # Softmax normalization
+        # Definition 4 (Belief Collapse Probability) replaces F.softmax when
+        # use_entropy_softmax=True: P_ij = exp(-H_ij/τ_i) / Σ_k exp(-H_ik/τ_i)
+        # where H_ij = |K_j|^{2ν_i} φ(Q_i, K_j).  Falls back to standard
+        # F.softmax when entropy softmax is disabled or unavailable.
+        if self.use_entropy_softmax and self.entropy_softmax is not None:
+            # Fold (batch, n_heads) into a single leading dimension so
+            # EntropySoftmax sees a plain [B', N_q, N_k] score tensor.
+            B_h = batch_size * self.n_heads
+            scores_flat = attention_scores.reshape(B_h, seq_len_q, seq_len_k)
+            # Per-head key/query slices for the entropy functional
+            K_feat = K.reshape(B_h, seq_len_k, self.d_k)
+            Q_feat = Q.reshape(B_h, seq_len_q, self.d_k)
+            weights_flat = self.entropy_softmax(
+                scores_flat,
+                key_features=K_feat,
+                query_features=Q_feat,
+            )
+            attention_weights = weights_flat.view(batch_size, self.n_heads, seq_len_q, seq_len_k)
+        else:
+            attention_weights = F.softmax(attention_scores, dim=-1)
         attention_weights = self.dropout(attention_weights)
 
         # Apply attention to values
