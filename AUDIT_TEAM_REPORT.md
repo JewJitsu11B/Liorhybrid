@@ -48,6 +48,40 @@ Execution cadence: each specialist submits findings in parallel per module batch
 
 ---
 
+## CxO vs CxH — Practical Comparison
+
+Both algebras use `d_field=16` but for structurally different reasons and with very different cost profiles.
+
+### What is `d_field`?
+
+`d_field` is the dimension of the internal field-state tensor. It is **always 16** — not a free hyperparameter:
+
+| Path | Why 16? |
+|------|---------|
+| **Path A — CxO** (`CausalFieldLayer`) | 8-d real octonions + 8-d imaginary octonions = 16 |
+| **Path B — CxH** (`BiQuatCausalLayer`) | 4 real quaternions × 4 components each = 16 (enforced by `assert d_field == 16`) |
+
+### Side-by-Side Comparison
+
+| Aspect | **CxO** (`CausalFieldLayer`) | **CxH / BiQuat** (`BiQuatCausalLayer`) |
+|--------|------------------------------|----------------------------------------|
+| **Algebra** | ℂ⊗𝕆 — non-associative AND non-commutative | ℂ⊗ℍ — associative, non-commutative |
+| **The physics signal** | Associator J = (ab)c - a(bc) != 0 is the **source current** — non-associativity IS the curvature | Temporal recurrence ordering creates effective non-commutativity; algebra is flat |
+| **Cost per step** | **O(d³)**: `J_expand` einsum [16,16,16] ≈ 4096 ops + 5 oct-products + Pi/Gamma contractions | **O(1)**: 4 quaternion products = 64 muls/element total |
+| **Memory state size** | **256** (d_field² = 16²), LIoR multi-pole exponential kernel | **8** (two 4-vectors Q_H_re, Q_H_im), leaky integrator: Q_H_new = decay·Q_H + scale·W(Q_M) |
+| **Transport / connection** | Pi (rank-8 tensor), Gamma (Clifford connection via tetrad), Phi (bivector) | W_transport: one learnable biquaternion (8 scalar params). No Pi, no Gamma, no Phi |
+| **Precision** | fp32 only | fp16/bf16 safe with explicit clamps in `BiQuatTransform` |
+| **Physical model** | Gauge/fiber-bundle: Pi Γ integrates octonion curvature over causal past | SL(2,ℂ) = Lorentz rotations + boosts; Q_H is "historical spin state" |
+| **Status** | Too costly — Path A | **Preferred — Path B** |
+
+### Consequence for the Transport/Fiber Bundle Audit
+
+The operators being audited (Pi, Gamma, Phi, Tetrad) exist **only on Path A**. Path B bypasses all of them entirely. The audit is relevant for:
+1. If Path A is ever re-enabled, it must be physically correct.
+2. If covariant transport is ported to Path B, this audit provides the blueprint.
+
+---
+
 ## Seven-Agent Transport & Fiber Bundle Audit Plan
 
 **STATUS: AWAITING APPROVAL TO EXECUTE**
@@ -89,7 +123,7 @@ The team has completed a static inspection. The following issues are **proposed*
 2. **`Phi` (bivector field) is NOT contracted in `CausalFieldLayer.forward()`.**
    The module docstring (line 25) states the holomorphic constraint involves Pi Γ Phi,
    but `forward()` (lines 374–394) applies `Pi(J, Gamma)` without Phi. The field
-   equation `T = α J + (1−α) ∫ k Pi Γ J` is missing the `Phi` factor.
+   equation `T = alpha * J + (1-alpha) * integral(k * Pi * Gamma * J)` is missing the `Phi` factor.
    *Proposed fix:* Contract `Phi` into the transport chain before or after Pi.
 
 #### 🟡 MEDIUM — Unused Parameter

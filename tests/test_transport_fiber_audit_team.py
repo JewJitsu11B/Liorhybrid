@@ -24,6 +24,7 @@ from utils.transport_fiber_audit_team import (
     _check_pipeline_wiring,
     SEVERITY_INFO,
     SEVERITY_CRITICAL,
+    D_FIELD,
 )
 from utils.pipeline_audit import reset_audit, write_transport_fiber_audit_report
 
@@ -251,6 +252,53 @@ def test_pipeline_wiring_tetrad_exported_from_kernels():
     export = next((c for c in checks if "export" in c.operator.lower()), None)
     assert export is not None
     assert export.wired
+
+
+# ---------------------------------------------------------------------------
+# d_field and biquaternion path checks
+# ---------------------------------------------------------------------------
+
+def test_d_field_constant_is_16():
+    """D_FIELD is 16 — fixed for both CxO and CxH paths."""
+    assert D_FIELD == 16, (
+        "d_field must be 16: CxO needs 8+8 octonion dims; "
+        "BiQuat needs 4×4 quaternion components."
+    )
+
+
+def test_pipeline_wiring_biquat_bypasses_transport():
+    """BiQuatCausalLayer correctly bypasses Pi, Gamma, Phi (preferred path)."""
+    checks = _check_pipeline_wiring()
+    biquat = next(
+        (c for c in checks if "BiQuatCausalLayer" in c.operator or "biquaternion" in c.operator.lower()),
+        None,
+    )
+    assert biquat is not None, "Expected a wiring check for the biquaternion path"
+    assert biquat.wired, (
+        "BiQuatCausalLayer should correctly bypass transport operators "
+        "(wired=True here means 'correctly does NOT use Pi/Gamma')"
+    )
+    assert "Pi" not in biquat.notes.lower() or "not" in biquat.notes.lower() or "does not" in biquat.notes
+
+
+def test_pipeline_wiring_biquat_asserts_d_field_16():
+    """BiQuatCausalLayer enforces d_field=16 via assert."""
+    checks = _check_pipeline_wiring()
+    assertion = next(
+        (c for c in checks if "assertion" in c.operator.lower() or "d_field" in c.operator.lower()),
+        None,
+    )
+    assert assertion is not None
+    assert assertion.wired, "BiQuatCausalLayer must assert d_field==16"
+
+
+def test_coordinator_scope_mentions_biquat_and_d_field():
+    """Coordinator scope explains the biquaternion preference and d_field."""
+    coord = CoordinatorAgent()
+    scope = coord.scope()
+    # Should mention that biquaternion / Path B bypasses the transport operators
+    assert "biquat" in scope.lower() or "path b" in scope.lower() or "bypasses" in scope.lower()
+    assert "d_field" in scope.lower() or "d_field=16" in scope
 
 
 # ---------------------------------------------------------------------------

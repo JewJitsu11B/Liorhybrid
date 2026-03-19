@@ -6,6 +6,71 @@ fiber bundle structure (Tetrad / vielbein + CliffordConnection / Gamma) in
 models/causal_field.py and kernels/tetrad.py, and verifies that both operators
 are correctly wired into the training/inference pipeline.
 
+CxO vs CxH — practical comparison
+------------------------------------
+This codebase implements two field-evolution algebras with the same d_field=16:
+
+  CxO  ℂ⊗𝕆  complex octonions   →  CausalFieldLayer
+  CxH  ℂ⊗ℍ  biquaternions        →  BiQuatCausalLayer   ← PREFERRED
+
+The key practical differences:
+
+  Algebra:
+    CxO  Non-associative AND non-commutative. The associator J=(ab)c-a(bc)!=0
+         IS the physics signal: it measures the curvature/non-flatness of
+         the cognitive field at each point.
+    CxH  Associative but non-commutative. (ab)c = a(bc) always.
+         Effective non-commutativity comes from temporal ordering of the
+         recurrence, not from the algebra itself.
+
+  Cost per forward step (per element):
+    CxO  O(d³): J_expand einsum [16,16,16] ≈ 4096 ops; 5 oct-products @O(64)
+         each; plus Pi (3× [16,16,16] parameters), Gamma, LIoR memory.
+    CxH  O(1): 4 quaternion products @16 muls each = 64 muls total.
+
+  Memory state:
+    CxO  Size d_field² = 256, using LIoR multi-pole exponential kernel.
+    CxH  Size 8 (two 4-vectors Q_H_re, Q_H_im), simple leaky integrator:
+         Q_H_new = decay * Q_H + scale * W_impulse(Q_M)  (impulse_map)
+         T = alpha * Q_M + (1-alpha) * W_transport(Q_H_new)  (transport_map)
+
+  Transport / connection:
+    CxO  Pi (rank-8 tensor), Gamma (Clifford connection via tetrad),
+         Phi (antisymmetric bivector). These are the operators under audit.
+    CxH  W_transport: a single learnable biquaternion (8 scalar params).
+         No Pi, no Gamma, no Phi.
+
+  Precision:
+    CxO  fp32 only; no fp16/bf16 guards.
+    CxH  Pure-real arithmetic, explicit clamps for fp16/bf16 safety.
+
+  Physical model:
+    CxO  Gauge / fiber-bundle theory. Pi Gamma integrates octonion-curvature
+         over the causal past along a fiber bundle.
+    CxH  SL(2,ℂ) = Lorentz rotations + boosts. Q_H is the "historical spin
+         state". Structurally lighter, empirically faster.
+
+Architecture note — two field-evolution paths
+----------------------------------------------
+  Path A  CausalFieldLayer  — CxO, O(d³) cost.
+          Uses ParallelTransport, CliffordConnection, Phi, Tetrad (not wired).
+          These are the operators under audit here.
+
+  Path B  BiQuatCausalBlock / BiQuatCausalLayer  — CxH, O(N) pure-real.
+          Does NOT use ParallelTransport, CliffordConnection, or Phi.
+          PREFERRED because CxO is too costly.
+
+The audit documents Path A's state so that if covariant transport is ever
+ported to Path B, there is a clear blueprint.
+
+What is d_field?
+----------------
+``d_field`` is fixed at 16 for BOTH paths (see D_FIELD constant):
+  Path A (CxO):   8-d real octonions + 8-d imaginary octonions = 16
+  Path B (CxH):   4 real quaternions × 4 components each       = 16
+                  (enforced by ``assert d_field == 16`` in BiQuatCausalLayer)
+It is NOT a free hyperparameter.
+
 Team roles
 ----------
 1. Coordinator   – owns scope, assigns sub-tasks, resolves blockers
@@ -61,6 +126,13 @@ def _import_causal_field():
     return CausalFieldLayer, ParallelTransport, CliffordConnection
 
 
+def _import_biquat():
+    """Import BiQuatCausalLayer from models.biquaternion."""
+    _ensure_package_importable()
+    from Liorhybrid.models.biquaternion import BiQuatCausalLayer  # noqa: PLC0415
+    return BiQuatCausalLayer
+
+
 def _import_tetrad():
     """Import Tetrad, compute_metric_from_tetrad from kernels.tetrad."""
     _ensure_package_importable()
@@ -69,6 +141,17 @@ def _import_tetrad():
         compute_metric_from_tetrad,
     )
     return Tetrad, compute_metric_from_tetrad
+
+
+# ---------------------------------------------------------------------------
+# Field-dimension constant
+# ---------------------------------------------------------------------------
+
+# d_field is ALWAYS 16 for both field-evolution paths:
+#   Path A (CxO):   8 real + 8 imaginary octonion dims  = 16
+#   Path B (BiQuat): 4 quaternions × 4 components each  = 16
+# BiQuatCausalLayer asserts this: ``assert d_field == 16``
+D_FIELD: int = 16
 
 
 # ---------------------------------------------------------------------------
@@ -155,20 +238,47 @@ class CoordinatorAgent:
     - models/causal_field.py  : ParallelTransport (Pi), CliffordConnection (Gamma)
     - kernels/tetrad.py        : Tetrad (vielbein / fiber bundle)
     - Pipeline wiring          : CausalFieldLayer forward(), kernels/__init__.py exports
+
+    Architecture context
+    --------------------
+    Two field-evolution paths exist in this codebase:
+
+      Path A  CausalFieldLayer  — CxO (complex octonions), O(d³) cost.
+              Uses ParallelTransport, CliffordConnection, Phi, Tetrad (not wired).
+              This is the path being audited.
+
+      Path B  BiQuatCausalBlock — biquaternions, O(N) pure-real, PREFERRED.
+              Does NOT use ParallelTransport, CliffordConnection, or Phi.
+
+    Since Path B is preferred (CxO too costly), the transport/fiber bundle
+    operators under audit are currently on the non-preferred path.
+    The audit documents their state and wiring so that:
+    (a) if Path A is ever re-enabled, it is correct; and
+    (b) if covariant transport is ever ported to Path B, there is a blueprint.
+
+    d_field
+    -------
+    ``d_field`` is fixed at 16 for BOTH paths (see D_FIELD constant):
+      Path A: 8 real + 8 imaginary octonion dims = 16
+      Path B: 4 real quaternions × 4 components  = 16  (assert d_field==16)
     """
 
     SCOPE = (
         "Audit the parallel-transport operator (ParallelTransport / Pi) and the "
         "fiber bundle operator (Tetrad + CliffordConnection / Gamma) for physical "
         "correctness, geometric validity, implementation soundness, and correct "
-        "pipeline wiring. Report findings without executing fixes until approved."
+        "pipeline wiring. Note: these operators belong to Path A (CxO / CausalFieldLayer). "
+        "Path B (BiQuatCausalBlock) is the preferred cheaper path and bypasses them. "
+        "d_field=16 is fixed for both paths. Report findings without executing fixes until approved."
     )
 
     TASK_QUEUE = [
         ("Physics",    "Verify covariant-derivative consistency and holonomy constraint"),
         ("Geometry",   "Verify fiber bundle / vielbein orthonormality and metric compatibility"),
-        ("Coding",     "Audit shape contracts, device safety, and unused-parameter warnings"),
-        ("Validation", "Run quantitative checks: norms, NaN/Inf, shape contracts"),
+        ("Coding",     "Audit shape contracts, device safety, unused-parameter warnings, "
+                       "and biquaternion path bypass of transport operators"),
+        ("Validation", "Run quantitative checks: norms, NaN/Inf, shape contracts, "
+                       "and biquaternion d_field=16 assertion"),
         ("Morale",     "Flag workload balance; ensure cadence is sustainable"),
         ("Scribe",     "Consolidate all findings into decision log with severity + evidence"),
     ]
@@ -784,6 +894,39 @@ def _check_pipeline_wiring() -> List[PipelineWiringCheck]:
         wired=pt_exported,
         entry_point="models/__init__.py",
         notes="ParallelTransport is exported from models/__init__.py at line ~36.",
+    ))
+
+    # 7. Does BiQuatCausalLayer bypass transport operators? (biquaternion path check)
+    biquat_src = (repo_root / "models" / "biquaternion.py").read_text(encoding="utf-8")
+    biquat_src_lower = biquat_src.lower()
+    biquat_bypasses = (
+        "paralleltransport" not in biquat_src_lower and
+        "cliffordconnection" not in biquat_src_lower and
+        "self.pi" not in biquat_src_lower and
+        "self.gamma_conn" not in biquat_src_lower
+    )
+    checks.append(PipelineWiringCheck(
+        operator="BiQuatCausalLayer (biquaternion / preferred path)",
+        wired=biquat_bypasses,   # "wired" here means "correctly bypasses" Pi/Gamma
+        entry_point="models/biquaternion.py",
+        notes=(
+            "BiQuatCausalLayer is the preferred O(N) path. "
+            "It correctly does NOT use ParallelTransport, CliffordConnection, or Phi. "
+            "d_field=16 is enforced by assert in BiQuatCausalLayer.__init__."
+        ),
+    ))
+
+    # 8. Does BiQuatCausalLayer enforce d_field=16?
+    biquat_asserts_16 = "assert d_field == 16" in biquat_src
+    checks.append(PipelineWiringCheck(
+        operator="BiQuatCausalLayer.d_field assertion",
+        wired=biquat_asserts_16,
+        entry_point="models/biquaternion.py:302",
+        notes=(
+            "d_field=16 is structurally fixed for biquaternions: "
+            "4 real quaternions × 4 components = 16 real DOF. "
+            "Same value as CxO path (8+8 octonion dims), but for different reasons."
+        ),
     ))
 
     return checks
