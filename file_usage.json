@@ -1,18 +1,18 @@
 {
   "__init__.py": {
-    "call_count": 55,
+    "call_count": 57,
     "first_called": "2026-01-23T23:34:38.855996",
-    "last_called": "2026-03-19T21:34:12.216020"
+    "last_called": "2026-03-19T21:38:37.560876"
   },
   "core/__init__.py": {
-    "call_count": 55,
+    "call_count": 57,
     "first_called": "2026-01-23T23:34:38.857088",
-    "last_called": "2026-03-19T21:34:12.217064"
+    "last_called": "2026-03-19T21:38:37.562568"
   },
   "core/config.py": {
-    "call_count": 55,
+    "call_count": 57,
     "first_called": "2026-01-23T23:34:38.860139",
-    "last_called": "2026-03-19T21:34:12.218083"
+    "last_called": "2026-03-19T21:38:37.564195"
   },
   "core/tensor_field.py": {
     "call_count": 52,
