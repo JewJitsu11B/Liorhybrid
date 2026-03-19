@@ -982,3 +982,200 @@ class TransportFiberAuditTeam:
             scribe_log=scribe_log,
             approval_status="AWAITING APPROVAL TO EXECUTE",
         )
+
+
+# ---------------------------------------------------------------------------
+# CxO vs CxH tradeoff analysis (quantitative)
+# ---------------------------------------------------------------------------
+
+def biquat_tradeoff_analysis(d_model: int = 512) -> dict:
+    """
+    Compute the precise tradeoffs between CxO and CxH at a given d_model.
+
+    Instantiates both CausalFieldLayer (CxO) and BiQuatCausalLayer (CxH),
+    counts parameters per submodule, and returns a structured comparison dict.
+
+    The "pair of biquaternions" question
+    -------------------------------------
+    The BiQuat state IS already a pair:
+        Q_M = Q_M_re[4] + Q_M_im[4]  -- present moment biquaternion
+        Q_H = Q_H_re[4] + Q_H_im[4]  -- memory biquaternion
+    Total: 16 scalars = d_field.
+    Having the pair gives temporal context (present vs memory) but does NOT
+    recover the algebraic properties of CxO (see ``losses`` key in output).
+
+    Returns:
+        dict with keys:
+            cxo_total_params         int -- total learnable params, CxO path
+            cxh_total_params         int -- total learnable params, CxH path
+            param_ratio              float -- cxo / cxh
+            cxo_submodules           dict -- breakdown by submodule
+            cxh_submodules           dict -- breakdown by submodule
+            cxo_memory_state_dim     int -- memory vector length per token
+            cxh_memory_state_dim     int -- memory vector length per token
+            memory_state_ratio       int -- cxo / cxh
+            losses                   list[dict] -- each capability lost in CxH
+            gains                    list[str]  -- capabilities kept or gained in CxH
+    """
+    CausalFieldLayer, _, _ = _import_causal_field()
+    BiQuatCausalLayer = _import_biquat()
+
+    def _count(module: torch.nn.Module) -> int:
+        return sum(p.numel() for p in module.parameters())
+
+    # Instantiate at the given d_model
+    cxo = CausalFieldLayer(
+        d_model=d_model, d_field=D_FIELD, d_spinor=4, kernel_size=8
+    )
+    cxh = BiQuatCausalLayer(d_model=d_model, d_field=D_FIELD)
+
+    # --- CxO submodule breakdown ---
+    cxo_sub = {
+        # AssociatorCurrent: 3 x Linear(d_model, 16) + J_expand[16,16,16]
+        # = 3*(d_model*16 + 16) + 4096
+        "associator (J = (ab)c - a(bc), Fano-plane)": _count(cxo.associator),
+        # ParallelTransport: 3 x [16,16,16] + [4,4,16] = 12288 + 256
+        "parallel_transport Pi (rank-8 fiber bundle)": _count(cxo.Pi),
+        # CliffordConnection: gamma[4,4,4] + tetrad[4,4] = 64 + 16
+        "clifford_connection Gamma (tetrad + generators)": _count(cxo.Gamma_conn),
+        # Phi: [16,16] antisymmetric bivector
+        "phi_bivector Phi (antisymmetric field)": cxo.Phi.numel(),
+        # LiorMemoryState: LiorKernel (~15 scalars) + J_H projection
+        "lior_memory (exp + power-law + oscillatory kernel)": _count(cxo.memory),
+        # CognitiveManifold: metric_net, resilience_net, complex_metric, etc.
+        "cognitive_manifold (G=A+iB, geodesics, K0->K1->K2)": _count(cxo.manifold),
+        "input_proj + output_proj + norm": (
+            _count(cxo.input_proj) + _count(cxo.output_proj) + _count(cxo.norm)
+        ),
+    }
+
+    # --- CxH submodule breakdown ---
+    cxh_sub = {
+        # CausalAccumulator: W_impulse(8) + W_transport(8) + 3 scalars = 19
+        "accumulator (W_impulse + W_transport + alpha/decay/scale)": _count(cxh.accumulator),
+        "input_proj + output_proj + norm": (
+            _count(cxh.input_proj) + _count(cxh.output_proj) + _count(cxh.norm)
+        ),
+    }
+
+    cxo_total = sum(cxo_sub.values())
+    cxh_total = sum(cxh_sub.values())
+
+    # --- Capabilities lost going CxO -> CxH ---
+    losses = [
+        {
+            "capability": "Non-associative algebra as signal (AssociatorCurrent)",
+            "cxo_detail": (
+                "J = (ab)c - a(bc) uses fixed Fano-plane structure constants "
+                "(7 triples, oct_struct buffer [8,8,8]). Non-zero residual IS "
+                "the source current — algebraic curvature as inductive bias."
+            ),
+            "cxh_detail": (
+                "ℂ⊗ℍ is associative: (ab)c = a(bc) always. "
+                "Associator is identically zero. Having two biquaternions "
+                "(Q_M + Q_H) does not change this — associativity is an "
+                "algebraic property of H, not a count-of-elements property."
+            ),
+            "param_delta": cxo_sub["associator (J = (ab)c - a(bc), Fano-plane)"],
+        },
+        {
+            "capability": "G2 symmetry / Fano plane inductive bias",
+            "cxo_detail": (
+                "Aut(O) = G2 (14-dimensional exceptional Lie group). "
+                "The 7 Fano-plane triples are a fixed non-learnable structural "
+                "constraint respected by every oct_mul call."
+            ),
+            "cxh_detail": (
+                "Aut(H) = SO(3) (3-dimensional). Two biquaternions gives "
+                "SO(3) x SO(3) (6-dimensional). "
+                "8 symmetry generators are permanently absent."
+            ),
+            "param_delta": 0,  # Fano plane is a buffer, not a parameter
+        },
+        {
+            "capability": "Fiber bundle / parallel transport (Pi, Gamma, Phi)",
+            "cxo_detail": (
+                f"Pi: {cxo_sub['parallel_transport Pi (rank-8 fiber bundle)']} params (rank-8 tensor). "
+                f"Gamma: {cxo_sub['clifford_connection Gamma (tetrad + generators)']} params (tetrad + Clifford generators). "
+                f"Phi: {cxo_sub['phi_bivector Phi (antisymmetric field)']} params (bivector field). "
+                "Implements genuine covariant parallel transport with holonomy."
+            ),
+            "cxh_detail": (
+                "W_transport: 8 learnable scalars (one BiQuatTransform). "
+                "Single left-multiplication in ℂ⊗ℍ. No holonomy. "
+                "No tetrad. No bivector coupling. No fiber bundle structure."
+            ),
+            "param_delta": (
+                cxo_sub["parallel_transport Pi (rank-8 fiber bundle)"]
+                + cxo_sub["clifford_connection Gamma (tetrad + generators)"]
+                + cxo_sub["phi_bivector Phi (antisymmetric field)"]
+            ),
+        },
+        {
+            "capability": "LIoR multi-modal memory (fractional + oscillatory)",
+            "cxo_detail": (
+                "Three-mode kernel: exponential (Markovian) + power-law "
+                "k(dt) ~ dt^(-delta) (fractional, non-Markovian, long tail) "
+                "+ oscillatory k(dt) ~ cos(omega*dt+phi)*exp(-zeta*dt) "
+                "(phase-sensitive interference). "
+                f"Memory state: {D_FIELD * D_FIELD} dims per token. "
+                "Fractional order delta in (0,1) is learnable."
+            ),
+            "cxh_detail": (
+                "Single exponential pole: "
+                "Q_H_new = decay * Q_H + scale * W(Q_M). "
+                "Memory state: 8 dims per token. "
+                "No fractional memory. No oscillatory mode. "
+                "History decays exponentially — long-range dependencies "
+                "cannot be represented."
+            ),
+            "param_delta": cxo_sub["lior_memory (exp + power-law + oscillatory kernel)"],
+        },
+        {
+            "capability": "Complex metric G=A+iB and Riemannian geometry (CognitiveManifold)",
+            "cxo_detail": (
+                "ComplexMetricTensor G=A+iB: A=Riemannian, B=symplectic. "
+                "Phase theta(omega) from fractional kernel feeds into B. "
+                "Geodesic integration (exp/log maps), Christoffel symbols, "
+                "normal coordinates, spinor bilinears K0->K1->K2. "
+                f"Adds {cxo_sub['cognitive_manifold (G=A+iB, geodesics, K0->K1->K2)']} params."
+            ),
+            "cxh_detail": (
+                "No manifold. No complex metric. No geodesics. "
+                "Scalar alpha is the only mixing control."
+            ),
+            "param_delta": cxo_sub["cognitive_manifold (G=A+iB, geodesics, K0->K1->K2)"],
+        },
+    ]
+
+    # --- Capabilities kept or gained in CxH ---
+    gains = [
+        "SL(2,C) = double cover of Lorentz group: W = W_re + i*W_im ∈ ℂ⊗ℍ = M_2(ℂ), "
+        "so W_impulse and W_transport are Lorentz rotations + boosts.",
+
+        "Temporal present/memory split: Q_M (present biquaternion) and "
+        "Q_H (memory biquaternion) give causal ordering without sequential loops.",
+
+        "fp16/bf16 safe: pure-real arithmetic with explicit clamps in BiQuatTransform. "
+        "CxO is fp32-only.",
+
+        "O(1) per element (64 quaternion muls) vs O(d^3) for CxO "
+        f"({D_FIELD**3} ops just for J_expand einsum).",
+
+        "Bounded hyperparameters: alpha/decay/impulse_scale all pass through "
+        "sigmoid/softplus, so no exploding scalars.",
+    ]
+
+    return {
+        "d_model": d_model,
+        "cxo_total_params": cxo_total,
+        "cxh_total_params": cxh_total,
+        "param_ratio": round(cxo_total / cxh_total, 1),
+        "cxo_submodules": cxo_sub,
+        "cxh_submodules": cxh_sub,
+        "cxo_memory_state_dim": D_FIELD * D_FIELD,   # d_field^2 = 256
+        "cxh_memory_state_dim": 8,                    # Q_H_re[4] + Q_H_im[4]
+        "memory_state_ratio": (D_FIELD * D_FIELD) // 8,  # 32
+        "losses": losses,
+        "gains": gains,
+    }
