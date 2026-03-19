@@ -21,7 +21,8 @@ Why Use Context Managers for Metrics?
     5. State restoration - Save/restore metric state
 """
 try: import usage_tracker; usage_tracker.track(__file__)
-except: pass
+except ImportError:
+    pass
 
 import torch
 from contextlib import contextmanager

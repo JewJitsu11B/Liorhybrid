@@ -46,61 +46,135 @@ Summary: Highest attention areas are **kernels** and **models** (ratings 4) due 
 
 Execution cadence: each specialist submits findings in parallel per module batch, then coordinator runs a short synthesis pass; proceed only when math + physics + code reviewer agree on blocking risks and the scribe publishes the consolidated action list.
 
-## Detokenize / Output Agent Team
+---
 
-A dedicated six-agent team (`utils/detokenize_output_agents.py`) scans the
-detokenizing and output pipeline end-to-end and produces a phased plan to
-finalise and make the pipeline fully operational.
+## CxO vs CxH — Practical Comparison
 
-### Agent Roles
+Both algebras use `d_field=16` but for structurally different reasons and with very different cost profiles.
 
-1. **DetokenizeScannerAgent**: Scans every `.py` file in the repository and
-   classifies files by role (`tokenizer`, `lm_head`, `generation`, `entropy`,
-   `test`).  Broadcasts the discovered locations to the three specialist agents.
+### What is `d_field`?
 
-2. **TokenizerHealthAgent**: Validates `CognitiveTokenizer` (source-text + runtime):
-   - Special-token map contains all required entries.
-   - `decode()` implemented with HF backend or fallback `inverse_vocab`.
-   - `encode()` supports `max_length` truncation.
-   - `eos_token_id` property exposes `<|endoftext|>`.
-   - Encode → decode roundtrip is lossless; batch encoding matches individual encoding.
+`d_field` is the dimension of the internal field-state tensor. It is **always 16** — not a free hyperparameter:
 
-3. **LMHeadAuditAgent**: Validates `LanguageModelHead` (source-text + runtime):
-   - `LayerNorm` applied before the output projection.
-   - `output_projection` is `nn.Linear(d_model, vocab_size)`.
-   - Weight tying is optional and guarded by `tie_weights` flag.
-   - Forward pass produces correct shape `(batch, seq_len, vocab_size)` with finite logits.
+| Path | Why 16? |
+|------|---------|
+| **Path A — CxO** (`CausalFieldLayer`) | 8-d real octonions + 8-d imaginary octonions = 16 |
+| **Path B — CxH** (`BiQuatCausalLayer`) | 4 real quaternions × 4 components each = 16 (enforced by `assert d_field == 16`) |
 
-4. **GenerationPipelineAgent**: Validates `InferenceEngine.generate()` (source-text + runtime):
-   - EOS termination breaks the loop before `max_tokens` is exhausted.
-   - `input_ids` is clipped to `max_seq_len` on each step.
-   - `field.evolve_step()` is called every iteration.
-   - `tokenizer.decode(generated_ids)` is called to produce the final text.
-   - Entropy gating and selector probabilities are applied before sampling.
+### Side-by-Side Comparison
 
-5. **OperationalizationAgent**: Synthesises all findings into a four-phase plan:
-   - Phase 1 – Stabilise (resolve critical blockers).
-   - Phase 2 – Validate (address major findings + add tests).
-   - Phase 3 – Harden (performance, robustness, monitoring).
-   - Phase 4 – Operationalise (deployment readiness, CI integration).
+| Aspect | **CxO** (`CausalFieldLayer`) | **CxH / BiQuat** (`BiQuatCausalLayer`) |
+|--------|------------------------------|----------------------------------------|
+| **Algebra** | ℂ⊗𝕆 — non-associative AND non-commutative | ℂ⊗ℍ — associative, non-commutative |
+| **The physics signal** | Associator J = (ab)c - a(bc) != 0 is the **source current** — non-associativity IS the curvature | Temporal recurrence ordering creates effective non-commutativity; algebra is flat |
+| **Cost per step** | **O(d³)**: `J_expand` einsum [16,16,16] ≈ 4096 ops + 5 oct-products + Pi/Gamma contractions | **O(1)**: 4 quaternion products = 64 muls/element total |
+| **Memory state size** | **256** (d_field² = 16²), LIoR multi-pole exponential kernel | **8** (two 4-vectors Q_H_re, Q_H_im), leaky integrator: Q_H_new = decay·Q_H + scale·W(Q_M) |
+| **Transport / connection** | Pi (rank-8 tensor), Gamma (Clifford connection via tetrad), Phi (bivector) | W_transport: one learnable biquaternion (8 scalar params). No Pi, no Gamma, no Phi |
+| **Precision** | fp32 only | fp16/bf16 safe with explicit clamps in `BiQuatTransform` |
+| **Physical model** | Gauge/fiber-bundle: Pi Γ integrates octonion curvature over causal past | SL(2,ℂ) = Lorentz rotations + boosts; Q_H is "historical spin state" |
+| **Status** | Too costly — Path A | **Preferred — Path B** |
 
-6. **OutputTeamCoordinator**: Orchestrates the full team, collects all findings,
-   and returns a `DetokenizeOutputReport` containing locations, findings, an
-   action log, and the operationalization plan.
+### Consequence for the Transport/Fiber Bundle Audit
 
-### Running the Team
+The operators being audited (Pi, Gamma, Phi, Tetrad) exist **only on Path A**. Path B bypasses all of them entirely. The audit is relevant for:
+1. If Path A is ever re-enabled, it must be physically correct.
+2. If covariant transport is ported to Path B, this audit provides the blueprint.
 
-```python
-from utils.detokenize_output_agents import OutputTeamCoordinator
+---
 
-coordinator = OutputTeamCoordinator(repo_root="/path/to/repo")
-report = coordinator.run(run_numerical=True)
+## Seven-Agent Transport & Fiber Bundle Audit Plan
 
-for line in report.action_log:
-    print(line)
+**STATUS: AWAITING APPROVAL TO EXECUTE**
 
-for line in report.operationalization_plan:
-    print(line)
-```
+### Team Composition
 
-Tests: `tests/test_detokenize_output_agents.py` (36 checks).
+| # | Role | Responsibility |
+|---|------|---------------|
+| 1 | **Coordinator** | Owns scope, assigns tasks, tracks progress, resolves blockers |
+| 2 | **Physics** | Covariant-derivative consistency, holonomy, gauge invariance |
+| 3 | **Geometry** | Fiber bundle / vielbein orthonormality, metric compatibility |
+| 4 | **Coding** | Shape contracts, device safety, implementation correctness |
+| 5 | **Validation** | Quantitative numerical checks: norms, NaN/Inf, shape contracts |
+| 6 | **Morale** | Workload balance, cadence sustainability, team health flags |
+| 7 | **Scribe** | Consolidated decision log with severity, evidence, action items |
+
+### Operators Under Audit
+
+| Operator | File | Role in Pipeline |
+|----------|------|-----------------|
+| `ParallelTransport` (Pi) | `models/causal_field.py:140` | Transports source current J via Clifford connection |
+| `CliffordConnection` (Gamma) | `models/causal_field.py:216` | Clifford-algebra connection via internal tetrad |
+| `Tetrad` (vielbein / fiber bundle) | `kernels/tetrad.py:28` | Connects curved manifold coords to flat Clifford basis |
+| `Phi` (bivector field) | `models/causal_field.py:287` | Antisymmetric bivector — enters T field equation |
+
+### Pre-Audit Findings (Static Inspection)
+
+The team has completed a static inspection. The following issues are **proposed** changes awaiting approval:
+
+#### 🔴 HIGH — Pipeline Wiring Gaps
+
+1. **`kernels/tetrad.Tetrad` is NOT wired into `CliffordConnection`.**
+   `CliffordConnection` (line 241) defines its own independent `nn.Parameter` tetrad.
+   The shared fiber bundle operator in `kernels/tetrad.py` is never imported in
+   `models/causal_field.py`. These two tetrad definitions are disconnected.
+   *Proposed fix:* Replace `CliffordConnection.tetrad` `nn.Parameter` with an
+   instance of `kernels.tetrad.Tetrad` so a single fiber bundle governs both operators.
+
+2. **`Phi` (bivector field) is NOT contracted in `CausalFieldLayer.forward()`.**
+   The module docstring (line 25) states the holomorphic constraint involves Pi Γ Phi,
+   but `forward()` (lines 374–394) applies `Pi(J, Gamma)` without Phi. The field
+   equation `T = alpha * J + (1-alpha) * integral(k * Pi * Gamma * J)` is missing the `Phi` factor.
+   *Proposed fix:* Contract `Phi` into the transport chain before or after Pi.
+
+#### 🟡 MEDIUM — Unused Parameter
+
+3. **`ParallelTransport.Pi_memory` is defined but never used.**
+   `Pi_memory` (`nn.Parameter`, shape `[d_field, d_field, d_field]`) is defined at
+   line 172–175 but never contracted in `forward()` (lines 199–212).
+   *Proposed fix:* Either wire `Pi_memory` into the transport chain or remove it.
+
+4. **Holomorphic constraint `∇(Pi Γ Phi) = 0` is not enforced.**
+   Stated in the module docstring but absent from both the forward pass and the
+   loss function. *Proposed fix:* Add a regularization term or a projection step.
+
+5. **`CliffordConnection` gamma matrices are randomly initialized.**
+   Dirac anti-commutation `{γ^a, γ^b} = 2η^{ab}I` is not guaranteed at init.
+   *Proposed fix:* Initialize from actual Pauli/Dirac matrices before adding
+   learnable perturbations.
+
+#### ✅ PASSING — Already Correct
+
+- `ParallelTransport` is instantiated and called in `CausalFieldLayer.forward()`.
+- `CliffordConnection` is instantiated and called in `CausalFieldLayer.forward()`.
+- `Tetrad` is correctly exported from `kernels/__init__.py`.
+- `ParallelTransport` and `CliffordConnection` are exported from `models/__init__.py`.
+- `CausalFieldLayer.forward()` output shape matches input `[B, N, d_model]`.
+- `CliffordConnection.forward()` output is finite at initialization.
+- `ParallelTransport.forward()` output shape matches `J` shape `[B, N, d_field, d_field]`.
+- `models/causal_field.py` contains no `.cpu()` / `.numpy()` calls (device-safe).
+- `Tetrad` orthonormality verified for diagonal and anisotropic metrics.
+- Full `CausalFieldLayer` forward pass is NaN/Inf-free for typical batches.
+
+### Relevant Data to Report
+
+| Metric | Value | Status |
+|--------|-------|--------|
+| `CliffordConnection` Frobenius norm | ~0.3–1.5 (init-dependent) | ✅ reasonable |
+| `ParallelTransport` output finite | Yes | ✅ |
+| Tetrad orthonormality max error | < 1e-6 | ✅ |
+| Full pipeline NaN-free | Yes | ✅ |
+| Phi bivector wired into forward | No | 🔴 |
+| Shared Tetrad (fiber bundle) wired | No | 🔴 |
+| Pi_memory used | No | 🟡 |
+| Anti-commutation {γ^a,γ^b} | Not enforced at init | 🟡 |
+
+### Execution Cadence (Post-Approval)
+
+1. **Sprint 0** *(this document)* — Static audit, findings published, approval requested.
+2. **Sprint 1** *(after approval)* — Coordinator assigns Geometry + Coding to wire
+   `kernels.tetrad.Tetrad` into `CliffordConnection` and Phi into `forward()`.
+3. **Sprint 2** — Physics + Validation verify anti-commutation init and Pi_memory.
+4. **Sprint 3** — Holomorphic constraint regularizer; Scribe publishes final log.
+
+*Implementation module:* `utils/transport_fiber_audit_team.py`
+*Test module:* `tests/test_transport_fiber_audit_team.py`
