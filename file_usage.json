@@ -40,44 +40,59 @@
     "last_called": "2026-01-29T05:44:10.026043"
   },
   "inference/__init__.py": {
-    "call_count": 17,
+    "call_count": 25,
     "first_called": "2026-01-23T23:35:40.768227",
-    "last_called": "2026-01-28T15:01:54.512731"
+    "last_called": "2026-03-19T21:34:15.160626"
+  },
+  "inference/address.py": {
+    "call_count": 8,
+    "first_called": "2026-03-19T21:31:30.042844",
+    "last_called": "2026-03-19T21:34:15.166733"
   },
   "inference/composite_k.py": {
-    "call_count": 15,
+    "call_count": 23,
     "first_called": "2026-01-23T23:36:07.690711",
-    "last_called": "2026-01-28T04:03:36.164823"
+    "last_called": "2026-03-19T21:34:15.169952"
   },
   "inference/constitutive_state.py": {
-    "call_count": 15,
+    "call_count": 23,
     "first_called": "2026-01-23T23:36:07.693622",
-    "last_called": "2026-01-28T04:03:36.165934"
+    "last_called": "2026-03-19T21:34:15.171507"
   },
   "inference/field_extraction.py": {
-    "call_count": 17,
+    "call_count": 25,
     "first_called": "2026-01-23T23:35:40.771472",
-    "last_called": "2026-01-28T15:01:55.728591"
+    "last_called": "2026-03-19T21:34:15.162596"
   },
   "inference/geometric_attention.py": {
-    "call_count": 17,
+    "call_count": 25,
     "first_called": "2026-01-23T23:35:40.774875",
-    "last_called": "2026-01-28T15:01:55.733917"
+    "last_called": "2026-03-19T21:34:15.163699"
   },
   "inference/geometric_products.py": {
-    "call_count": 17,
+    "call_count": 25,
     "first_called": "2026-01-23T23:35:40.770288",
-    "last_called": "2026-01-28T15:01:54.515795"
+    "last_called": "2026-03-19T21:34:15.161622"
   },
   "inference/geometric_stack.py": {
-    "call_count": 16,
+    "call_count": 24,
     "first_called": "2026-01-23T23:36:07.681931",
-    "last_called": "2026-01-28T15:01:55.800145"
+    "last_called": "2026-03-19T21:34:15.168769"
+  },
+  "inference/inference.py": {
+    "call_count": 4,
+    "first_called": "2026-03-19T21:31:30.170458",
+    "last_called": "2026-03-19T21:34:15.159673"
+  },
+  "inference/input_adapters.py": {
+    "call_count": 4,
+    "first_called": "2026-03-19T21:31:30.185411",
+    "last_called": "2026-03-19T21:34:15.173684"
   },
   "inference/triality_coordinate_head.py": {
-    "call_count": 16,
+    "call_count": 24,
     "first_called": "2026-01-23T23:36:07.542199",
-    "last_called": "2026-01-28T15:01:55.735443"
+    "last_called": "2026-03-19T21:34:15.164619"
   },
   "inference\\__init__.py": {
     "call_count": 2,
@@ -293,6 +308,11 @@
     "call_count": 1,
     "first_called": "2026-03-19T21:10:37.409454",
     "last_called": "2026-03-19T21:10:37.409454"
+  },
+  "tests/test_detokenize_output_agents.py": {
+    "call_count": 4,
+    "first_called": "2026-03-19T21:31:28.894306",
+    "last_called": "2026-03-19T21:34:13.963081"
   },
   "tests/test_math_validation_team.py": {
     "call_count": 5,
