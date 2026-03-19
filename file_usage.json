@@ -1,23 +1,23 @@
 {
   "__init__.py": {
-    "call_count": 26,
+    "call_count": 28,
     "first_called": "2026-01-23T23:34:38.855996",
-    "last_called": "2026-02-15T04:30:30.481687"
+    "last_called": "2026-03-19T20:32:13.649179"
   },
   "core/__init__.py": {
-    "call_count": 26,
+    "call_count": 28,
     "first_called": "2026-01-23T23:34:38.857088",
-    "last_called": "2026-02-15T04:30:30.482698"
+    "last_called": "2026-03-19T20:32:13.650076"
   },
   "core/config.py": {
-    "call_count": 26,
+    "call_count": 28,
     "first_called": "2026-01-23T23:34:38.860139",
-    "last_called": "2026-02-15T04:30:30.483729"
+    "last_called": "2026-03-19T20:32:13.650925"
   },
   "core/tensor_field.py": {
-    "call_count": 25,
+    "call_count": 26,
     "first_called": "2026-01-23T23:34:38.936975",
-    "last_called": "2026-02-15T04:30:31.646043"
+    "last_called": "2026-03-19T20:32:14.669540"
   },
   "core\\__init__.py": {
     "call_count": 2,
@@ -125,14 +125,14 @@
     "last_called": "2026-01-28T04:03:35.851722"
   },
   "kernels/bayesian.py": {
-    "call_count": 26,
+    "call_count": 27,
     "first_called": "2026-01-23T23:34:38.941164",
-    "last_called": "2026-02-15T04:30:32.096258"
+    "last_called": "2026-03-19T20:32:14.672801"
   },
   "kernels/fractional_memory.py": {
-    "call_count": 26,
+    "call_count": 27,
     "first_called": "2026-01-23T23:34:38.942419",
-    "last_called": "2026-02-15T04:30:32.097219"
+    "last_called": "2026-03-19T20:32:14.674383"
   },
   "kernels/gradients.py": {
     "call_count": 3,
