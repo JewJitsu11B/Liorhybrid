@@ -1,6 +1,24 @@
 """
 Training Loss Functions
 
+PLANNING NOTE - 2025-01-29
+STATUS: TO_BE_MODIFIED
+CURRENT: Traditional loss functions (cross-entropy, contrastive, etc.)
+PLANNED: Extend with measurement-based loss computation
+RATIONALE: Support both traditional and measurement-based training modes
+PRIORITY: MEDIUM
+DEPENDENCIES: models/action_gradient.py, utils/variational_entropy.py
+TESTING: Ensure backward compatibility with existing training code
+
+Planned additions:
+1. action_loss() - LIoR action as loss (S = ∫ R √g dx)
+2. entropy_loss() - Variational entropy for field regularization  
+3. conservation_loss() - Penalize violations of physics constraints
+4. measurement_loss() - Pure measurement-based loss (no autograd)
+
+Current implementation supports traditional training.
+New measurement-based losses will enable training/measurement_trainer.py.
+
 Implements various loss functions for multimodal cognitive training.
 
 Losses:
@@ -9,6 +27,11 @@ Losses:
 3. Multimodal Alignment: L2 distance in shared embedding space
 4. Field Regularization: Entropy penalties on field evolution
 5. Band Regularization: Soft penalty for A, B, Θ generator norms outside healthy range
+
+TO_BE_ADDED:
+6. Action Loss: LIoR action minimization
+7. Entropy Loss: Variational entropy regularization
+8. Conservation Loss: Physics constraint enforcement
 """
 try: import usage_tracker; usage_tracker.track(__file__)
 except: pass

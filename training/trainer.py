@@ -60,13 +60,29 @@ class CognitiveTrainer:
         field: nn.Module,
         train_loader: DataLoader,
         val_loader: Optional[DataLoader],
-        optimizer: torch.optim.Optimizer,
+        optimizer: torch.optim.Optimizer,  # TO_BE_REMOVED: Optimizer-based training
         lr_scheduler: Optional[object] = None,
         device: str = 'cuda',
         config: Optional[Dict] = None,
         tokenizer: Optional[object] = None,
         split_info: Optional[Dict] = None
     ):
+        """
+        PLANNING NOTE - 2025-01-29
+        STATUS: TO_BE_MODIFIED
+        CURRENT: Uses PyTorch optimizer (Adam/AdamW) with autograd
+        PLANNED: Replace with measurement-based training (training/measurement_trainer.py)
+        RATIONALE: Measurement training is more efficient and physically consistent
+        PRIORITY: HIGH
+        DEPENDENCIES: models/action_gradient.py, utils/variational_entropy.py
+        TESTING: Ensure convergence matches or exceeds optimizer-based training
+        
+        Key changes:
+        1. Remove optimizer parameter (compute gradients analytically)
+        2. Replace loss.backward() with analytic gradient computation
+        3. Update parameters via physics equations (not optimizer.step())
+        4. Monitor conservation laws during training
+        """
         from Liorhybrid.utils.pipeline_audit import audit_file_once
         audit_file_once("trainer", __file__)
 
@@ -74,7 +90,7 @@ class CognitiveTrainer:
         self.field = field
         self.train_loader = train_loader
         self.val_loader = val_loader
-        self.optimizer = optimizer
+        self.optimizer = optimizer  # TO_BE_REMOVED: See measurement_trainer.py
         self.lr_scheduler = lr_scheduler
         self.device = torch.device(device)
         self.tokenizer = tokenizer  # For inference

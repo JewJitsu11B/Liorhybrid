@@ -1,6 +1,21 @@
 """
 LIoR Optimizer: True geometric curvature-aware optimizer.
 
+PLANNING NOTE - 2025-01-29
+STATUS: TO_BE_ANALYZED
+CURRENT: Uses resilience field for curvature-aware updates (good approach!)
+PLANNED: Analyze compatibility with measurement-based training
+RATIONALE: May be superseded by measurement_trainer.py or kept as alternative
+PRIORITY: MEDIUM
+DEPENDENCIES: training/measurement_trainer.py (for comparison)
+TESTING: Compare LIoR optimizer vs measurement-based parameter updates
+
+Analysis needed:
+1. Can LIoR optimizer coexist with measurement training?
+2. Is the resilience-based update compatible with analytic gradients?
+3. Should this be kept as a fallback when measurement training unavailable?
+4. Performance comparison: LIoR optimizer vs direct physics updates
+
 Key insight: Instead of storing m/v tensors (Adam) or computing Hessians,
 use the resilience tensor R(x) from the cognitive manifold as a local
 curvature proxy. This gives O(N) complexity with zero state memory.

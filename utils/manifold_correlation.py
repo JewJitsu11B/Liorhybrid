@@ -1,377 +1,283 @@
 """
-Manifold-Lifted Correlation Measures
+Manifold Correlation - Geodesic Kendall Tau
 
-Statistical relationships on curved spaces (no flat-space assumptions).
+PLANNING NOTE - 2025-01-29
+STATUS: TO_BE_CREATED
+CURRENT: No manifold-aware correlation metrics
+PLANNED: Implement geodesic-aware Kendall's Tau for ranking correlation on manifolds
+RATIONALE: Standard Kendall Tau assumes Euclidean space; need Riemannian version
+PRIORITY: MEDIUM
+DEPENDENCIES: models/manifold.py (geodesic distances)
+TESTING: Compare with standard Kendall Tau on flat spaces, validate on curved manifolds
 
-Replaces:
-- Pearson correlation → Geodesic correlation (Fréchet mean-based)
-- Spearman correlation → Geodesic Kendall Tau (rank by LIoR distances)
+Purpose:
+--------
+Compute rank correlation (Kendall's Tau) that respects the Riemannian geometry
+of the cognitive manifold. This is essential for comparing rankings when data
+lives on a curved space.
 
-Pure PyTorch implementation (no scipy/sklearn).
+Standard Kendall Tau Problem:
+------------------------------
+Standard Kendall's Tau compares rankings based on pairwise comparisons:
+    τ = (# concordant pairs - # discordant pairs) / (n choose 2)
 
-Key insight: Standard correlation assumes Euclidean space.
-On a manifold, we must use geodesic distances and Fréchet means.
+But this assumes comparisons like "x_i < x_j" make sense, which requires
+a global linear ordering. On a manifold, there is no canonical ordering!
+
+Solution: Geodesic Kendall Tau:
+--------------------------------
+Replace linear comparisons with geodesic distance comparisons:
+- Concordant pair: d_g(x_i, p) < d_g(x_j, p) ⟺ d_g(y_i, q) < d_g(y_j, q)
+- Discordant pair: d_g(x_i, p) < d_g(x_j, p) ⟺ d_g(y_i, q) > d_g(y_j, q)
+
+Where:
+- d_g is the Riemannian geodesic distance
+- p, q are reference points (e.g., dataset centroid)
+- x_i, y_i are points in two different embeddings/rankings
+
+Mathematical Definition:
+------------------------
+For two rankings R_1 and R_2 of n points on a manifold M:
+
+1. Choose reference point p ∈ M (e.g., Fréchet mean)
+2. For each ranking, compute distances to p:
+   - d_1[i] = d_g(x_i, p) for R_1
+   - d_2[i] = d_g(y_i, p) for R_2
+3. Count concordant/discordant pairs based on distance ordering
+4. Compute τ_g = (C - D) / (n choose 2)
+
+Where:
+- C = # pairs where d_1 ordering agrees with d_2 ordering
+- D = # pairs where d_1 ordering disagrees with d_2 ordering
+
+Properties:
+-----------
+- τ_g ∈ [-1, 1]
+- τ_g = 1: Perfect agreement (same geodesic ordering)
+- τ_g = -1: Perfect disagreement (reversed geodesic ordering)
+- τ_g = 0: Random/no correlation
+- Reduces to standard τ when manifold is flat (Euclidean)
+
+Use Cases:
+----------
+1. Compare embedding quality: How well does learned embedding preserve distances?
+2. Validate neighbor selection: Do nearest neighbors agree across metrics?
+3. Monitor training: Track correlation between embeddings across epochs
+4. Evaluate manifold learning: Check if learned metric captures data structure
+
+Integration Points:
+-------------------
+- utils/comprehensive_similarity.py: Use as one of 15 channels
+- inference/address.py: Validate neighbor ordering
+- training/measurement_trainer.py: Monitor as training metric
+
+Example:
+--------
+>>> # Two embeddings of same data
+>>> X = torch.randn(100, 512)  # Embedding 1
+>>> Y = torch.randn(100, 512)  # Embedding 2
+>>> 
+>>> # Compute geodesic Kendall Tau
+>>> tau_g = geodesic_kendall_tau(X, Y, manifold, reference_idx=0)
+>>> print(f"Geodesic correlation: {tau_g:.3f}")
+
+Implementation Strategy:
+------------------------
+1. Compute geodesic distances from reference point to all points
+2. Convert distances to rankings (argsort)
+3. Count concordant/discordant pairs efficiently
+4. Handle ties appropriately (Tau-b variant)
+
+Performance:
+------------
+- Time: O(n² log n) for n points (geodesic distance dominates)
+- Space: O(n²) for distance matrix
+- Can use approximate geodesics for speed
+- Batch processing for multiple reference points
+
+References:
+-----------
+- Kendall, M.G. (1938): "A New Measure of Rank Correlation"
+- Borg & Groenen (2005): "Modern Multidimensional Scaling"
+- Riemannian geometry: Exponential map, Fréchet mean
 """
-try: import usage_tracker; usage_tracker.track(__file__)
-except: pass
+try:
+    import usage_tracker
+    usage_tracker.track(__file__)
+except ImportError:
+    # usage_tracker is optional; ignore if not installed
+    pass
 
 import torch
+import torch.nn as nn
 from typing import Optional, Tuple
-
-
-def geodesic_correlation(
-    X: torch.Tensor,
-    Y: torch.Tensor,
-    metric: Optional[torch.Tensor] = None
-) -> torch.Tensor:
-    """
-    Compute geodesic correlation (Pearson lifted to manifolds).
-    
-    Replaces:
-        - Euclidean mean → Fréchet mean (geodesic center)
-        - Covariance → Geodesic covariance
-    
-    Args:
-        X: First data (n_samples, d_model)
-        Y: Second data (n_samples, d_model)
-        metric: Optional Riemannian metric (d_model, d_model)
-    
-    Returns:
-        correlation: Geodesic correlation coefficient
-    """
-    n_samples, d_model = X.shape
-    
-    # Default to identity metric
-    if metric is None:
-        metric = torch.eye(d_model, device=X.device, dtype=X.dtype)
-    
-    # Compute Fréchet means (geodesic centers)
-    X_mean = frechet_mean(X, metric)
-    Y_mean = frechet_mean(Y, metric)
-    
-    # Center data using log maps (tangent space at Fréchet mean)
-    X_centered = torch.stack([log_map(x, X_mean, metric) for x in X])
-    Y_centered = torch.stack([log_map(y, Y_mean, metric) for y in Y])
-    
-    # Geodesic covariance in tangent space
-    cov_XY = torch.einsum('ni,ni->', X_centered, Y_centered) / n_samples
-    cov_XX = torch.einsum('ni,ni->', X_centered, X_centered) / n_samples
-    cov_YY = torch.einsum('ni,ni->', Y_centered, Y_centered) / n_samples
-    
-    # Correlation coefficient
-    correlation = cov_XY / torch.sqrt(cov_XX * cov_YY + 1e-8)
-    
-    return correlation
-
-
-def frechet_mean(
-    points: torch.Tensor,
-    metric: torch.Tensor,
-    max_iter: int = 100,
-    tol: float = 1e-6
-) -> torch.Tensor:
-    """
-    Compute Fréchet mean (geodesic center of mass).
-    
-    Minimizes: sum_i d²(x, x_i)
-    where d is the geodesic distance.
-    
-    Args:
-        points: Data points (n_points, d_model)
-        metric: Riemannian metric (d_model, d_model)
-        max_iter: Maximum iterations
-        tol: Convergence tolerance
-    
-    Returns:
-        mean: Fréchet mean point
-    """
-    # Initialize with Euclidean mean
-    mean = points.mean(dim=0)
-    
-    # Gradient descent on manifold
-    for _ in range(max_iter):
-        # Compute gradients: log maps from mean to each point
-        gradients = torch.stack([log_map(p, mean, metric) for p in points])
-        
-        # Average gradient (tangent vector)
-        avg_gradient = gradients.mean(dim=0)
-        
-        # Check convergence
-        if torch.linalg.norm(avg_gradient) < tol:
-            break
-        
-        # Move along geodesic
-        step_size = 0.1
-        mean = exp_map(mean, step_size * avg_gradient, metric)
-    
-    return mean
-
-
-def log_map(
-    x: torch.Tensor,
-    base: torch.Tensor,
-    metric: torch.Tensor
-) -> torch.Tensor:
-    """
-    Logarithmic map: map point to tangent space at base.
-    
-    For small distances, log_base(x) ≈ x - base.
-    
-    Args:
-        x: Point to map
-        base: Base point
-        metric: Riemannian metric
-    
-    Returns:
-        tangent: Vector in tangent space at base
-    """
-    # First-order approximation
-    # Full implementation would solve geodesic equation
-    diff = x - base
-    
-    # Metric-weighted projection
-    # tangent = g^(-1) @ diff
-    try:
-        metric_inv = torch.linalg.inv(metric + 1e-6 * torch.eye(metric.shape[0], device=metric.device))
-        tangent = metric_inv @ diff
-    except:
-        # Fallback if inversion fails
-        tangent = diff
-    
-    return tangent
-
-
-def exp_map(
-    base: torch.Tensor,
-    tangent: torch.Tensor,
-    metric: torch.Tensor
-) -> torch.Tensor:
-    """
-    Exponential map: map tangent vector to manifold.
-    
-    For small vectors, exp_base(v) ≈ base + v.
-    
-    Args:
-        base: Base point
-        tangent: Tangent vector at base
-        metric: Riemannian metric
-    
-    Returns:
-        point: Point on manifold
-    """
-    # First-order approximation
-    point = base + metric @ tangent
-    
-    return point
 
 
 def geodesic_kendall_tau(
     X: torch.Tensor,
     Y: torch.Tensor,
-    metric: Optional[torch.Tensor] = None
+    manifold: nn.Module,
+    reference: Optional[torch.Tensor] = None,
+    reference_idx: Optional[int] = None,
+    tie_correction: bool = True
 ) -> torch.Tensor:
     """
-    Compute Geodesic Kendall Tau (rank correlation on manifolds).
-    
-    Non-parametric, manifold-safe correlation.
-    Ranks by LIoR distances instead of Euclidean distances.
+    STUB: Compute geodesic-aware Kendall's Tau correlation.
     
     Args:
-        X: First data (n_samples, d_model)
-        Y: Second data (n_samples, d_model)
-        metric: Optional Riemannian metric (d_model, d_model)
-    
+        X: (N, D) - First set of points on manifold
+        Y: (N, D) - Second set of points on manifold
+        manifold: CognitiveManifold providing geodesic distances
+        reference: (D,) - Reference point (default: Fréchet mean)
+        reference_idx: int - Use X[reference_idx] as reference
+        tie_correction: Use Tau-b correction for ties
+        
     Returns:
-        tau: Kendall Tau correlation coefficient
+        tau: Scalar - Geodesic Kendall's Tau in [-1, 1]
+        
+    Raises:
+        ValueError: If X and Y have different sizes
     """
-    n_samples = X.shape[0]
-    
-    # Default to identity metric
-    if metric is None:
-        metric = torch.eye(X.shape[1], device=X.device, dtype=X.dtype)
-    
-    # Compute pairwise geodesic distances
-    X_dists = pairwise_geodesic_distances(X, metric)
-    Y_dists = pairwise_geodesic_distances(Y, metric)
-    
-    # Flatten upper triangular (excluding diagonal)
-    X_dists_flat = X_dists[torch.triu(torch.ones_like(X_dists), diagonal=1) == 1]
-    Y_dists_flat = Y_dists[torch.triu(torch.ones_like(Y_dists), diagonal=1) == 1]
-    
-    # Count concordant and discordant pairs
-    concordant = 0
-    discordant = 0
-    
-    n_pairs = len(X_dists_flat)
-    for i in range(n_pairs):
-        for j in range(i + 1, n_pairs):
-            # Check if ordering agrees
-            if (X_dists_flat[i] < X_dists_flat[j] and Y_dists_flat[i] < Y_dists_flat[j]) or \
-               (X_dists_flat[i] > X_dists_flat[j] and Y_dists_flat[i] > Y_dists_flat[j]):
-                concordant += 1
-            elif (X_dists_flat[i] < X_dists_flat[j] and Y_dists_flat[i] > Y_dists_flat[j]) or \
-                 (X_dists_flat[i] > X_dists_flat[j] and Y_dists_flat[i] < Y_dists_flat[j]):
-                discordant += 1
-    
-    # Kendall Tau
-    total_pairs = concordant + discordant
-    if total_pairs == 0:
-        tau = torch.tensor(0.0, device=X.device)
-    else:
-        tau = (concordant - discordant) / total_pairs
-        tau = torch.tensor(tau, device=X.device, dtype=X.dtype)
-    
-    return tau
+    raise NotImplementedError(
+        "geodesic_kendall_tau: "
+        "1. Choose reference point (Fréchet mean or specified) "
+        "2. Compute geodesic distances from reference to all X and Y points "
+        "3. Convert distances to rankings via argsort "
+        "4. Count concordant/discordant pairs "
+        "5. Apply tie correction if needed "
+        "6. Return tau in [-1, 1]"
+    )
 
 
-def pairwise_geodesic_distances(
-    X: torch.Tensor,
-    metric: torch.Tensor
-) -> torch.Tensor:
-    """
-    Compute pairwise geodesic distances.
-    
-    Args:
-        X: Data points (n_samples, d_model)
-        metric: Riemannian metric (d_model, d_model)
-    
-    Returns:
-        distances: Pairwise distance matrix (n_samples, n_samples)
-    """
-    n_samples = X.shape[0]
-    distances = torch.zeros(n_samples, n_samples, device=X.device, dtype=X.dtype)
-    
-    for i in range(n_samples):
-        for j in range(i + 1, n_samples):
-            # Geodesic distance: √((x_i - x_j)ᵀ g (x_i - x_j))
-            diff = X[i] - X[j]
-            dist_sq = torch.einsum('i,ij,j->', diff, metric, diff)
-            dist = torch.sqrt(torch.clamp(dist_sq, min=0.0))
-            
-            distances[i, j] = dist
-            distances[j, i] = dist
-    
-    return distances
-
-
-def manifold_mutual_information(
+def batch_geodesic_kendall_tau(
     X: torch.Tensor,
     Y: torch.Tensor,
-    metric: Optional[torch.Tensor] = None,
-    n_bins: int = 10
+    manifold: nn.Module,
+    reference_points: Optional[torch.Tensor] = None
 ) -> torch.Tensor:
     """
-    Compute manifold mutual information.
+    STUB: Compute geodesic Kendall's Tau for multiple reference points.
     
-    Uses geodesic distance quantiles for binning (not Euclidean).
+    Useful for getting a robust correlation estimate by averaging over
+    multiple reference points.
     
     Args:
-        X: First data (n_samples, d_model)
-        Y: Second data (n_samples, d_model)
-        metric: Optional Riemannian metric (d_model, d_model)
-        n_bins: Number of bins for histogram
-    
+        X: (N, D) - First set of points
+        Y: (N, D) - Second set of points
+        manifold: CognitiveManifold
+        reference_points: (K, D) - K reference points
+        
     Returns:
-        mi: Mutual information
+        tau_vector: (K,) - Tau for each reference point
     """
-    n_samples = X.shape[0]
-    
-    # Default to identity metric
-    if metric is None:
-        metric = torch.eye(X.shape[1], device=X.device, dtype=X.dtype)
-    
-    # Compute geodesic distances from origin
-    origin = torch.zeros_like(X[0])
-    X_dists = torch.stack([
-        torch.sqrt(torch.einsum('i,ij,j->', x - origin, metric, x - origin))
-        for x in X
-    ])
-    Y_dists = torch.stack([
-        torch.sqrt(torch.einsum('i,ij,j->', y - origin, metric, y - origin))
-        for y in Y
-    ])
-    
-    # Quantile-based binning (geodesic quantiles)
-    X_bins = torch.searchsorted(torch.quantile(X_dists, torch.linspace(0, 1, n_bins + 1, device=X.device)), X_dists)
-    Y_bins = torch.searchsorted(torch.quantile(Y_dists, torch.linspace(0, 1, n_bins + 1, device=Y.device)), Y_dists)
-    
-    # Clamp bins
-    X_bins = torch.clamp(X_bins, 0, n_bins - 1)
-    Y_bins = torch.clamp(Y_bins, 0, n_bins - 1)
-    
-    # Compute joint and marginal probabilities
-    joint_hist = torch.zeros(n_bins, n_bins, device=X.device)
-    for i in range(n_samples):
-        joint_hist[X_bins[i], Y_bins[i]] += 1
-    joint_prob = joint_hist / n_samples
-    
-    X_marginal = joint_prob.sum(dim=1)
-    Y_marginal = joint_prob.sum(dim=0)
-    
-    # Mutual information: sum_ij p(i,j) log(p(i,j) / (p(i)p(j)))
-    mi = 0.0
-    for i in range(n_bins):
-        for j in range(n_bins):
-            if joint_prob[i, j] > 0:
-                mi += joint_prob[i, j] * torch.log(
-                    joint_prob[i, j] / (X_marginal[i] * Y_marginal[j] + 1e-10) + 1e-10
-                )
-    
-    return mi
+    raise NotImplementedError(
+        "batch_geodesic_kendall_tau: "
+        "Vectorize over reference points. "
+        "Return vector of tau values for averaging or analysis."
+    )
 
 
-def test_manifold_correlation():
-    """Test manifold correlation measures."""
-    print("Testing manifold correlation measures...")
+@torch.inference_mode()
+def compute_frechet_mean(
+    points: torch.Tensor,
+    manifold: nn.Module,
+    max_iter: int = 50,
+    tol: float = 1e-6
+) -> torch.Tensor:
+    """
+    STUB: Compute Fréchet mean (intrinsic mean) on Riemannian manifold.
     
-    # Generate test data on curved space (sphere-like)
-    n_samples = 50
-    d_model = 32
+    Fréchet mean minimizes sum of squared geodesic distances:
+        μ = argmin_p Σ_i d_g(p, x_i)²
     
-    # Create points on sphere (curved space)
-    X = torch.randn(n_samples, d_model)
-    X = X / torch.linalg.norm(X, dim=1, keepdim=True)  # Normalize to sphere
+    Iterative algorithm:
+    1. Initialize μ = mean of points in ambient space
+    2. Compute log_p(x_i) for all i (tangent vectors)
+    3. Update: μ ← exp_μ(mean of tangent vectors)
+    4. Repeat until convergence
     
-    # Create correlated Y
-    noise = torch.randn(n_samples, d_model) * 0.1
-    Y = X + noise
-    Y = Y / torch.linalg.norm(Y, dim=1, keepdim=True)  # Back to sphere
-    
-    # Create non-identity metric (curved space)
-    metric = torch.eye(d_model)
-    metric[0, 0] = 2.0  # Stretch first dimension
-    metric[-1, -1] = 0.5  # Compress last dimension
-    
-    # Test Fréchet mean
-    print("\n1. Fréchet Mean")
-    mean = frechet_mean(X, metric)
-    print(f"   Mean shape: {mean.shape}")
-    print(f"   Mean norm: {torch.linalg.norm(mean).item():.4f}")
-    
-    # Test geodesic correlation
-    print("\n2. Geodesic Correlation")
-    corr = geodesic_correlation(X, Y, metric)
-    print(f"   Correlation: {corr.item():.4f}")
-    
-    # Test geodesic Kendall Tau
-    print("\n3. Geodesic Kendall Tau")
-    tau = geodesic_kendall_tau(X[:20], Y[:20], metric)  # Use subset for speed
-    print(f"   Kendall Tau: {tau.item():.4f}")
-    
-    # Test manifold MI
-    print("\n4. Manifold Mutual Information")
-    mi = manifold_mutual_information(X[:30], Y[:30], metric, n_bins=5)
-    print(f"   MI: {mi.item():.4f}")
-    
-    # Test pairwise distances
-    print("\n5. Pairwise Geodesic Distances")
-    dists = pairwise_geodesic_distances(X[:5], metric)
-    print(f"   Distance matrix shape: {dists.shape}")
-    print(f"   Max distance: {dists.max().item():.4f}")
-    print(f"   Mean distance: {dists[dists > 0].mean().item():.4f}")
-    
-    print("\nManifold correlation tests passed!")
+    Args:
+        points: (N, D) - Points on manifold
+        manifold: CognitiveManifold providing exp/log maps
+        max_iter: Maximum iterations
+        tol: Convergence tolerance
+        
+    Returns:
+        frechet_mean: (D,) - Intrinsic mean (Fréchet mean) on manifold
+    """
+    raise NotImplementedError(
+        "compute_frechet_mean: "
+        "Implement gradient descent on manifold. "
+        "Use exponential/logarithmic maps from manifold. "
+        "Essential for choosing good reference point."
+    )
 
 
-if __name__ == '__main__':
-    test_manifold_correlation()
+def count_concordant_discordant(
+    ranks1: torch.Tensor,
+    ranks2: torch.Tensor
+) -> Tuple[int, int, int]:
+    """
+    STUB: Count concordant, discordant, and tied pairs.
+    
+    Args:
+        ranks1: (N,) - Rankings from first metric
+        ranks2: (N,) - Rankings from second metric
+        
+    Returns:
+        concordant: Number of concordant pairs
+        discordant: Number of discordant pairs
+        ties: Number of tied pairs
+    """
+    raise NotImplementedError(
+        "count_concordant_discordant: "
+        "Efficiently count pairs via vectorization. "
+        "Avoid O(n²) loops - use broadcasting or einsum."
+    )
+
+
+class ManifoldCorrelationMetrics:
+    """
+    NEW_FEATURE_STUB: Suite of manifold-aware correlation metrics.
+    
+    Beyond Kendall's Tau, includes:
+    - Spearman's ρ (geodesic version)
+    - Pearson's r (tangent space version)
+    - Distance correlation (energy distance)
+    """
+    
+    def __init__(self, manifold: nn.Module):
+        """
+        Args:
+            manifold: CognitiveManifold for geometric operations
+        """
+        raise NotImplementedError(
+            "ManifoldCorrelationMetrics: Collection of correlation measures. "
+            "Each should respect Riemannian geometry."
+        )
+    
+    def geodesic_spearman_rho(
+        self,
+        X: torch.Tensor,
+        Y: torch.Tensor,
+        reference: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """STUB: Spearman's rank correlation using geodesic distances."""
+        raise NotImplementedError("Similar to Kendall but uses squared rank differences")
+    
+    def tangent_pearson_r(
+        self,
+        X: torch.Tensor,
+        Y: torch.Tensor,
+        reference: torch.Tensor
+    ) -> torch.Tensor:
+        """STUB: Pearson correlation in tangent space at reference point."""
+        raise NotImplementedError("Use log map to tangent space, then standard Pearson")
+    
+    def distance_correlation(
+        self,
+        X: torch.Tensor,
+        Y: torch.Tensor
+    ) -> torch.Tensor:
+        """STUB: Distance correlation using geodesic distance matrices."""
+        raise NotImplementedError("Energy distance-based correlation")

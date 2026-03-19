@@ -177,7 +177,7 @@
   "models/__init__.py": {
     "call_count": 21,
     "first_called": "2026-01-23T23:22:02.580518",
-    "last_called": "2026-01-29T07:24:57.968515"
+    "last_called": "2026-01-29T07:36:22.702961"
   },
   "models/activations.py": {
     "call_count": 17,
@@ -202,7 +202,7 @@
   "models/language_head.py": {
     "call_count": 21,
     "first_called": "2026-01-23T23:22:02.581950",
-    "last_called": "2026-01-29T07:24:57.969943"
+    "last_called": "2026-01-29T07:36:22.704343"
   },
   "models/lior_kernel.py": {
     "call_count": 25,

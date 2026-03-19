@@ -89,6 +89,22 @@ def compute_geodesic_cost(
     # Cast metric to match embeddings dtype/device for stability
     metric = metric.to(device=proj.device, dtype=proj.dtype)
     
+    """
+    PLANNING NOTE - 2025-01-29
+    STATUS: TO_BE_REMOVED
+    CURRENT: Uses autograd to compute gradients from geodesic cost
+    PLANNED: Replace with analytic gradients from models/action_gradient.py
+    RATIONALE: Analytic gradients are faster, more accurate, and physically interpretable
+    PRIORITY: HIGH
+    DEPENDENCIES: models/action_gradient.py (measure_trajectory, compute_action_gradient)
+    TESTING: Validate gradient accuracy vs autograd, check conservation laws
+    
+    This compute_geodesic_cost function will be replaced by:
+    1. measure_trajectory() - Pure measurement, no autograd
+    2. compute_action_gradient() - Analytic formulas
+    3. Direct parameter updates (no optimizer)
+    """
+    # TO_BE_REMOVED: autograd-based gradient computation
     # Metric inner product: g_μν ẋ^μ ẋ^ν
     # g(ẋ,ẋ) = ẋᵀ g ẋ
     g_dx_dx = torch.einsum('bti,ij,btj->bt', proj, metric, proj)  # (B, T-1)
@@ -175,6 +191,15 @@ def update_adaptive_parameters(
 ):
     """
     Update adaptive field parameters α, ν, τ via entropy gradient.
+    
+    PLANNING NOTE - 2025-01-29
+    STATUS: TO_BE_MODIFIED
+    CURRENT: Uses autograd for entropy gradients (field.alpha.grad)
+    PLANNED: Replace with analytic entropy gradients from utils/variational_entropy.py
+    RATIONALE: Consistent with measurement-based approach, no autograd overhead
+    PRIORITY: HIGH
+    DEPENDENCIES: utils/variational_entropy.py (entropy_gradient function)
+    TESTING: Compare entropy evolution with current implementation
 
     These update independently of the main loss via:
         dα/dt = -η_α ∂H/∂α

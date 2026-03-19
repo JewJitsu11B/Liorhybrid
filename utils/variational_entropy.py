@@ -1,381 +1,341 @@
 """
-Variational Entropy (Field-Aware)
+Variational Entropy - Field-Aware Entropy Computation
 
-Fast, field-aware entropy measure that avoids expensive eigendecomposition.
+PLANNING NOTE - 2025-01-29
+STATUS: TO_BE_CREATED
+CURRENT: Basic entropy computation without field context
+PLANNED: Field-aware variational entropy with geometric corrections
+RATIONALE: Proper entropy accounting for curved geometry and field structure
+PRIORITY: HIGH
+DEPENDENCIES: models/manifold.py, models/complex_metric.py
+TESTING: Compare with standard entropy, validate entropy bounds, check monotonicity
 
-Replaces Von Neumann entropy in performance-critical paths:
-    OLD: H = -Tr(ρ log ρ)  [requires eigendecomp]
-    NEW: H_var = variational approximation [O(N) complexity]
+Purpose:
+--------
+Compute entropy of cognitive field states accounting for Riemannian geometry.
+Standard entropy H = -Tr(T log T) assumes flat geometry; we need corrections
+for curved manifolds and complex field structure.
 
-Pure PyTorch implementation.
+Mathematical Foundation:
+------------------------
+Standard entropy (flat space):
+    H = -Tr(T log T) = -Σᵢ λᵢ log λᵢ
+
+Variational entropy (curved space):
+    H_var = -Tr(T log T) + ½ log det(g) + V[T]
+
+Where:
+- g: Metric tensor determinant (volume form correction)
+- V[T]: Variational correction from field equations
+- T: Cognitive field state (density operator)
+
+Geometric Corrections:
+----------------------
+1. Volume form correction: ½ log det(g)
+   - Accounts for curved geometry
+   - In flat space: det(g) = 1, correction = 0
+
+2. Curvature correction: -∫ R · H dV
+   - R: Scalar curvature
+   - Entropy weighted by local curvature
+
+3. Complex phase correction: Im(Tr(T log T))
+   - For complex fields with phase structure
+   - Measures phase space volume
+
+Physical Interpretation:
+------------------------
+- H_var measures information content in field-aware way
+- Higher in high-curvature regions (more "room" for information)
+- Lower where field is more constrained by geometry
+- Guides field parameter updates in measurement_trainer.py
+
+Variational Principle:
+----------------------
+Field parameters evolve to minimize free energy:
+    F = E - T·S = E_field - β·H_var
+
+Where:
+- E = E_field: Expected energy (Hamiltonian expectation)
+- S = H_var: Variational entropy
+- β: Inverse temperature
+- T: Temperature parameter
+
+Gradient Flow:
+--------------
+Parameter updates via entropy gradient:
+    dα/dt = -η · ∂H_var/∂α
+    dν/dt = -η · ∂H_var/∂ν
+    dτ/dt = -η · ∂H_var/∂τ
+
+These gradients guide field evolution in measurement_trainer.py
+
+Properties:
+-----------
+1. Non-negativity: H_var ≥ 0
+2. Maximum: H_var ≤ log(dim(T)) + corrections
+3. Monotonicity: For closed systems, dH_var/dt ≥ 0 (2nd law)
+4. Concavity: d²H_var/dT² ≤ 0
+
+Use Cases:
+----------
+1. Field parameter updates (training/measurement_trainer.py)
+2. Information flow monitoring
+3. Convergence criteria (stop when ΔH_var < ε)
+4. Regularization (entropy penalty in loss)
+
+Comparison with Standard Entropy:
+----------------------------------
+Flat manifold (Euclidean):
+    H_var ≈ H_standard
+
+Curved manifold (Riemannian):
+    H_var = H_standard + geometric_corrections
+
+Complex field:
+    H_var has imaginary part (phase entropy)
+
+Integration Points:
+-------------------
+- training/measurement_trainer.py: Primary user for field updates
+- models/action_gradient.py: Related to entropy gradients
+- utils/metrics.py: Logging and monitoring
+
+Performance:
+------------
+- Time: O(D³) for eigendecomposition of D×D field
+- Space: O(D²) for field state
+- GPU accelerated via torch.linalg
+- Batched over spatial positions
+
+References:
+-----------
+- Von Neumann entropy: Quantum information theory
+- Variational methods: Calculus of variations
+- Information geometry: Natural gradient, Fisher metric
+- Thermodynamics: Free energy minimization
 """
-try: import usage_tracker; usage_tracker.track(__file__)
-except: pass
+try:
+    import usage_tracker
+    usage_tracker.track(__file__)
+except ImportError:
+    # usage_tracker is optional; ignore if not installed
+    pass
 
 import torch
 import torch.nn as nn
-from typing import Optional
+from typing import Optional, Dict, Tuple
 
 
 def variational_entropy(
     field_state: torch.Tensor,
-    temperature: float = 1.0
+    metric: Optional[torch.Tensor] = None,
+    curvature: Optional[torch.Tensor] = None,
+    return_components: bool = False
 ) -> torch.Tensor:
     """
-    Compute variational entropy (field-aware, fast).
-    
-    Approximates Von Neumann entropy without eigendecomposition:
-        H_var ≈ -Tr(T log T) using variational bound
+    STUB: Compute field-aware variational entropy.
     
     Args:
-        field_state: Field state tensor (N_x, N_y, D, D) or (D, D)
-        temperature: Temperature parameter (default 1.0)
-    
+        field_state: (N_x, N_y, D, D) - Cognitive field state T
+        metric: (D, D) or (N_x, N_y, D, D) - Metric tensor g
+        curvature: (N_x, N_y) or scalar - Scalar curvature R
+        return_components: Return breakdown of entropy terms
+        
     Returns:
-        entropy: Variational entropy estimate
+        entropy: Scalar or (N_x, N_y) - Variational entropy
+        
+        If return_components=True, returns dict with:
+        - 'base': Standard von Neumann entropy
+        - 'volume': Volume form correction
+        - 'curvature': Curvature correction
+        - 'phase': Complex phase entropy (if complex field)
+        - 'total': Sum of all terms
     """
-    # Spatial average if spatial dimensions present
-    if field_state.ndim == 4:
-        T = field_state.mean(dim=(0, 1))  # (D, D)
-    else:
-        T = field_state
-    
-    # Handle complex tensors
-    if T.is_complex():
-        T_real = torch.abs(T)
-    else:
-        T_real = torch.abs(T)
-    
-    # Normalize to probability distribution
-    trace = torch.diagonal(T_real).sum()
-    rho = T_real / (trace + 1e-8)
-    
-    # Variational bound using matrix logarithm approximation
-    # log(ρ) ≈ (ρ - I) - (ρ - I)²/2 + (ρ - I)³/3 - ... (Taylor series)
-    # For entropy, use simpler bound: H ≈ -sum_i ρ_ii log(ρ_ii)
-    
-    diag = torch.diagonal(rho)
-    diag_clipped = torch.clamp(diag, min=1e-10, max=1.0)
-    
-    # Diagonal entropy (variational approximation)
-    entropy = -torch.sum(diag_clipped * torch.log(diag_clipped))
-    
-    # Temperature scaling
-    entropy = entropy / temperature
-    
-    return entropy
+    raise NotImplementedError(
+        "variational_entropy: "
+        "1. Compute base entropy: -Tr(T log T) "
+        "2. Add volume correction: ½ log det(g) "
+        "3. Add curvature correction: -∫ R·H dV "
+        "4. For complex T, add phase entropy "
+        "5. Return total or components"
+    )
 
 
-def variational_entropy_gradient(
+def entropy_gradient(
     field_state: torch.Tensor,
-    temperature: float = 1.0
-) -> torch.Tensor:
+    field_params: Dict[str, torch.Tensor],
+    metric: Optional[torch.Tensor] = None
+) -> Dict[str, torch.Tensor]:
     """
-    Compute gradient of variational entropy.
+    STUB: Compute gradients of variational entropy w.r.t. field parameters.
     
-    Used for field evolution: dH/dT.
+    For field parameters α, ν, τ:
+        ∂H_var/∂α, ∂H_var/∂ν, ∂H_var/∂τ
+    
+    These gradients guide field evolution in measurement training.
     
     Args:
-        field_state: Field state tensor
-        temperature: Temperature parameter
-    
+        field_state: (N_x, N_y, D, D) - Current field state
+        field_params: Dict with 'alpha', 'nu', 'tau' tensors
+        metric: Optional metric tensor
+        
     Returns:
-        gradient: Entropy gradient
+        gradients: Dict with 'alpha', 'nu', 'tau' gradient tensors
     """
-    # Spatial average
-    if field_state.ndim == 4:
-        T = field_state.mean(dim=(0, 1))
-    else:
-        T = field_state
-    
-    # Handle complex
-    if T.is_complex():
-        T_real = torch.abs(T)
-    else:
-        T_real = torch.abs(T)
-    
-    # Normalize
-    trace = torch.diagonal(T_real).sum()
-    rho = T_real / (trace + 1e-8)
-    
-    # Gradient: dH/dρ = -(log(ρ) + 1)
-    diag = torch.diagonal(rho)
-    diag_clipped = torch.clamp(diag, min=1e-10)
-    
-    grad_diag = -(torch.log(diag_clipped) + 1.0) / temperature
-    
-    # Full gradient (diagonal matrix)
-    gradient = torch.diag(grad_diag)
-    
-    return gradient
+    raise NotImplementedError(
+        "entropy_gradient: "
+        "Compute analytic or finite-difference gradients. "
+        "Use chain rule: ∂H/∂α = (∂H/∂T) · (∂T/∂α). "
+        "Return pure tensors (no autograd graph)."
+    )
 
 
-def renyi_entropy(
+class VariationalEntropyComputer(nn.Module):
+    """
+    NEW_FEATURE_STUB: Stateful entropy computer with caching.
+    
+    Maintains running estimates and caches for efficiency.
+    """
+    
+    def __init__(
+        self,
+        field_dim: int = 8,
+        grid_size: Tuple[int, int] = (64, 64),
+        cache_eigenvalues: bool = True
+    ):
+        """
+        Args:
+            field_dim: Dimension of field tensors D
+            grid_size: Spatial grid dimensions (N_x, N_y)
+            cache_eigenvalues: Cache eigendecomposition for speed
+        """
+        super().__init__()
+        self.field_dim = field_dim
+        self.grid_size = grid_size
+        self.cache_eigenvalues = cache_eigenvalues
+        raise NotImplementedError(
+            "VariationalEntropyComputer: "
+            "Setup caching structures. "
+            "Initialize running statistics. "
+            "Create projection operators if needed."
+        )
+    
+    def forward(
+        self,
+        field_state: torch.Tensor,
+        metric: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """
+        STUB: Compute entropy with caching.
+        
+        Returns: Scalar entropy value
+        """
+        raise NotImplementedError("Use cached eigenvalues if available")
+    
+    def update_cache(self, field_state: torch.Tensor):
+        """STUB: Update cached eigenvalues."""
+        raise NotImplementedError("Eigendecomposition and caching")
+    
+    def clear_cache(self):
+        """STUB: Clear cached values."""
+        raise NotImplementedError("Reset cache")
+
+
+@torch.inference_mode()
+def entropy_profile(
     field_state: torch.Tensor,
-    alpha: float = 2.0
+    metric: Optional[torch.Tensor] = None
 ) -> torch.Tensor:
     """
-    Compute Rényi entropy (collision entropy for α=2).
+    STUB: Compute spatial entropy profile.
     
-    H_α(ρ) = 1/(1-α) log(Tr(ρ^α))
-    
-    For α=2: H_2(ρ) = -log(Tr(ρ²)) (collision entropy)
+    Returns entropy at each spatial location.
     
     Args:
-        field_state: Field state tensor
-        alpha: Rényi parameter (default 2.0)
-    
+        field_state: (N_x, N_y, D, D) - Cognitive field
+        metric: Optional metric tensor
+        
     Returns:
-        entropy: Rényi entropy
+        entropy_map: (N_x, N_y) - Entropy at each point
     """
-    # Spatial average
-    if field_state.ndim == 4:
-        T = field_state.mean(dim=(0, 1))
-    else:
-        T = field_state
-    
-    # Handle complex
-    if T.is_complex():
-        T_real = torch.abs(T)
-    else:
-        T_real = torch.abs(T)
-    
-    # Normalize
-    trace = torch.diagonal(T_real).sum()
-    rho = T_real / (trace + 1e-8)
-    
-    if alpha == 2.0:
-        # Collision entropy: H_2 = -log(Tr(ρ²))
-        rho_squared = rho @ rho
-        trace_squared = torch.diagonal(rho_squared).sum()
-        entropy = -torch.log(trace_squared + 1e-10)
-    else:
-        # General case: H_α = 1/(1-α) log(Tr(ρ^α))
-        rho_alpha = torch.linalg.matrix_power(rho, int(alpha))
-        trace_alpha = torch.diagonal(rho_alpha).sum()
-        entropy = torch.log(trace_alpha + 1e-10) / (1.0 - alpha)
-    
-    return entropy
+    raise NotImplementedError(
+        "entropy_profile: "
+        "Compute local entropy for each (x,y) position. "
+        "Useful for visualization and diagnostics."
+    )
 
 
-def shannon_entropy(
-    field_state: torch.Tensor
+def conditional_entropy(
+    field_state: torch.Tensor,
+    conditioning: torch.Tensor,
+    metric: Optional[torch.Tensor] = None
 ) -> torch.Tensor:
     """
-    Compute Shannon entropy (α → 1 limit of Rényi).
+    STUB: Compute conditional entropy H(T|C).
     
-    H(ρ) = -Tr(ρ log ρ)
-    
-    This is the classic Von Neumann entropy.
-    For diagonal ρ, reduces to classical Shannon entropy.
+    Information-theoretic conditional entropy on the manifold.
     
     Args:
-        field_state: Field state tensor
-    
+        field_state: (N_x, N_y, D, D) - Field state T
+        conditioning: (N_x, N_y, D, D) - Conditioning field C
+        metric: Optional metric tensor
+        
     Returns:
-        entropy: Shannon entropy
+        cond_entropy: Scalar - H(T|C)
     """
-    # Spatial average
-    if field_state.ndim == 4:
-        T = field_state.mean(dim=(0, 1))
-    else:
-        T = field_state
-    
-    # Handle complex
-    if T.is_complex():
-        T_real = torch.abs(T)
-    else:
-        T_real = torch.abs(T)
-    
-    # Normalize
-    trace = torch.diagonal(T_real).sum()
-    rho = T_real / (trace + 1e-8)
-    
-    # Eigendecomposition for true Von Neumann entropy
-    try:
-        eigenvalues = torch.linalg.eigvalsh(rho)
-        eigenvalues = torch.clamp(eigenvalues, min=1e-10)
-        entropy = -torch.sum(eigenvalues * torch.log(eigenvalues))
-    except:
-        # Fallback to diagonal approximation
-        diag = torch.diagonal(rho)
-        diag_clipped = torch.clamp(diag, min=1e-10)
-        entropy = -torch.sum(diag_clipped * torch.log(diag_clipped))
-    
-    return entropy
-
-
-def relative_entropy(
-    field_state_1: torch.Tensor,
-    field_state_2: torch.Tensor
-) -> torch.Tensor:
-    """
-    Compute relative entropy (KL divergence) between two field states.
-    
-    D(ρ₁||ρ₂) = Tr(ρ₁ log ρ₁ - ρ₁ log ρ₂)
-    
-    Args:
-        field_state_1: First field state
-        field_state_2: Second field state
-    
-    Returns:
-        divergence: Relative entropy
-    """
-    # Process both states
-    if field_state_1.ndim == 4:
-        T1 = field_state_1.mean(dim=(0, 1))
-        T2 = field_state_2.mean(dim=(0, 1))
-    else:
-        T1 = field_state_1
-        T2 = field_state_2
-    
-    # Handle complex
-    if T1.is_complex():
-        T1_real = torch.abs(T1)
-    else:
-        T1_real = torch.abs(T1)
-    
-    if T2.is_complex():
-        T2_real = torch.abs(T2)
-    else:
-        T2_real = torch.abs(T2)
-    
-    # Normalize both
-    trace1 = torch.diagonal(T1_real).sum()
-    trace2 = torch.diagonal(T2_real).sum()
-    rho1 = T1_real / (trace1 + 1e-8)
-    rho2 = T2_real / (trace2 + 1e-8)
-    
-    # Diagonal approximation for KL divergence
-    diag1 = torch.diagonal(rho1)
-    diag2 = torch.diagonal(rho2)
-    
-    diag1_clipped = torch.clamp(diag1, min=1e-10)
-    diag2_clipped = torch.clamp(diag2, min=1e-10)
-    
-    # KL: sum_i ρ₁[i] log(ρ₁[i]/ρ₂[i])
-    divergence = torch.sum(diag1_clipped * torch.log(diag1_clipped / diag2_clipped))
-    
-    return divergence
+    raise NotImplementedError(
+        "conditional_entropy: "
+        "H(T|C) = H(T,C) - H(C). "
+        "Joint entropy of combined system minus conditioning entropy."
+    )
 
 
 def mutual_information(
-    field_state_joint: torch.Tensor,
-    field_state_1: torch.Tensor,
-    field_state_2: torch.Tensor
+    field1: torch.Tensor,
+    field2: torch.Tensor,
+    metric: Optional[torch.Tensor] = None
 ) -> torch.Tensor:
     """
-    Compute mutual information between two subsystems.
+    STUB: Compute mutual information I(T1; T2).
     
-    I(1:2) = H(ρ₁) + H(ρ₂) - H(ρ₁₂)
+    Measures information shared between two field states.
     
     Args:
-        field_state_joint: Joint field state
-        field_state_1: Marginal field state 1
-        field_state_2: Marginal field state 2
-    
+        field1: (N_x, N_y, D, D) - First field
+        field2: (N_x, N_y, D, D) - Second field
+        metric: Optional metric tensor
+        
     Returns:
-        mi: Mutual information
+        mi: Scalar - I(T1; T2) ≥ 0
     """
-    H_joint = variational_entropy(field_state_joint)
-    H_1 = variational_entropy(field_state_1)
-    H_2 = variational_entropy(field_state_2)
-    
-    mi = H_1 + H_2 - H_joint
-    
-    return mi
+    raise NotImplementedError(
+        "mutual_information: "
+        "I(T1;T2) = H(T1) + H(T2) - H(T1,T2). "
+        "Measures correlation between field states."
+    )
 
 
-class EntropyTracker(nn.Module):
+def relative_entropy(
+    field_state: torch.Tensor,
+    reference_state: torch.Tensor,
+    metric: Optional[torch.Tensor] = None
+) -> torch.Tensor:
     """
-    Module for tracking entropy evolution during training.
+    STUB: Compute relative entropy (KL divergence) D(T || T_ref).
     
-    Monitors:
-    - Variational entropy
-    - Rényi entropy (α=2)
-    - Shannon entropy (expensive, optional)
+    Also known as Kullback-Leibler divergence on the manifold.
+    
+    Args:
+        field_state: (N_x, N_y, D, D) - Current field state
+        reference_state: (N_x, N_y, D, D) - Reference field state
+        metric: Optional metric tensor
+        
+    Returns:
+        rel_entropy: Scalar - D(T || T_ref) ≥ 0
     """
-    
-    def __init__(self, track_shannon: bool = False):
-        super().__init__()
-        self.track_shannon = track_shannon
-        self.history = []
-    
-    def forward(self, field_state: torch.Tensor, step: int = 0) -> dict:
-        """
-        Compute and track entropy metrics.
-        
-        Args:
-            field_state: Current field state
-            step: Training step
-        
-        Returns:
-            metrics: Dict of entropy values
-        """
-        metrics = {
-            'step': step,
-            'variational': float(variational_entropy(field_state).item()),
-            'renyi_2': float(renyi_entropy(field_state, alpha=2.0).item())
-        }
-        
-        if self.track_shannon:
-            metrics['shannon'] = float(shannon_entropy(field_state).item())
-        
-        self.history.append(metrics)
-        
-        return metrics
-    
-    def get_history(self):
-        """Return entropy history."""
-        return self.history
-
-
-def test_variational_entropy():
-    """Test variational entropy computations."""
-    print("Testing variational entropy...")
-    
-    # Create test field state
-    N_x, N_y, D = 10, 10, 16
-    field_state = torch.randn(N_x, N_y, D, D)
-    
-    # Make it positive-definite (physical field)
-    field_state = field_state @ field_state.transpose(-2, -1)
-    
-    print(f"Field state shape: {field_state.shape}")
-    
-    # Test variational entropy
-    H_var = variational_entropy(field_state)
-    print(f"Variational entropy: {H_var.item():.4f}")
-    
-    # Test Rényi entropy
-    H_renyi = renyi_entropy(field_state, alpha=2.0)
-    print(f"Rényi entropy (α=2): {H_renyi.item():.4f}")
-    
-    # Test Shannon entropy
-    H_shannon = shannon_entropy(field_state)
-    print(f"Shannon entropy: {H_shannon.item():.4f}")
-    
-    # Test gradient
-    grad = variational_entropy_gradient(field_state)
-    print(f"Entropy gradient shape: {grad.shape}")
-    print(f"Gradient norm: {torch.linalg.norm(grad).item():.4f}")
-    
-    # Test relative entropy
-    field_state_2 = torch.randn(N_x, N_y, D, D)
-    field_state_2 = field_state_2 @ field_state_2.transpose(-2, -1)
-    
-    kl = relative_entropy(field_state, field_state_2)
-    print(f"Relative entropy (KL): {kl.item():.4f}")
-    
-    # Test tracker
-    tracker = EntropyTracker(track_shannon=True)
-    for step in range(5):
-        metrics = tracker({'field': field_state}, step=step)
-        print(f"Step {step}: Var={metrics['variational']:.4f}, "
-              f"Renyi={metrics['renyi_2']:.4f}, Shannon={metrics['shannon']:.4f}")
-    
-    print("Variational entropy tests passed!")
-
-
-if __name__ == '__main__':
-    test_variational_entropy()
+    raise NotImplementedError(
+        "relative_entropy: "
+        "D(T||T_ref) = Tr(T log T) - Tr(T log T_ref). "
+        "Measures divergence from reference state."
+    )

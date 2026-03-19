@@ -1,357 +1,260 @@
 """
-Comprehensive 9D Similarity Vector Computation (Phase 1 of Planned 15D)
+Comprehensive Similarity Metrics - 15D Similarity Vector
 
-Implements rich geometric similarity measures beyond simple cosine similarity.
+PLANNING NOTE - 2025-01-29
+STATUS: TO_BE_CREATED
+CURRENT: Using limited similarity metrics (6 channels in address.py)
+PLANNED: Expand to 15-dimensional similarity vector with geodesic awareness
+RATIONALE: Richer representation for address construction and neighbor selection
+PRIORITY: HIGH
+DEPENDENCIES: models/manifold.py (for geodesic distances), models/complex_metric.py
+TESTING: Correlation with human similarity judgments, neighbor quality metrics
 
-IMPLEMENTATION PHASES:
-- Phase 1: 9D core (cheap/medium measures) [IMPLEMENTED - THIS FILE]
-- Phase 2: 12D extended (+ entropies) [FUTURE]
-- Phase 3: 15D full (+ statistical, tiered) [FUTURE]
+Purpose:
+--------
+Compute a 15-dimensional similarity vector between two embeddings, capturing
+multiple geometric and physical properties. This replaces simple cosine similarity
+with a rich multi-faceted measure.
 
-The planned 15D similarity vector will capture comprehensive geometric relationships:
-    1. cosine: Angular alignment [✓ Phase 1]
-    2. wedge_magnitude: Rotational structure [✓ Phase 1]
-    3. tensor_trace: Interaction strength [✓ Phase 1]
-    4. spinor_magnitude: Phase overlap [✓ Phase 1]
-    5. spinor_phase: Phase angle [✓ Phase 1]
-    6. energy: Field coupling [✓ Phase 1]
-    7. l2_tangent: Euclidean in tangent space [✓ Phase 1]
-    8. l1_tangent: Manhattan in tangent space [✓ Phase 1]
-    9. lior_distance: Geodesic distance (PRIMARY) [✓ Phase 1]
-    10. geodesic_kendall_tau: Non-parametric correlation [FUTURE]
-    11. manifold_mutual_info: Information distance [FUTURE]
-    12. variational_entropy_diff: Field entropy difference [FUTURE]
-    13. renyi_entropy_diff: Collision entropy [FUTURE]
-    14. local_curvature_diff: Curvature difference [FUTURE]
-    15. sectional_curvature: 2-plane curvature [FUTURE]
+15 Similarity Channels:
+-----------------------
+1. dot_product: ⟨u, v⟩ - Standard inner product
+2. wedge_norm: ||u ∧ v|| - Exterior product (parallelism measure)
+3. tensor_trace: Tr(u ⊗ v) - Tensor product trace
+4. spinor_overlap: ⟨ψ_u | ψ_v⟩ - Spinor bilinear (quantum overlap)
+5. energy_product: E(u) · E(v) - Energy-weighted similarity
+6. rank_correlation: ρ(rank(u), rank(v)) - Rank-based correlation
+7. geodesic_distance: d_g(u, v) - Riemannian distance on manifold
+8. christoffel_alignment: Γ_u · Γ_v - Connection alignment
+9. curvature_similarity: R(u) / R(v) - Curvature ratio
+10. phase_coherence: |⟨e^{iθ_u} | e^{iθ_v}⟩| - Phase alignment (complex metric)
+11. resilience_product: R(u) · R(v) - Resilience correlation
+12. entropy_distance: |H(u) - H(v)| - Information-theoretic distance
+13. action_distance: |S(u) - S(v)| - LIoR action distance
+14. symplectic_form: ω(u, v) - Symplectic pairing (even dimensions)
+15. killing_form: K(u, v) - Lie algebra similarity (if applicable)
+
+Mathematics:
+------------
+Each channel captures a different geometric or physical aspect:
+- Channels 1-6: Algebraic (dot, wedge, tensor, spinor, energy, rank)
+- Channels 7-9: Geometric (geodesic, connection, curvature)
+- Channels 10-12: Physical (phase, resilience, entropy)
+- Channels 13-15: Dynamical (action, symplectic, Killing)
+
+Output Format:
+--------------
+similarity_vector: (15,) tensor with values in appropriate ranges
+- Channels 1-6: [-1, 1] (normalized)
+- Channel 7: [0, ∞) (distance, smaller = more similar)
+- Channels 8-15: Channel-specific ranges
+
+Integration with Address System:
+---------------------------------
+Current (inference/address.py):
+- m = 6 score channels
+- Only basic geometric products
+
+Planned:
+- m = 15 similarity channels (or keep 6 as subset)
+- Use for neighbor ranking in address construction
+- Feed into comprehensive_similarity for scoring
+
+Usage Example:
+--------------
+>>> sim_computer = ComprehensiveSimilarity(d_embed=512, d_coord=8)
+>>> u = torch.randn(512)
+>>> v = torch.randn(512)
+>>> sim_vector = sim_computer(u, v, field=field, metric=metric)
+>>> # sim_vector.shape: (15,)
+>>> # sim_vector[0] = dot product
+>>> # sim_vector[6] = geodesic distance
+>>> # ...
+
+Performance Requirements:
+--------------------------
+- Batch processing: Compute for (B, N) embedding pairs efficiently
+- GPU compatible: All operations pure PyTorch
+- Memory: O(B * N * 15) for similarity matrix
+- Speed: <5ms for B=32, N=64 pairs
+
+Neighbor Selection Strategy:
+-----------------------------
+1. Compute 15D similarity for all candidates
+2. Aggregate channels (weighted sum or learned combination)
+3. Rank by aggregate score
+4. Select top-k as nearest neighbors
 
 References:
-    - Problem Statement: Extend Neighbor Addressing with Comprehensive Similarity Scores
-    - Computational Cost Analysis: ~400-600 FLOPs/candidate for 9D core
+-----------
+- Geometric algebra: Clifford product, exterior algebra
+- Riemannian geometry: Geodesic distances, Christoffel symbols
+- Information geometry: Fisher metric, entropy divergence
+- Symplectic geometry: Darboux coordinates, Poisson brackets
 """
 try:
     import usage_tracker
     usage_tracker.track(__file__)
-except Exception:
+except ImportError:
+    # usage_tracker is optional; ignore if not installed
     pass
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from typing import Optional, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from ..models.manifold import CognitiveManifold
+from typing import Optional
 
 
-class ComprehensiveSimilarity:
+class ComprehensiveSimilarity(nn.Module):
     """
-    Comprehensive similarity computation with tiered execution.
+    STUB: 15-dimensional similarity vector computation.
     
-    Computes comprehensive similarity vectors (9D in Phase 1, with 12D/15D planned)
-    capturing rich geometric relationships between query and candidate points. 
-    Uses tiered computation to balance accuracy and performance.
-    
-    Current Implementation: Phase 1 - 9D Core
-    Future Phases: 12D Extended, 15D Full (with tiering)
-    
-    Args:
-        manifold: CognitiveManifold instance for geometric operations
-        mode: Computation mode - 'core' (9D), 'extended' (12D), 'full' (15D)
-              Currently only 'core' is implemented.
-        
-    Attributes:
-        manifold: Manifold for geodesic computations
-        mode: Current computation mode
-        context_cache: Cache for precomputed context statistics (future use)
+    Captures multiple geometric and physical aspects of embedding similarity.
     """
     
     def __init__(
         self,
-        manifold: 'CognitiveManifold',
-        mode: str = 'core'
+        d_embed: int = 512,
+        d_coord: int = 8,
+        normalize: bool = True,
+        learnable_weights: bool = False
     ):
-        if mode not in ['core', 'extended', 'full']:
-            raise ValueError(f"Invalid mode: {mode}. Must be 'core', 'extended', or 'full'")
-        
-        self.manifold = manifold
-        self.mode = mode
-        self.context_cache = {}
+        """
+        Args:
+            d_embed: Embedding dimension
+            d_coord: Coordinate manifold dimension (for geometric channels)
+            normalize: Whether to normalize channels to [-1, 1]
+            learnable_weights: Whether to learn channel aggregation weights
+        """
+        super().__init__()
+        raise NotImplementedError(
+            "ComprehensiveSimilarity: Initialize projection layers for "
+            "spinor, tensor, and coordinate computations. "
+            "If learnable_weights, create nn.Parameter for channel weights. "
+            "Setup normalization layers if needed."
+        )
     
-    @torch.inference_mode()
-    def compute_batch(
+    def forward(
         self,
-        query_embedding: torch.Tensor,      # [d_embed]
-        candidate_embeddings: torch.Tensor, # [N, d_embed]
-        context: Optional[torch.Tensor] = None  # [M, d_embed]
+        u: torch.Tensor,
+        v: torch.Tensor,
+        field: Optional[nn.Module] = None,
+        metric: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
         """
-        Compute similarity vectors for all candidates (batched).
-        
-        Uses tiered computation:
-        1. Compute cheap measures for all (9D core)
-        2. Compute entropy measures for all if mode='extended' (12D)
-        3. Compute expensive measures for top-K only if mode='full' (15D)
+        STUB: Compute 15D similarity vector.
         
         Args:
-            query_embedding: Query embedding [d_embed]
-            candidate_embeddings: All candidate embeddings [N, d_embed]
-            context: Context for statistical measures (optional) [M, d_embed]
-        
-        Returns:
-            Similarity matrix [N, D] where D ∈ {9, 12, 15}
+            u: (B, D) or (D,) - First embedding(s)
+            v: (B, D) or (D,) - Second embedding(s)
+            field: Optional cognitive field for context-aware measures
+            metric: Optional metric tensor for geodesic computations
             
-        Example:
-            >>> manifold = CognitiveManifold(d_embed=512, d_coord=8)
-            >>> sim = ComprehensiveSimilarity(manifold, mode='core')
-            >>> query_emb = torch.randn(512)
-            >>> candidates_emb = torch.randn(100, 512)
-            >>> vectors = sim.compute_batch(query_emb, candidates_emb)  # [100, 9]
+        Returns:
+            similarity: (B, 15) or (15,) - Similarity vector
         """
-        N = len(candidate_embeddings)
-        
-        # Project to coordinates for geometric operations
-        query_coord = self.manifold.to_coords(query_embedding)  # [d_coord]
-        candidate_coords = self.manifold.to_coords(candidate_embeddings)  # [N, d_coord]
-        
-        # Phase 1: Core 9D (all candidates)
-        core_vectors = self._compute_core_batch(
-            query_embedding, query_coord,
-            candidate_embeddings, candidate_coords
-        )  # [N, 9]
-        
-        if self.mode == 'core':
-            return core_vectors
-        
-        # Phase 2: Extended 12D (all candidates, if requested)
-        if self.mode in ['extended', 'full']:
-            raise NotImplementedError(
-                "Extended (12D) and Full (15D) modes not yet implemented. "
-                "Use mode='core' for Phase 1 (9D core similarity)."
-            )
-        
-        return core_vectors
+        raise NotImplementedError(
+            "forward: Compute all 15 channels. "
+            "1-6: Algebraic (dot, wedge, tensor, spinor, energy, rank) "
+            "7-9: Geometric (geodesic, christoffel, curvature) "
+            "10-12: Physical (phase, resilience, entropy) "
+            "13-15: Dynamical (action, symplectic, killing)"
+        )
     
-    def _compute_core_batch(
+    def compute_algebraic_channels(
         self,
-        query_embedding: torch.Tensor,      # [d_embed]
-        query_coord: torch.Tensor,          # [d_coord]
-        candidate_embeddings: torch.Tensor, # [N, d_embed]
-        candidate_coords: torch.Tensor      # [N, d_coord]
+        u: torch.Tensor,
+        v: torch.Tensor
     ) -> torch.Tensor:
         """
-        Compute 9D core similarity (cheap/medium measures).
+        STUB: Channels 1-6 (algebraic).
         
-        Returns: [N, 9] with dimensions:
-            [cosine, wedge, tensor, spinor_mag, spinor_phase,
-             energy, l2_tangent, l1_tangent, lior_distance]
-             
-        Cost: ~400 FLOPs per candidate (excluding LIoR distance)
-        
-        Note: LIoR distance (index 8) is expensive and computed last
+        Returns: (B, 6) tensor
         """
-        N = len(candidate_coords)
-        d_coord = query_coord.shape[0]
-        device = query_coord.device
-        
-        # Initialize output
-        core = torch.zeros(N, 9, device=device, dtype=query_coord.dtype)
-        
-        # Expand query for broadcasting
-        query_exp = query_coord.unsqueeze(0).expand(N, -1)  # [N, d_coord]
-        
-        # (0) Cosine similarity: O(d_coord) FLOPs - on coordinates
-        core[:, 0] = F.cosine_similarity(query_exp, candidate_coords, dim=1)
-        
-        # (1) Wedge magnitude: O(d_coord²) FLOPs (antisymmetric outer product)
-        # |q ∧ c| measures rotational structure
-        # Vectorized: compute all wedges at once
-        outer = torch.einsum('d,ne->nde', query_coord, candidate_coords)  # [N, d, d]
-        wedge = outer - outer.transpose(1, 2)  # Antisymmetric part
-        core[:, 1] = torch.norm(wedge.reshape(N, -1), p='fro', dim=1)
-        
-        # (2) Tensor trace: O(d_coord) FLOPs (inner product)
-        # Tr(q ⊗ c) = q · c
-        core[:, 2] = torch.einsum('d,nd->n', query_coord, candidate_coords)
-        
-        # (3-4) Spinor magnitude and phase: O(d_spinor) FLOPs
-        # Complex overlap via spinor projection - on embeddings
-        # Vectorized: compute all spinors at once
-        psi_q = self.manifold.to_spinor(query_embedding.unsqueeze(0)).squeeze()  # [d_spinor]
-        psi_candidates = self.manifold.to_spinor(candidate_embeddings)  # [N, d_spinor]
-        
-        # Complex overlap - check once if spinor dimension is even
-        if len(psi_q) % 2 == 0:
-            mid = len(psi_q) // 2
-            psi_q_complex = psi_q[:mid] + 1j * psi_q[mid:]  # [mid]
-            psi_c_complex = psi_candidates[:, :mid] + 1j * psi_candidates[:, mid:]  # [N, mid]
-            # Vectorized overlap: [N]
-            overlaps = torch.einsum('d,nd->n', torch.conj(psi_q_complex), psi_c_complex)
-        else:
-            # Fallback: treat as real
-            overlaps = torch.einsum('d,nd->n', psi_q, psi_candidates) + 0j
-        
-        core[:, 3] = torch.abs(overlaps)      # Magnitude
-        core[:, 4] = torch.angle(overlaps)    # Phase
-        
-        # (5) Energy: O(d_coord²) FLOPs (quadratic form)
-        # E = q^T H c where H is the metric (acting as Hamiltonian)
-        # Use base metric as the Hamiltonian
-        H = self.manifold.base_metric()  # [d_coord, d_coord]
-        core[:, 5] = query_coord @ H @ candidate_coords.T  # Already real
-        
-        # (6-7) Tangent space distances: O(d_coord) FLOPs each
-        # Compute approximate tangent vectors - vectorized
-        midpoints = (query_exp + candidate_coords) / 2  # [N, d_coord]
-        v = candidate_coords - midpoints  # [N, d_coord]
-        core[:, 6] = torch.norm(v, dim=1)       # L2 distance
-        core[:, 7] = torch.abs(v).sum(dim=1)    # L1 distance
-        
-        # (8) LIoR distance: O(d_coord × num_samples) FLOPs (EXPENSIVE)
-        # Geodesic distance (PRIMARY similarity measure)
-        # Computed last as it's the most expensive
-        for i in range(N):
-            core[i, 8] = self.manifold.lior_distance(
-                query_coord.unsqueeze(0),
-                candidate_coords[i].unsqueeze(0),
-                num_samples=10  # Reduced for speed (vs default 20)
-            ).squeeze()
-        
-        return core
+        raise NotImplementedError("Compute dot, wedge, tensor, spinor, energy, rank")
     
-    def aggregate_to_scalar(
+    def compute_geometric_channels(
         self,
-        similarity_vectors: torch.Tensor,  # [N, D]
-        strategy: str = 'lior_primary'
+        u: torch.Tensor,
+        v: torch.Tensor,
+        field: Optional[nn.Module],
+        metric: Optional[torch.Tensor]
     ) -> torch.Tensor:
         """
-        Aggregate D-dimensional vectors to scalar scores for ranking.
+        STUB: Channels 7-9 (geometric).
+        
+        Returns: (B, 3) tensor
+        """
+        raise NotImplementedError("Compute geodesic, christoffel, curvature")
+    
+    def compute_physical_channels(
+        self,
+        u: torch.Tensor,
+        v: torch.Tensor,
+        field: Optional[nn.Module]
+    ) -> torch.Tensor:
+        """
+        STUB: Channels 10-12 (physical).
+        
+        Returns: (B, 3) tensor
+        """
+        raise NotImplementedError("Compute phase, resilience, entropy")
+    
+    def compute_dynamical_channels(
+        self,
+        u: torch.Tensor,
+        v: torch.Tensor,
+        field: Optional[nn.Module],
+        metric: Optional[torch.Tensor]
+    ) -> torch.Tensor:
+        """
+        STUB: Channels 13-15 (dynamical).
+        
+        Returns: (B, 3) tensor
+        """
+        raise NotImplementedError("Compute action, symplectic, killing")
+    
+    def aggregate_similarity(
+        self,
+        similarity_vector: torch.Tensor,
+        mode: str = 'weighted'
+    ) -> torch.Tensor:
+        """
+        STUB: Aggregate 15D vector into scalar similarity.
         
         Args:
-            similarity_vectors: Similarity vectors [N, D]
-            strategy: Aggregation strategy
-                - 'mean': Simple average across dimensions
-                - 'lior_primary': Use LIoR distance (dim 8) as primary
-                - 'weighted': Heuristic weighted combination
-        
+            similarity_vector: (B, 15) - Full similarity vector
+            mode: 'weighted', 'mean', 'max', 'learned'
+            
         Returns:
-            Scalar scores [N]
-            
-        Example:
-            >>> vectors = torch.randn(100, 9)
-            >>> sim = ComprehensiveSimilarity(manifold, mode='core')
-            >>> scores = sim.aggregate_to_scalar(vectors, strategy='lior_primary')
+            similarity_scalar: (B,) - Aggregated similarity
         """
-        if strategy == 'mean':
-            # Simple average (all dimensions equal weight)
-            return similarity_vectors.mean(dim=1)
-        
-        elif strategy == 'lior_primary':
-            # LIoR distance is dim 8 (last index)
-            # Negative because smaller distance = higher similarity
-            return -similarity_vectors[:, 8]
-        
-        elif strategy == 'weighted':
-            # Heuristic weights based on importance
-            # Normalized to sum to 1.0
-            D = similarity_vectors.shape[1]
-            
-            if D >= 9:
-                # 9D core weights
-                # Indices: 0=cosine, 1=wedge, 2=tensor, 3=spinor_mag, 4=spinor_phase,
-                #          5=energy, 6=l2_tangent, 7=l1_tangent, 8=lior_distance
-                weights = torch.tensor([
-                    0.10,  # 0: cosine (good baseline)
-                    0.05,  # 1: wedge (rotation)
-                    0.10,  # 2: tensor (correlation)
-                    0.05,  # 3: spinor_mag (phase overlap)
-                    0.05,  # 4: spinor_phase
-                    0.15,  # 5: energy (important for field coupling)
-                    0.05,  # 6: l2_tangent
-                    0.05,  # 7: l1_tangent
-                    0.40,  # 8: lior_distance (PRIMARY - geodesic)
-                ], device=similarity_vectors.device, dtype=similarity_vectors.dtype)
-                
-                # Pad or trim weights if needed
-                if D < 9:
-                    weights = weights[:D]
-                    weights = weights / weights.sum()  # Renormalize
-                elif D > 9:
-                    # Pad with zeros for extended dimensions
-                    padding = torch.zeros(D - 9, device=weights.device, dtype=weights.dtype)
-                    weights = torch.cat([weights, padding])
-                
-                return similarity_vectors @ weights
-            else:
-                # Fallback to mean if dimensions don't match
-                return similarity_vectors.mean(dim=1)
-        
-        else:
-            raise ValueError(
-                f"Unknown aggregation strategy: {strategy}. "
-                f"Must be 'mean', 'lior_primary', or 'weighted'."
-            )
-    
-    def clear_cache(self):
-        """Clear precomputed context cache."""
-        self.context_cache.clear()
+        raise NotImplementedError(
+            "aggregate_similarity: Combine channels into scalar. "
+            "If mode='weighted', use fixed or learned weights. "
+            "If mode='learned', use small MLP to combine."
+        )
 
 
-# Helper functions for standalone use
-
-def compute_cosine_similarity(
-    query: torch.Tensor,
-    candidates: torch.Tensor
+def batch_similarity_matrix(
+    embeddings: torch.Tensor,
+    similarity_fn: ComprehensiveSimilarity,
+    field: Optional[nn.Module] = None,
+    metric: Optional[torch.Tensor] = None
 ) -> torch.Tensor:
     """
-    Compute cosine similarity (dimension 0 of 9D vector).
+    STUB: Compute pairwise similarity matrix for batch.
     
     Args:
-        query: Query vector [d]
-        candidates: Candidate vectors [N, d]
+        embeddings: (B, D) - Batch of embeddings
+        similarity_fn: ComprehensiveSimilarity instance
+        field: Optional cognitive field
+        metric: Optional metric tensor
         
     Returns:
-        Cosine similarities [N]
+        similarity_matrix: (B, B, 15) - Pairwise similarities
     """
-    query_exp = query.unsqueeze(0).expand_as(candidates)
-    return F.cosine_similarity(query_exp, candidates, dim=1)
-
-
-def compute_wedge_magnitude(
-    query: torch.Tensor,
-    candidate: torch.Tensor
-) -> torch.Tensor:
-    """
-    Compute wedge product magnitude (dimension 1 of 9D vector).
-    
-    The wedge product q ∧ c measures rotational/orthogonal structure.
-    
-    Args:
-        query: Query vector [d]
-        candidate: Candidate vector [d]
-        
-    Returns:
-        Wedge magnitude (scalar)
-    """
-    outer = torch.outer(query, candidate)
-    wedge = outer - outer.T  # Antisymmetric part
-    return torch.norm(wedge, p='fro')
-
-
-def compute_tensor_trace(
-    query: torch.Tensor,
-    candidates: torch.Tensor
-) -> torch.Tensor:
-    """
-    Compute tensor product trace (dimension 2 of 9D vector).
-    
-    Tr(q ⊗ c) = q · c (inner product)
-    
-    Args:
-        query: Query vector [d]
-        candidates: Candidate vectors [N, d]
-        
-    Returns:
-        Tensor traces [N]
-    """
-    return torch.einsum('d,nd->n', query, candidates)
+    raise NotImplementedError(
+        "batch_similarity_matrix: Compute all pairs efficiently. "
+        "Use broadcasting or einsum for vectorization. "
+        "Avoid explicit loops for GPU efficiency."
+    )

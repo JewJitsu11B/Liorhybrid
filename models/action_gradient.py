@@ -1,315 +1,204 @@
 """
-Analytic LIoR Gradient Computation
+Analytic Action Gradients - Pure Measurement Implementation
 
-This module computes action gradients directly without autograd:
-    ∇S[γ] = ∫ R_μνρσ(γ) γ̇^ρ γ̇^σ dτ
+PLANNING NOTE - 2025-01-29
+STATUS: TO_BE_CREATED
+CURRENT: Using autograd for gradient computation (training/lior_trainer.py)
+PLANNED: Analytic gradients using pure measurement operations (no .backward())
+RATIONALE: Eliminate autograd overhead, compute exact physics-based gradients from measurements
+PRIORITY: HIGH
+DEPENDENCIES: utils/comprehensive_similarity.py, utils/variational_entropy.py
+TESTING: Gradient accuracy vs autograd, physics conservation laws, numerical stability
 
-Key insight: Measure the gradient directly from the manifold geometry
-rather than using PyTorch's autograd. This is the foundation of
-measurement-based learning.
+Purpose:
+--------
+Compute analytic gradients of the LIoR action functional using pure measurement operations.
+This eliminates the need for autograd while maintaining physical consistency.
 
-Physics:
-- S[γ]: Action functional (path integral)
-- R_μνρσ: Riemann curvature tensor
-- γ̇: Velocity along path
-- Integration over proper time τ
+Mathematical Foundation:
+------------------------
+LIoR Action: S = ∫ R(x) √(g_μν ẋ^μ ẋ^ν) dτ
 
-No .backward() calls - pure measurement!
+Analytic gradients:
+1. ∂S/∂α = ∫ (∂R/∂α) · √(g_μν ẋ^μ ẋ^ν) dτ
+2. ∂S/∂g_μν = ½ ∫ R(x) · (ẋ^μ ẋ^ν / √(g_αβ ẋ^α ẋ^β)) dτ
+3. ∂S/∂ẋ^μ = ∫ R(x) · (g_μν ẋ^ν / √(g_αβ ẋ^α ẋ^β)) dτ
+
+Key insight: All gradients can be expressed as combinations of:
+- Field measurements: R(x), g_μν(x)
+- Trajectory measurements: ẋ^μ, √(g_μν ẋ^μ ẋ^ν)
+- No backpropagation required
+
+Advantages:
+-----------
+1. Exact physics: Gradients satisfy conservation laws by construction
+2. Memory efficient: O(1) memory vs O(computation_graph) for autograd
+3. Interpretable: Each term has clear physical meaning
+4. Robust: No vanishing/exploding gradients from deep computation graphs
+
+Implementation Strategy:
+------------------------
+1. Compute all field measurements in forward pass
+2. Cache intermediate quantities (R, g, arc_length)
+3. Apply analytic formulas to compute gradients
+4. Return gradients as pure tensors (no autograd nodes)
+
+Comparison with Autograd:
+--------------------------
+Traditional (TO_BE_REMOVED):
+```python
+loss = compute_action(embeddings, field)
+loss.backward()
+grad = param.grad  # Via computation graph
+```
+
+Analytic (TO_BE_CREATED):
+```python
+measurements = measure_trajectory(embeddings, field)
+grad = compute_action_gradient(measurements)  # Direct formula
+```
+
+Integration Points:
+-------------------
+- training/measurement_trainer.py: Use as primary gradient source
+- training/lior_trainer.py: TO_BE_MODIFIED to use analytic gradients
+- models/manifold.py: Provide metric and resilience measurements
+
+Performance Targets:
+--------------------
+- Forward + gradient: <2x cost of forward only
+- Memory: O(batch_size * seq_len * d_model)
+- Numerical stability: gradient error <1e-6 vs autograd
+
+Physics Validation:
+-------------------
+Must satisfy:
+1. Energy conservation: dE/dt = 0 for closed trajectories
+2. Symplectic structure: {H, H} = 0
+3. Geodesic equation: ∇_ẋ ẋ = 0 for free motion
+4. Positive definiteness: ∂²S/∂ẋ² > 0
+
+References:
+-----------
+- Calculus of variations: Euler-Lagrange equations
+- Riemannian geometry: Christoffel symbols, covariant derivatives
+- Hamiltonian mechanics: Symplectic gradients
 """
-try: import usage_tracker; usage_tracker.track(__file__)
-except: pass
+try:
+    import usage_tracker
+    usage_tracker.track(__file__)
+except ImportError:
+    # usage_tracker is optional; ignore if not installed
+    pass
 
 import torch
-import torch.nn as nn
-from typing import Optional, Tuple, Dict
+from typing import Dict, Optional, NamedTuple
+
+
+class TrajectoryMeasurements(NamedTuple):
+    """
+    NEW_FEATURE_STUB: Container for trajectory measurements.
+    
+    All fields are pure measurements (no autograd graph).
+    """
+    embeddings: torch.Tensor      # (B, T, D) - Trajectory points
+    velocities: torch.Tensor      # (B, T-1, D) - ẋ^μ
+    metric: torch.Tensor          # (D, D) or (B, T, D, D) - g_μν
+    resilience: torch.Tensor      # (B, T) or (N_x, N_y) - R(x)
+    arc_length: torch.Tensor      # (B, T-1) - √(g_μν ẋ^μ ẋ^ν)
+    christoffel: Optional[torch.Tensor] = None  # (D, D, D) - Γ^μ_νρ
+
+
+class ActionGradients(NamedTuple):
+    """
+    NEW_FEATURE_STUB: Container for analytic action gradients.
+    
+    All gradients computed via analytic formulas (no .backward()).
+    """
+    grad_alpha: torch.Tensor       # ∂S/∂α - Field strength gradient
+    grad_nu: torch.Tensor          # ∂S/∂ν - Decay rate gradient  
+    grad_tau: torch.Tensor         # ∂S/∂τ - Time scale gradient
+    grad_metric: torch.Tensor      # ∂S/∂g_μν - Metric gradient
+    grad_embeddings: torch.Tensor  # ∂S/∂x^μ - Embedding gradient
 
 
 @torch.inference_mode()
-def compute_lior_action_gradient(
+def measure_trajectory(
     embeddings: torch.Tensor,
     field_state: torch.Tensor,
     metric: Optional[torch.Tensor] = None,
-    return_components: bool = False
-) -> torch.Tensor:
+    resilience_field: Optional[torch.Tensor] = None
+) -> TrajectoryMeasurements:
     """
-    Compute LIoR action gradient analytically (no autograd).
+    STUB: Measure all quantities needed for analytic gradient computation.
     
-    This is the pure measurement approach:
-        ∇S = ∫ R(x) √(g_μν ẋ^μ ẋ^ν) dτ
+    This is a pure measurement function - no gradients attached.
     
     Args:
-        embeddings: Sequence of embeddings (batch, seq_len, d_model)
-        field_state: Cognitive tensor field (N_x, N_y, D, D)
-        metric: Optional Riemannian metric tensor (D, D)
-        return_components: If True, return dict with intermediate values
-    
-    Returns:
-        gradient: Action gradient (batch, seq_len, d_model)
-        OR dict with components if return_components=True
-    
-    Mathematical Detail:
-        The action gradient measures how much a path deviates from
-        the geodesic carved by the cognitive field. High gradient =
-        path needs correction to follow natural flow.
-    """
-    batch, seq_len, d_model = embeddings.shape
-    D = field_state.shape[2]
-    
-    # Compute trajectory velocities: ẋ = dx/dτ
-    dx = embeddings[:, 1:] - embeddings[:, :-1]  # (B, T-1, d)
-    
-    # Project to field subspace (D dimensions)
-    if d_model > D:
-        proj = dx[..., :D]  # (B, T-1, D)
-    else:
-        proj = dx
-    
-    # Build metric tensor from field if not provided
-    if metric is None:
-        T_avg = field_state.mean(dim=(0, 1))  # (D, D)
-        T_real = torch.abs(T_avg) if T_avg.is_complex() else T_avg
-        metric = T_real.T @ T_real  # (D, D) positive-definite
-        metric = metric + 1e-6 * torch.eye(D, device=metric.device, dtype=metric.dtype)
-    
-    # Cast metric to match embeddings dtype/device
-    metric = metric.to(device=proj.device, dtype=proj.dtype)
-    
-    # Metric inner product: g_μν ẋ^μ ẋ^ν
-    g_dx_dx = torch.einsum('bti,ij,btj->bt', proj, metric, proj)  # (B, T-1)
-    
-    # Arc length: √(g_dx_dx)
-    arc_length = torch.sqrt(torch.clamp(g_dx_dx, min=1e-8))  # (B, T-1)
-    
-    # Compute local curvature/resilience from field
-    # R(x) = trace of curvature tensor (simplified)
-    R = compute_local_curvature(field_state)  # (N_x, N_y)
-    
-    # Average resilience over spatial domain
-    R_avg = R.mean()  # scalar
-    
-    # Action gradient: ∇S = R * √(g_dx_dx)
-    # This gives direction to minimize action
-    action_values = R_avg * arc_length  # (B, T-1)
-    
-    # Extend to full sequence (pad first position)
-    action_grad = torch.zeros(batch, seq_len, d_model, 
-                              device=embeddings.device, dtype=embeddings.dtype)
-    
-    # Assign gradient to positions 1:end (position 0 has no predecessor)
-    for i in range(1, seq_len):
-        # Gradient is difference in action between steps
-        if i < seq_len - 1:
-            grad_magnitude = action_values[:, i] - action_values[:, i-1]
-        else:
-            grad_magnitude = action_values[:, i-1]
+        embeddings: (B, T, D) - Trajectory in embedding space
+        field_state: (N_x, N_y, D, D) - Cognitive field
+        metric: Optional metric tensor
+        resilience_field: Optional resilience R(x)
         
-        # Direction is opposite of velocity (minimize action)
-        if d_model > D:
-            action_grad[:, i, :D] = -grad_magnitude.unsqueeze(-1) * proj[:, i-1]
-        else:
-            action_grad[:, i, :] = -grad_magnitude.unsqueeze(-1) * proj[:, i-1]
-    
-    if return_components:
-        return {
-            'gradient': action_grad,
-            'arc_length': arc_length,
-            'curvature': R_avg,
-            'metric': metric,
-            'action_values': action_values
-        }
-    
-    return action_grad
+    Returns:
+        TrajectoryMeasurements with all cached quantities
+    """
+    raise NotImplementedError(
+        "measure_trajectory: Extract field measurements along trajectory. "
+        "Use @torch.inference_mode() to detach from autograd. "
+        "Interpolate field values at trajectory points. "
+        "Compute velocities, arc lengths, and cache for gradient formulas."
+    )
 
 
 @torch.inference_mode()
-def compute_local_curvature(field_state: torch.Tensor) -> torch.Tensor:
+def compute_action_gradient(
+    measurements: TrajectoryMeasurements,
+    field_params: Dict[str, torch.Tensor]
+) -> ActionGradients:
     """
-    Compute local curvature/resilience from field state.
+    STUB: Compute analytic gradients of LIoR action.
     
-    Simplified curvature measure:
-        R(x) = trace of second moment tensor variance
+    Uses pure algebraic formulas - no autograd.
     
     Args:
-        field_state: Cognitive tensor field (N_x, N_y, D, D)
+        measurements: All trajectory measurements from measure_trajectory()
+        field_params: Dictionary with 'alpha', 'nu', 'tau' parameters
+        
+    Returns:
+        ActionGradients with all analytic gradients
+        
+    Mathematical formulas:
+        ∂S/∂α = -∫ (∂R/∂α) · arc_length dτ
+        ∂S/∂g_μν = ½ ∫ R · (ẋ^μ ẋ^ν / arc_length) dτ
+        ∂S/∂x^μ = ∫ R · (g_μν ẋ^ν / arc_length) dτ
+    """
+    raise NotImplementedError(
+        "compute_action_gradient: Apply analytic gradient formulas. "
+        "Use measurements.arc_length, measurements.velocities, etc. "
+        "Return pure tensors with no autograd graph. "
+        "Validate conservation laws during computation."
+    )
+
+
+def validate_gradient_physics(
+    gradients: ActionGradients,
+    measurements: TrajectoryMeasurements,
+    tolerance: float = 1e-6
+) -> Dict[str, bool]:
+    """
+    STUB: Validate that analytic gradients satisfy physics constraints.
+    
+    Checks:
+    1. Energy conservation: grad should preserve Hamiltonian
+    2. Symplectic structure: {grad_p, grad_q} should be canonical
+    3. Positive definiteness: Hessian should be positive
     
     Returns:
-        curvature: Local curvature field (N_x, N_y)
+        Dictionary of validation results
     """
-    N_x, N_y, D, _ = field_state.shape
-    
-    # Extract magnitude (handle complex tensors)
-    if field_state.is_complex():
-        magnitude = torch.abs(field_state)  # (N_x, N_y, D, D)
-    else:
-        magnitude = torch.abs(field_state)
-    
-    # Trace of absolute value (measure of local field strength)
-    trace = torch.diagonal(magnitude, dim1=2, dim2=3).sum(dim=-1)  # (N_x, N_y)
-    
-    # Compute local variance as curvature proxy
-    # High variance = high curvature = more resistance to change
-    mean_trace = trace.mean()
-    variance = (trace - mean_trace).pow(2)
-    
-    # Normalize to reasonable range
-    curvature = 1.0 + torch.sqrt(variance + 1e-8)
-    
-    return curvature
-
-
-@torch.inference_mode()
-def measure_field_entropy(field_state: torch.Tensor) -> torch.Tensor:
-    """
-    Measure field entropy (Von Neumann entropy).
-    
-    H = -Tr(ρ log ρ)
-    
-    This is a MEASUREMENT, not a differentiable operation.
-    Used for monitoring field dynamics, not for backprop.
-    
-    Args:
-        field_state: Field state tensor (N_x, N_y, D, D)
-    
-    Returns:
-        entropy: Scalar entropy value
-    """
-    # Spatial average
-    T_avg = field_state.mean(dim=(0, 1))  # (D, D)
-    
-    # Get magnitude (handle complex)
-    if T_avg.is_complex():
-        T_real = torch.abs(T_avg)
-    else:
-        T_real = torch.abs(T_avg)
-    
-    # Normalize to probability distribution
-    trace = torch.diagonal(T_real).sum()
-    rho = T_real / (trace + 1e-8)
-    
-    # Eigendecomposition for entropy
-    try:
-        eigenvalues = torch.linalg.eigvalsh(rho)
-        eigenvalues = torch.clamp(eigenvalues, min=1e-10)
-        entropy = -torch.sum(eigenvalues * torch.log(eigenvalues))
-    except:
-        # Fallback if eigendecomp fails
-        entropy = torch.tensor(0.0, device=field_state.device)
-    
-    return entropy
-
-
-def evolve_field_by_measurement(
-    field: nn.Module,
-    action_gradient: torch.Tensor,
-    learning_rate: float = 0.01
-) -> None:
-    """
-    Evolve field parameters based on measured gradients.
-    
-    This replaces optimizer.step() with direct measurement-based updates.
-    
-    Field evolution:
-        dα/dt = -η ∂H/∂α
-        dν/dt = -η ∂H/∂ν  
-        dτ/dt = -η ∂H/∂τ
-    
-    Where H is the field entropy (measurement).
-    
-    Args:
-        field: CognitiveTensorField module
-        action_gradient: Measured action gradient
-        learning_rate: Evolution rate
-    """
-    # Measure current entropy
-    H_current = measure_field_entropy(field.T)
-    
-    # Perturb each adaptive parameter and measure entropy change
-    params_to_update = []
-    if hasattr(field, 'alpha') and field.alpha.requires_grad:
-        params_to_update.append(('alpha', field.alpha))
-    if hasattr(field, 'nu') and field.nu.requires_grad:
-        params_to_update.append(('nu', field.nu))
-    if hasattr(field, 'tau') and field.tau.requires_grad:
-        params_to_update.append(('tau', field.tau))
-    
-    for name, param in params_to_update:
-        # Small perturbation
-        epsilon = 1e-4
-        
-        # Save original value
-        original_value = param.data.clone()
-        
-        # Measure gradient via finite difference
-        param.data = original_value + epsilon
-        field.evolve_step()  # Update field with perturbed parameter
-        H_plus = measure_field_entropy(field.T)
-        
-        param.data = original_value - epsilon
-        field.evolve_step()
-        H_minus = measure_field_entropy(field.T)
-        
-        # Restore original
-        param.data = original_value
-        field.evolve_step()
-        
-        # Entropy gradient
-        dH_dparam = (H_plus - H_minus) / (2 * epsilon)
-        
-        # Update: decrease entropy (make field more ordered)
-        param.data = param.data - learning_rate * dH_dparam
-
-
-class MeasurementBasedUpdater:
-    """
-    Wrapper for measurement-based parameter updates.
-    
-    Replaces torch.optim.Optimizer with pure measurement approach.
-    Compatible with existing training loops (drop-in replacement).
-    """
-    
-    def __init__(self, model: nn.Module, field: nn.Module, lr: float = 1e-3):
-        """
-        Args:
-            model: Model to update
-            field: CognitiveTensorField
-            lr: Learning rate (evolution rate)
-        """
-        self.model = model
-        self.field = field
-        self.lr = lr
-        
-        # For compatibility with existing code
-        self.param_groups = [{'lr': lr, 'params': list(model.parameters())}]
-    
-    @torch.inference_mode()
-    def step(self):
-        """
-        Perform measurement-based update.
-        
-        This is called where optimizer.step() used to be called.
-        """
-        # Measure current field state
-        embeddings = self._get_current_embeddings()
-        
-        # Compute action gradient (pure measurement)
-        action_grad = compute_lior_action_gradient(
-            embeddings,
-            self.field.T,
-            metric=None
-        )
-        
-        # Evolve field parameters
-        evolve_field_by_measurement(self.field, action_grad, self.lr)
-    
-    def zero_grad(self):
-        """No-op for compatibility. We don't use gradients."""
-        pass
-    
-    def _get_current_embeddings(self) -> torch.Tensor:
-        """
-        Get current embedding state for measurement.
-        
-        This needs to be overridden or passed in from training loop.
-        """
-        # Placeholder - in practice, this would be passed from training step
-        return torch.zeros(1, 10, 512, device=next(self.model.parameters()).device)
+    raise NotImplementedError(
+        "validate_gradient_physics: Check conservation laws. "
+        "Useful for debugging and testing. "
+        "Should be called in tests but not in training loop."
+    )

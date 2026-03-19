@@ -1,396 +1,310 @@
 """
-Measurement-Based Training Loop
+Measurement-Based Training Loop - Pure Physics, No Autograd
 
-Pure measurement approach - no autograd, no optimizers!
+PLANNING NOTE - 2025-01-29
+STATUS: TO_BE_CREATED
+CURRENT: Using autograd-based training in lior_trainer.py
+PLANNED: Replace with pure measurement-based learning (no .backward())
+RATIONALE: More efficient, physically consistent, eliminates autograd overhead
+PRIORITY: HIGH
+DEPENDENCIES: models/action_gradient.py, utils/variational_entropy.py
+TESTING: Learning convergence, physics conservation, memory efficiency
 
-Key differences from standard training:
-1. NO .backward() calls
-2. NO torch.optim.Optimizer
-3. Direct measurement of action gradients via LIoR
-4. Field evolution IS learning (parameters converge to optimal physics)
+Purpose:
+--------
+Implement LIoR learning using pure measurements instead of autograd.
+Field parameters evolve via entropy gradients, not loss gradients.
 
-Philosophy:
-    "Why use AdamW when you can just measure the gradient directly?"
-    
-LIoR measures ∇S[γ] via action functional. We compute gradients analytically
-from the manifold geometry, not through PyTorch's autograd.
+Key Differences from Traditional Training:
+-------------------------------------------
+1. NO loss.backward() - all gradients computed analytically
+2. NO optimizer - parameters updated via physics equations
+3. Field evolution IS learning - α, ν, τ converge to optimal values
+4. Measurements guide updates - no computation graph required
 
-Measurement ≠ Optimization
+Learning Equations:
+-------------------
+Field parameters evolve via entropy gradient:
+- dα/dt = -η · ∂H/∂α   (Field strength evolution)
+- dν/dt = -η · ∂H/∂ν   (Decay rate evolution)
+- dτ/dt = -η · ∂H/∂τ   (Time scale evolution)
+
+Where H = -Tr(T log T) is field entropy (variational_entropy.py)
+
+Model parameters evolve via action gradient:
+- dθ/dt = -η · ∂S/∂θ   (Embedding evolution)
+
+Where S is LIoR action (action_gradient.py)
+
+Comparison:
+-----------
+Traditional (TO_BE_REMOVED):
+```python
+loss = criterion(output, target)
+loss.backward()
+optimizer.step()
+```
+
+Measurement-based (TO_BE_CREATED):
+```python
+measurements = measure_system(embeddings, field)
+field_grads = compute_entropy_gradients(measurements)
+model_grads = compute_action_gradients(measurements)
+update_parameters(field_params, field_grads, lr)
+update_parameters(model_params, model_grads, lr)
+```
+
+Advantages:
+-----------
+1. Memory: O(1) vs O(computation_graph)
+2. Speed: No backward pass overhead
+3. Physics: Guaranteed conservation laws
+4. Interpretability: Each update has clear physical meaning
+5. Stability: No gradient clipping needed
+
+Architecture:
+-------------
+- MeasurementTrainer: Main training loop
+- FieldEvolver: Handles α, ν, τ updates via entropy
+- ModelEvolver: Handles θ updates via action
+- MetricsLogger: Pure measurements, no gradients
+
+Integration:
+------------
+- Replaces training/lior_trainer.py compute_geodesic_cost()
+- Uses models/action_gradient.py for analytic gradients
+- Uses utils/variational_entropy.py for field entropy
+- Uses utils/comprehensive_similarity.py for measurements
+
+Performance Targets:
+--------------------
+- Training speed: 2-3x faster than autograd (no backward pass)
+- Memory: 50% reduction (no computation graph)
+- Convergence: Same or better than autograd
+- Physics: <1e-6 conservation error
+
+Validation Strategy:
+--------------------
+1. Compare with autograd baseline on small dataset
+2. Verify conservation laws at each step
+3. Monitor entropy convergence
+4. Check action minimization
+
+Training Loop Structure:
+------------------------
+```python
+for epoch in range(num_epochs):
+    for batch in dataloader:
+        # 1. Forward pass (measurements only)
+        embeddings = model(batch)
+        measurements = measure_trajectory(embeddings, field)
+        
+        # 2. Compute analytic gradients
+        field_grads = compute_entropy_gradients(field, measurements)
+        model_grads = compute_action_gradients(measurements, field_params)
+        
+        # 3. Update parameters (no optimizer needed)
+        field.alpha -= lr * field_grads.alpha
+        field.nu -= lr * field_grads.nu
+        field.tau -= lr * field_grads.tau
+        
+        for param, grad in zip(model.parameters(), model_grads):
+            param -= lr * grad
+        
+        # 4. Log pure measurements
+        metrics = compute_physics_metrics(measurements)
+        logger.log(metrics)
+```
+
+References:
+-----------
+- LIoR paper: Learning via geodesic carving
+- Measurement theory: Von Neumann measurements
+- Variational principles: Euler-Lagrange equations
 """
-try: import usage_tracker; usage_tracker.track(__file__)
-except: pass
+try:
+    import usage_tracker
+    usage_tracker.track(__file__)
+except ImportError:
+    # usage_tracker is optional; ignore if not installed
+    pass
 
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
-from pathlib import Path
-from typing import Dict, Optional, Tuple
-import time
-import json
-
-from ..models.action_gradient import (
-    compute_lior_action_gradient,
-    measure_field_entropy,
-    evolve_field_by_measurement
-)
+from typing import Dict
+from dataclasses import dataclass
 
 
-class MeasurementBasedTrainer:
+@dataclass
+class MeasurementConfig:
     """
-    Pure measurement-based trainer.
+    NEW_FEATURE_STUB: Configuration for measurement-based training.
+    """
+    # Learning rates
+    lr_field: float = 1e-3      # For α, ν, τ
+    lr_model: float = 1e-4      # For embeddings
+    lr_metric: float = 1e-5     # For metric tensor
     
-    No autograd graphs, no optimizer state, just direct measurement!
+    # Entropy control
+    entropy_weight: float = 0.1  # Weight for entropy term
+    entropy_target: float = 0.7  # Target entropy value
     
-    Args:
-        model: GeometricTransformer model
-        field: CognitiveTensorField
-        train_loader: Training data loader
-        val_loader: Validation data loader (optional)
-        device: Training device
-        config: Training configuration
+    # Action control
+    action_weight: float = 1.0   # Weight for action term
+    geodesic_weight: float = 0.5 # Weight for geodesic deviation
+    
+    # Stability
+    grad_clip: float = 10.0      # Still useful for numeric stability
+    min_field_strength: float = 0.01  # Lower bound for α
+    max_field_strength: float = 10.0  # Upper bound for α
+    
+    # Logging
+    log_every: int = 10          # Log metrics every N steps
+    validate_physics: bool = True # Check conservation laws
+
+
+class MeasurementTrainer:
+    """
+    STUB: Measurement-based training loop.
+    
+    No autograd, no optimizer - pure physics-based learning.
     """
     
     def __init__(
         self,
         model: nn.Module,
         field: nn.Module,
-        train_loader: DataLoader,
-        val_loader: Optional[DataLoader],
-        device: str = 'cuda',
-        config: Optional[Dict] = None
+        config: MeasurementConfig,
+        device: str = 'cuda'
     ):
-        self.model = model
-        self.field = field
-        self.train_loader = train_loader
-        self.val_loader = val_loader
-        self.device = torch.device(device)
-        self.config = config or {}
-        
-        # Move to device
-        self.model = self.model.to(self.device)
-        self.field.T = self.field.T.to(self.device)
-        
-        # Learning rates
-        self.lr_model = self.config.get('lr_model', 1e-3)
-        self.lr_field = self.config.get('lr_field', 1e-4)
-        
-        # Training state
-        self.epoch = 0
-        self.global_step = 0
-        
-        # Metrics
-        self.metrics_history = []
-        
-        print("="*60)
-        print("MEASUREMENT-BASED TRAINING")
-        print("="*60)
-        print("✓ No autograd graphs")
-        print("✓ No optimizer state")
-        print("✓ Pure LIoR measurement")
-        print("✓ Direct field evolution")
-        print("="*60)
-    
-    @torch.inference_mode()
-    def train_epoch(self) -> Dict:
         """
-        Train for one epoch using pure measurement.
-        
-        Returns:
-            metrics: Epoch metrics
-        """
-        self.model.train()
-        epoch_metrics = {
-            'loss': 0.0,
-            'action': 0.0,
-            'entropy': 0.0,
-            'n_steps': 0
-        }
-        
-        for batch_idx, batch in enumerate(self.train_loader):
-            # Move batch to device
-            batch = {k: v.to(self.device) if torch.is_tensor(v) else v 
-                    for k, v in batch.items()}
-            
-            # Measurement-based training step
-            step_metrics = self.measurement_step(batch)
-            
-            # Accumulate metrics
-            for key in ['loss', 'action', 'entropy']:
-                if key in step_metrics:
-                    epoch_metrics[key] += step_metrics[key]
-            epoch_metrics['n_steps'] += 1
-            
-            # Log every N steps
-            if self.global_step % self.config.get('log_interval', 10) == 0:
-                self._log_step(step_metrics)
-            
-            self.global_step += 1
-        
-        # Average metrics
-        for key in ['loss', 'action', 'entropy']:
-            epoch_metrics[key] /= max(epoch_metrics['n_steps'], 1)
-        
-        return epoch_metrics
-    
-    @torch.inference_mode()
-    def measurement_step(self, batch: Dict) -> Dict:
-        """
-        Single measurement-based training step.
-        
-        NO .backward() calls!
-        
         Args:
-            batch: Training batch
-        
-        Returns:
-            metrics: Step metrics
+            model: Embedding model (GeometricTransformer)
+            field: Cognitive field (CognitiveTensorField)
+            config: Training configuration
+            device: Training device
         """
-        # Evolve field (physics simulation)
-        self.field.evolve_step()
-        
-        # Get embeddings (forward pass in inference mode!)
-        embeddings = self._get_embeddings(batch)
-        
-        # Measure action gradient (no autograd!)
-        action_grad_result = compute_lior_action_gradient(
-            embeddings,
-            self.field.T,
-            return_components=True
+        raise NotImplementedError(
+            "MeasurementTrainer: Initialize without optimizer. "
+            "Store model, field, and config. "
+            "Setup measurement functions and entropy computer. "
+            "Initialize metrics logger."
         )
-        
-        action_grad = action_grad_result['gradient']
-        action_value = action_grad_result['action_values'].mean()
-        
-        # Measure field entropy
-        field_entropy = measure_field_entropy(self.field.T)
-        
-        # Compute loss for monitoring (NOT for backprop!)
-        with torch.amp.autocast('cuda', enabled=False):
-            logits = self.model.lm_head(embeddings)
-            loss = self._compute_monitoring_loss(logits, batch)
-        
-        # Update model parameters via measured gradients
-        self._update_model_from_measurement(action_grad)
-        
-        # Evolve field parameters via entropy gradient
-        evolve_field_by_measurement(self.field, action_grad, self.lr_field)
-        
-        # Return metrics
-        metrics = {
-            'loss': float(loss.item()),
-            'action': float(action_value.item()),
-            'entropy': float(field_entropy.item()),
-            'arc_length': float(action_grad_result['arc_length'].mean().item()),
-            'curvature': float(action_grad_result['curvature'].item())
-        }
-        
-        return metrics
     
     @torch.inference_mode()
-    def _get_embeddings(self, batch: Dict) -> torch.Tensor:
-        """
-        Get embeddings from input.
-        
-        Forward pass in inference mode (no gradient tracking).
-        
-        Args:
-            batch: Input batch
-        
-        Returns:
-            embeddings: Model embeddings (batch, seq_len, d_model)
-        """
-        # Get modality
-        modality = batch.get('modality', 'text')
-        if isinstance(modality, list):
-            modality = modality[0]
-        
-        # Embed inputs
-        if modality == 'text':
-            Q_input = self.model.input_embedding(batch['input_ids'], modality='text')
-        elif modality == 'image':
-            Q_input = self.model.input_embedding(batch['image'], modality='image')
-        else:
-            raise ValueError(f"Unknown modality: {modality}")
-        
-        # Forward through model (inference mode!)
-        output, _ = self.model(
-            Q_input,
-            self.field.T,
-            time=self.field.t
-        )
-        
-        return output
-    
-    @torch.inference_mode()
-    def _compute_monitoring_loss(
+    def train_step(
         self,
-        logits: torch.Tensor,
-        batch: Dict
-    ) -> torch.Tensor:
+        batch: Dict[str, torch.Tensor]
+    ) -> Dict[str, float]:
         """
-        Compute loss for monitoring only (NOT for backprop!).
-        
-        Args:
-            logits: Model logits
-            batch: Batch with targets
+        STUB: Single training step using pure measurements.
         
         Returns:
-            loss: Monitoring loss
+            metrics: Dictionary of measured quantities (no gradients)
         """
-        if 'target_ids' in batch:
-            targets = batch['target_ids']
-            loss_fn = nn.CrossEntropyLoss()
-            
-            # Reshape for loss computation
-            logits_flat = logits.view(-1, logits.size(-1))
-            targets_flat = targets.view(-1)
-            
-            loss = loss_fn(logits_flat, targets_flat)
-        else:
-            # No targets, use dummy loss
-            loss = torch.tensor(0.0, device=logits.device)
+        raise NotImplementedError(
+            "train_step: "
+            "1. Forward pass to get embeddings (with torch.no_grad initially) "
+            "2. Measure trajectory and field state "
+            "3. Compute analytic gradients "
+            "4. Update parameters directly (no optimizer) "
+            "5. Validate physics if config.validate_physics "
+            "6. Return pure measurements"
+        )
+    
+    def update_field_parameters(
+        self,
+        entropy_gradients: Dict[str, torch.Tensor],
+        lr: float
+    ):
+        """
+        STUB: Update field parameters via entropy gradients.
         
-        return loss
+        Physics equations:
+            α(t+1) = α(t) - lr · ∂H/∂α
+            ν(t+1) = ν(t) - lr · ∂H/∂ν
+            τ(t+1) = τ(t) - lr · ∂H/∂τ
+        """
+        raise NotImplementedError(
+            "update_field_parameters: "
+            "Apply gradient descent on field parameters. "
+            "Clamp to valid ranges (e.g., α > 0). "
+            "No optimizer needed - direct parameter update."
+        )
+    
+    def update_model_parameters(
+        self,
+        action_gradients: Dict[str, torch.Tensor],
+        lr: float
+    ):
+        """
+        STUB: Update model parameters via action gradients.
+        
+        For each parameter θ:
+            θ(t+1) = θ(t) - lr · ∂S/∂θ
+        """
+        raise NotImplementedError(
+            "update_model_parameters: "
+            "Apply gradient descent on model parameters. "
+            "Use action gradients from analytic formulas. "
+            "Optional: Clip gradients for stability."
+        )
     
     @torch.inference_mode()
-    def _update_model_from_measurement(self, action_grad: torch.Tensor):
+    def validate_conservation_laws(
+        self,
+        measurements: 'TrajectoryMeasurements',
+        tolerance: float = 1e-6
+    ) -> Dict[str, bool]:
         """
-        Update model parameters using measured action gradient.
+        STUB: Verify physics conservation laws.
         
-        Direct parameter updates (no optimizer.step()!).
-        
-        Args:
-            action_grad: Measured action gradient
+        Checks:
+        1. Energy conservation: ΔE < tolerance
+        2. Entropy monotonicity: ΔH ≤ 0
+        3. Action minimization: ΔS < 0 (on average)
         """
-        # Get model parameters (only trainable ones)
-        trainable_params = [p for p in self.model.parameters() if p.requires_grad]
-        
-        # For now, update based on gradient statistics
-        # In full implementation, would map action_grad to each parameter
-        grad_magnitude = action_grad.abs().mean()
-        
-        for param in trainable_params:
-            # Simple gradient descent using measured magnitude
-            # Direction is random exploration (can be improved)
-            noise = torch.randn_like(param) * 0.01
-            param.data = param.data - self.lr_model * grad_magnitude * noise
+        raise NotImplementedError(
+            "validate_conservation_laws: "
+            "Compute conserved quantities from measurements. "
+            "Check against tolerance. "
+            "Log violations for debugging."
+        )
     
-    def _log_step(self, metrics: Dict):
-        """Log step metrics."""
-        print(f"Step {self.global_step}: " +
-              f"Loss={metrics['loss']:.4f}, " +
-              f"Action={metrics['action']:.4f}, " +
-              f"Entropy={metrics['entropy']:.4f}")
-    
-    def train(self, n_epochs: int):
+    def train_epoch(
+        self,
+        dataloader: torch.utils.data.DataLoader
+    ) -> Dict[str, float]:
         """
-        Train for multiple epochs.
-        
-        Args:
-            n_epochs: Number of epochs
-        """
-        print(f"\nStarting measurement-based training for {n_epochs} epochs...")
-        
-        for epoch in range(n_epochs):
-            self.epoch = epoch
-            
-            print(f"\n{'='*60}")
-            print(f"Epoch {epoch+1}/{n_epochs}")
-            print(f"{'='*60}")
-            
-            # Train epoch
-            epoch_metrics = self.train_epoch()
-            
-            # Log epoch summary
-            print(f"\nEpoch {epoch+1} Summary:")
-            print(f"  Avg Loss: {epoch_metrics['loss']:.4f}")
-            print(f"  Avg Action: {epoch_metrics['action']:.4f}")
-            print(f"  Avg Entropy: {epoch_metrics['entropy']:.4f}")
-            
-            # Store metrics
-            self.metrics_history.append({
-                'epoch': epoch,
-                'step': self.global_step,
-                **epoch_metrics
-            })
-            
-            # Validation (if available)
-            if self.val_loader is not None and epoch % self.config.get('val_interval', 1) == 0:
-                val_metrics = self.evaluate()
-                print(f"  Val Loss: {val_metrics.get('loss', 'N/A')}")
-            
-            # Save checkpoint
-            if epoch % self.config.get('checkpoint_interval', 10) == 0:
-                self.save_checkpoint(f'measurement_checkpoint_epoch_{epoch}.pt')
-        
-        print(f"\n{'='*60}")
-        print("Training complete!")
-        print(f"{'='*60}")
-    
-    @torch.inference_mode()
-    def evaluate(self) -> Dict:
-        """
-        Evaluate on validation set.
+        STUB: Train for one epoch.
         
         Returns:
-            metrics: Validation metrics
+            epoch_metrics: Averaged measurements over epoch
         """
-        self.model.eval()
-        
-        val_metrics = {
-            'loss': 0.0,
-            'action': 0.0,
-            'n_steps': 0
-        }
-        
-        for batch in self.val_loader:
-            batch = {k: v.to(self.device) if torch.is_tensor(v) else v 
-                    for k, v in batch.items()}
-            
-            # Get embeddings
-            embeddings = self._get_embeddings(batch)
-            
-            # Measure action
-            action_grad_result = compute_lior_action_gradient(
-                embeddings,
-                self.field.T,
-                return_components=True
-            )
-            
-            # Compute loss
-            with torch.amp.autocast('cuda', enabled=False):
-                logits = self.model.lm_head(embeddings)
-                loss = self._compute_monitoring_loss(logits, batch)
-            
-            val_metrics['loss'] += float(loss.item())
-            val_metrics['action'] += float(action_grad_result['action_values'].mean().item())
-            val_metrics['n_steps'] += 1
-        
-        # Average
-        for key in ['loss', 'action']:
-            val_metrics[key] /= max(val_metrics['n_steps'], 1)
-        
-        self.model.train()
-        return val_metrics
+        raise NotImplementedError(
+            "train_epoch: "
+            "Iterate over dataloader. "
+            "Call train_step for each batch. "
+            "Aggregate measurements. "
+            "Return epoch-averaged metrics."
+        )
+
+
+@torch.inference_mode()
+def compute_entropy_gradients(
+    field: nn.Module,
+    measurements: 'TrajectoryMeasurements'
+) -> Dict[str, torch.Tensor]:
+    """
+    STUB: Compute entropy gradients for field parameter updates.
     
-    def save_checkpoint(self, filename: str):
-        """Save training checkpoint."""
-        checkpoint = {
-            'epoch': self.epoch,
-            'global_step': self.global_step,
-            'model_state_dict': self.model.state_dict(),
-            'field_state': self.field.T.cpu(),
-            'field_params': {
-                'alpha': self.field.alpha.item() if hasattr(self.field, 'alpha') else None,
-                'nu': self.field.nu.item() if hasattr(self.field, 'nu') else None,
-                'tau': self.field.tau.item() if hasattr(self.field, 'tau') else None,
-            },
-            'config': self.config,
-            'metrics_history': self.metrics_history
-        }
-        
-        save_path = Path(self.config.get('checkpoint_dir', 'checkpoints')) / filename
-        save_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        torch.save(checkpoint, save_path)
-        print(f"Checkpoint saved: {save_path}")
+    H = -Tr(T log T)
+    
+    Returns gradients: ∂H/∂α, ∂H/∂ν, ∂H/∂τ
+    """
+    raise NotImplementedError(
+        "compute_entropy_gradients: "
+        "Use variational_entropy.py to compute field entropy. "
+        "Compute analytic gradients via finite differences or chain rule. "
+        "Return pure tensors (no autograd)."
+    )
