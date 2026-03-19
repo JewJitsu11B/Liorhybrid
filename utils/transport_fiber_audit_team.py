@@ -1,0 +1,841 @@
+"""
+Seven-Agent Transport & Fiber Bundle Audit Team
+
+Audits the parallel-transport operator (ParallelTransport / Pi tensor) and the
+fiber bundle structure (Tetrad / vielbein + CliffordConnection / Gamma) in
+models/causal_field.py and kernels/tetrad.py, and verifies that both operators
+are correctly wired into the training/inference pipeline.
+
+Team roles
+----------
+1. Coordinator   – owns scope, assigns sub-tasks, resolves blockers
+2. Physics        – covariant-derivative consistency, holonomy, conservation
+3. Geometry       – fiber bundle / vielbein orthonormality, metric compatibility
+4. Coding         – implementation correctness, shape contracts, device safety
+5. Validation     – quantitative numerical checks (norms, NaN/Inf, shapes)
+6. Morale         – workload balance flag, cadence sustainability notes
+7. Scribe         – consolidated decision log with severity & evidence
+
+STATUS: AWAITING APPROVAL TO EXECUTE
+"""
+try:
+    import usage_tracker
+    usage_tracker.track(__file__)
+except ImportError:
+    pass
+
+import pathlib
+import sys
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Tuple
+
+import torch
+import torch.nn as nn
+
+
+# ---------------------------------------------------------------------------
+# Import bootstrap
+# ---------------------------------------------------------------------------
+
+def _ensure_package_importable() -> None:
+    """
+    Ensure the Liorhybrid parent directory is in sys.path so that
+    relative imports inside models/causal_field.py resolve correctly.
+    Models use relative imports like ``from ..training.execution_tracker``
+    which require being imported as ``Liorhybrid.models.causal_field``.
+    """
+    repo_root = pathlib.Path(__file__).resolve().parents[1]   # .../Liorhybrid
+    parent = repo_root.parent                                   # .../work/Liorhybrid
+    if str(parent) not in sys.path:
+        sys.path.insert(0, str(parent))
+
+
+def _import_causal_field():
+    """Import CausalFieldLayer, ParallelTransport, CliffordConnection."""
+    _ensure_package_importable()
+    from Liorhybrid.models.causal_field import (  # noqa: PLC0415
+        CausalFieldLayer,
+        ParallelTransport,
+        CliffordConnection,
+    )
+    return CausalFieldLayer, ParallelTransport, CliffordConnection
+
+
+def _import_tetrad():
+    """Import Tetrad, compute_metric_from_tetrad from kernels.tetrad."""
+    _ensure_package_importable()
+    from Liorhybrid.kernels.tetrad import (  # noqa: PLC0415
+        Tetrad,
+        compute_metric_from_tetrad,
+    )
+    return Tetrad, compute_metric_from_tetrad
+
+
+# ---------------------------------------------------------------------------
+# Severity levels
+# ---------------------------------------------------------------------------
+
+SEVERITY_INFO = "INFO"
+SEVERITY_LOW = "LOW"
+SEVERITY_MEDIUM = "MEDIUM"
+SEVERITY_HIGH = "HIGH"
+SEVERITY_CRITICAL = "CRITICAL"
+
+
+# ---------------------------------------------------------------------------
+# Data structures
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class AuditFinding:
+    """Single finding produced by one specialist agent."""
+    role: str
+    operator: str          # e.g. "ParallelTransport", "CliffordConnection", "Tetrad"
+    check: str
+    passed: bool
+    severity: str          # one of the SEVERITY_* constants
+    evidence: str          # file + line / runtime value
+    recommendation: str
+
+
+@dataclass(frozen=True)
+class PipelineWiringCheck:
+    """Records whether an operator is properly wired into the pipeline."""
+    operator: str
+    wired: bool
+    entry_point: str       # caller module/class
+    notes: str
+
+
+@dataclass(frozen=True)
+class ScribeLog:
+    """Consolidated decision log produced by the Scribe agent."""
+    findings: List[AuditFinding]
+    wiring_checks: List[PipelineWiringCheck]
+    summary: str
+    action_items: List[str]
+
+    @property
+    def all_passed(self) -> bool:
+        return all(f.passed for f in self.findings)
+
+    @property
+    def critical_findings(self) -> List[AuditFinding]:
+        return [f for f in self.findings if not f.passed and f.severity == SEVERITY_CRITICAL]
+
+    @property
+    def failed_findings(self) -> List[AuditFinding]:
+        return [f for f in self.findings if not f.passed]
+
+
+@dataclass
+class AuditReport:
+    """Complete report produced by the full seven-agent team."""
+    coordinator_scope: str
+    findings: List[AuditFinding]
+    wiring_checks: List[PipelineWiringCheck]
+    morale_notes: List[str]
+    scribe_log: ScribeLog
+    approval_status: str = "AWAITING APPROVAL TO EXECUTE"
+
+    @property
+    def passed(self) -> bool:
+        return self.scribe_log.all_passed
+
+
+# ---------------------------------------------------------------------------
+# Individual specialist agents
+# ---------------------------------------------------------------------------
+
+class CoordinatorAgent:
+    """
+    Owns scope, assigns sub-tasks, resolves blockers.
+
+    Scope for this audit:
+    - models/causal_field.py  : ParallelTransport (Pi), CliffordConnection (Gamma)
+    - kernels/tetrad.py        : Tetrad (vielbein / fiber bundle)
+    - Pipeline wiring          : CausalFieldLayer forward(), kernels/__init__.py exports
+    """
+
+    SCOPE = (
+        "Audit the parallel-transport operator (ParallelTransport / Pi) and the "
+        "fiber bundle operator (Tetrad + CliffordConnection / Gamma) for physical "
+        "correctness, geometric validity, implementation soundness, and correct "
+        "pipeline wiring. Report findings without executing fixes until approved."
+    )
+
+    TASK_QUEUE = [
+        ("Physics",    "Verify covariant-derivative consistency and holonomy constraint"),
+        ("Geometry",   "Verify fiber bundle / vielbein orthonormality and metric compatibility"),
+        ("Coding",     "Audit shape contracts, device safety, and unused-parameter warnings"),
+        ("Validation", "Run quantitative checks: norms, NaN/Inf, shape contracts"),
+        ("Morale",     "Flag workload balance; ensure cadence is sustainable"),
+        ("Scribe",     "Consolidate all findings into decision log with severity + evidence"),
+    ]
+
+    def scope(self) -> str:
+        return self.SCOPE
+
+    def task_queue(self) -> List[Tuple[str, str]]:
+        return list(self.TASK_QUEUE)
+
+
+class PhysicsAgent:
+    """
+    Checks physical consistency of the transport and fiber bundle operators.
+
+    Key invariants:
+    1. Parallel transport must be metric-compatible: ∇_μ g = 0
+    2. The Clifford connection must anti-commute correctly: {γ^a, γ^b} = 2η^{ab}
+    3. The holomorphic constraint ∇(Pi Γ Φ) = 0 should be enforceable
+    4. The antisymmetric Phi bivector should enter the T field equation
+    """
+
+    def audit(self) -> List[AuditFinding]:
+        findings: List[AuditFinding] = []
+        CausalFieldLayer, _, _ = _import_causal_field()
+
+        # Check 1: Phi bivector is antisymmetric (required for physical bivector field)
+        layer = CausalFieldLayer(d_model=32, d_field=16, d_spinor=4, kernel_size=8)
+        phi = layer.get_phi()
+        phi_antisym = torch.allclose(phi, -phi.T, atol=1e-6)
+        findings.append(AuditFinding(
+            role="Physics",
+            operator="CausalFieldLayer.Phi",
+            check="Phi bivector is antisymmetric",
+            passed=bool(phi_antisym),
+            severity=SEVERITY_HIGH if not phi_antisym else SEVERITY_INFO,
+            evidence="models/causal_field.py:287-292 (Phi initialization) + :409-411 (get_phi)",
+            recommendation=(
+                "Phi antisymmetry verified."
+                if phi_antisym else
+                "Re-initialize Phi as Phi - Phi.T and enforce in forward pass."
+            ),
+        ))
+
+        # Check 2: Phi bivector is NOT used in the forward pass (pipeline gap)
+        # Static source inspection — read file text to check for Phi usage in forward()
+        cf_path = (
+            pathlib.Path(__file__).resolve().parents[1] / "models" / "causal_field.py"
+        )
+        cf_src = cf_path.read_text(encoding="utf-8")
+        # Look for get_phi() or self.Phi inside the forward method body
+        forward_start = cf_src.find("    def forward(")
+        forward_end = cf_src.find("\n    def ", forward_start + 1)
+        forward_body = cf_src[forward_start:forward_end] if forward_end > 0 else cf_src[forward_start:]
+        phi_used_in_forward = "get_phi" in forward_body or (
+            "self.Phi" in forward_body and "def get_phi" not in forward_body
+        )
+        findings.append(AuditFinding(
+            role="Physics",
+            operator="CausalFieldLayer.forward",
+            check="Phi bivector enters the T field equation (Pi Γ Phi J)",
+            passed=phi_used_in_forward,
+            severity=SEVERITY_HIGH,
+            evidence=(
+                "models/causal_field.py:374-394 — forward() contracts Pi(J, Gamma) "
+                "but never references self.Phi or get_phi()"
+            ),
+            recommendation=(
+                "Apply Phi contraction before or after Pi: e.g. "
+                "J_phi = einsum('...ij,jk->...ik', J, self.get_phi()) "
+                "then Pi(J_phi, Gamma). Pending approval."
+            ),
+        ))
+
+        # Check 3: Holomorphic constraint ∇(Pi Γ Phi) = 0 is NOT enforced
+        holomorphic_enforced = (
+            "holomorphic" in cf_src.lower() and
+            any(kw in cf_src for kw in ["regulariz", "constraint", "loss"])
+        )
+        # The docstring mentions it but the forward pass doesn't enforce it
+        holomorphic_in_forward = "holomorphic" in forward_body.lower()
+        findings.append(AuditFinding(
+            role="Physics",
+            operator="CausalFieldLayer",
+            check="Holomorphic constraint ∇^(cD^α)_μ (Pi Γ Phi) = 0 is enforced",
+            passed=holomorphic_in_forward,
+            severity=SEVERITY_MEDIUM,
+            evidence=(
+                "models/causal_field.py module docstring line 25 states the constraint "
+                "but no enforcement exists in forward() or as a loss regularizer"
+            ),
+            recommendation=(
+                "Add a regularization term or a post-step projection that enforces "
+                "the holomorphic constraint. Pending approval."
+            ),
+        ))
+
+        # Check 4: CliffordConnection gamma matrices anti-commutator {γ^a,γ^b} check
+        gamma = layer.Gamma_conn.gamma_matrices  # shape [4, d_spinor, d_spinor]
+        n_gammas = gamma.shape[0]
+        eta = torch.eye(n_gammas, device=gamma.device)  # Euclidean signature
+        max_err = 0.0
+        for a in range(n_gammas):
+            for b in range(n_gammas):
+                ga, gb = gamma[a], gamma[b]
+                anticomm = ga @ gb + gb @ ga  # should equal 2 η_{ab} I
+                expected = (2 * eta[a, b] * torch.eye(ga.shape[0], device=ga.device))
+                err = (anticomm - expected).abs().max().item()
+                if err > max_err:
+                    max_err = err
+        # Learned gammas are initialized randomly, so exact anti-commutation is NOT
+        # guaranteed at init. This is a known structural limitation.
+        anticomm_ok = max_err < 0.5  # relaxed threshold for learned params at init
+        findings.append(AuditFinding(
+            role="Physics",
+            operator="CliffordConnection.gamma_matrices",
+            check="Clifford gamma matrices satisfy approximate anti-commutation {γ^a,γ^b} ≈ 2η^{ab}I",
+            passed=anticomm_ok,
+            severity=SEVERITY_MEDIUM,
+            evidence=(
+                f"models/causal_field.py:236 — gamma_matrices initialized as "
+                f"randn(4,d_spinor,d_spinor)/d_spinor. Max anti-commutator error: {max_err:.4g}"
+            ),
+            recommendation=(
+                "Consider initializing gamma matrices from actual Dirac/Pauli matrices "
+                "and making them learnable via small perturbations. Pending approval."
+            ),
+        ))
+
+        return findings
+
+
+class GeometryAgent:
+    """
+    Audits the fiber bundle structure: Tetrad orthonormality, metric compatibility,
+    and whether the kernels/tetrad.py Tetrad is properly connected to CausalFieldLayer.
+    """
+
+    def audit(self) -> List[AuditFinding]:
+        findings: List[AuditFinding] = []
+        Tetrad, compute_metric_from_tetrad = _import_tetrad()
+
+        # Check 1: Tetrad class is NOT wired into CausalFieldLayer (static inspection)
+        cf_path = (
+            pathlib.Path(__file__).resolve().parents[1] / "models" / "causal_field.py"
+        )
+        cf_src = cf_path.read_text(encoding="utf-8")
+        tetrad_imported = (
+            "from ..kernels" in cf_src or
+            "kernels.tetrad" in cf_src or
+            "from kernels" in cf_src
+        )
+        findings.append(AuditFinding(
+            role="Geometry",
+            operator="CliffordConnection.tetrad vs kernels.tetrad.Tetrad",
+            check="kernels/tetrad.Tetrad is used by CliffordConnection (shared fiber bundle)",
+            passed=tetrad_imported,
+            severity=SEVERITY_HIGH,
+            evidence=(
+                "models/causal_field.py:241-243 defines self.tetrad = nn.Parameter(eye(4)+noise) "
+                "independently; kernels/tetrad.py:Tetrad class is never imported in causal_field.py"
+            ),
+            recommendation=(
+                "Replace CliffordConnection's internal tetrad parameter with an instance of "
+                "kernels.tetrad.Tetrad so the fiber bundle is governed by one shared operator. "
+                "Pending approval."
+            ),
+        ))
+
+        # Check 2: Tetrad orthonormality verification (using Tetrad class directly)
+        tet = Tetrad(dim=4, learnable=False)
+        g_inv_diag = torch.tensor([1.0, 1.0, 1.0, 1.0])
+        e = tet.compute_from_metric(g_inv_diag)
+        is_ortho, max_err = tet.verify_orthonormality(e)
+        findings.append(AuditFinding(
+            role="Geometry",
+            operator="kernels.tetrad.Tetrad",
+            check="Tetrad satisfies e^a_μ e^μ_b = δ^a_b (orthonormality)",
+            passed=is_ortho,
+            severity=SEVERITY_HIGH if not is_ortho else SEVERITY_INFO,
+            evidence=(
+                f"kernels/tetrad.py:92-135 — verify_orthonormality returned "
+                f"is_ortho={is_ortho}, max_error={max_err:.4g}"
+            ),
+            recommendation=(
+                "Orthonormality verified for diagonal metric."
+                if is_ortho else
+                "Fix tetrad computation to restore e e^{-1} = I."
+            ),
+        ))
+
+        # Check 3: Metric round-trip through Tetrad
+        g_reconstructed = compute_metric_from_tetrad(e)
+        g_expected = torch.diag(g_inv_diag)
+        round_trip_ok = torch.allclose(g_reconstructed, g_expected, atol=1e-5)
+        findings.append(AuditFinding(
+            role="Geometry",
+            operator="kernels.tetrad.compute_metric_from_tetrad",
+            check="Metric round-trip g = e^T e recovers original diagonal metric",
+            passed=round_trip_ok,
+            severity=SEVERITY_HIGH if not round_trip_ok else SEVERITY_INFO,
+            evidence=(
+                f"kernels/tetrad.py:180-195 — round-trip max error: "
+                f"{(g_reconstructed - g_expected).abs().max().item():.4g}"
+            ),
+            recommendation=(
+                "Round-trip verified."
+                if round_trip_ok else
+                "Fix compute_metric_from_tetrad signature consistency."
+            ),
+        ))
+
+        # Check 4: Pi_memory parameter is defined but unused in ParallelTransport.forward
+        # Static source inspection
+        pi_memory_in_forward = "Pi_memory" in cf_src
+        pi_memory_contracted = (
+            "Pi_memory" in cf_src and
+            cf_src.count("self.Pi_memory") > 1  # appears in init AND forward
+        )
+        # Actually check if it's in the forward method body
+        forward_start = cf_src.find("    def forward(")
+        forward_end = cf_src.find("\n    def ", forward_start + 1)
+        forward_body = cf_src[forward_start:forward_end] if forward_end > 0 else cf_src[forward_start:]
+        pi_memory_used_in_forward = "Pi_memory" in forward_body
+        findings.append(AuditFinding(
+            role="Geometry",
+            operator="ParallelTransport.Pi_memory",
+            check="Pi_memory (causal memory channel α,β) is contracted in ParallelTransport.forward",
+            passed=pi_memory_used_in_forward,
+            severity=SEVERITY_MEDIUM,
+            evidence=(
+                "models/causal_field.py:172-175 defines Pi_memory parameter; "
+                "models/causal_field.py:199-212 forward() only uses Pi_source, "
+                "Pi_target, Pi_spinor — Pi_memory is dead weight"
+            ),
+            recommendation=(
+                "Either contract Pi_memory into the transport chain "
+                "or remove it to reduce parameter count. Pending approval."
+            ),
+        ))
+
+        return findings
+
+
+class CodingAgent:
+    """
+    Reviews implementation correctness, shape contracts, edge cases, device safety.
+    """
+
+    def audit(self) -> List[AuditFinding]:
+        findings: List[AuditFinding] = []
+        CausalFieldLayer, _, _ = _import_causal_field()
+
+        # Check 1: Shape consistency — forward output shape matches input
+        # d_field must be 16 (AssociatorCurrent uses complex octonions = 16-d)
+        d_field = 16
+        layer = CausalFieldLayer(d_model=32, d_field=d_field, d_spinor=4, kernel_size=8)
+        x = torch.randn(2, 8, 32)
+        try:
+            out, mem = layer(x)
+            shape_ok = (out.shape == x.shape)
+        except Exception as exc:
+            shape_ok = False
+            _ = str(exc)
+        findings.append(AuditFinding(
+            role="Coding",
+            operator="CausalFieldLayer.forward",
+            check="Forward pass output shape matches input shape [B, N, d_model]",
+            passed=shape_ok,
+            severity=SEVERITY_CRITICAL if not shape_ok else SEVERITY_INFO,
+            evidence=(
+                "models/causal_field.py:317-407 — ran forward([2,8,32]), "
+                f"output shape correct: {shape_ok}"
+            ),
+            recommendation=(
+                "Shape contract satisfied."
+                if shape_ok else
+                "Fix shape mismatch in CausalFieldLayer.forward."
+            ),
+        ))
+
+        # Check 2: CliffordConnection.forward returns no NaN at init
+        gamma_conn = layer.Gamma_conn
+        gamma_out = gamma_conn()
+        gamma_finite = torch.isfinite(gamma_out).all().item()
+        findings.append(AuditFinding(
+            role="Coding",
+            operator="CliffordConnection.forward",
+            check="CliffordConnection output is finite at initialization",
+            passed=bool(gamma_finite),
+            severity=SEVERITY_HIGH if not gamma_finite else SEVERITY_INFO,
+            evidence=(
+                f"models/causal_field.py:245-258 — output finite: {gamma_finite}, "
+                f"shape: {list(gamma_out.shape)}"
+            ),
+            recommendation=(
+                "CliffordConnection output is finite."
+                if gamma_finite else
+                "Check initialization scale for tetrad and gamma_matrices."
+            ),
+        ))
+
+        # Check 3: ParallelTransport output shape matches J
+        pi = layer.Pi
+        J_test = torch.randn(2, 8, d_field, d_field)
+        gamma_test = gamma_conn()
+        try:
+            transported = pi(J_test, gamma_test)
+            transport_shape_ok = (transported.shape == J_test.shape)
+        except Exception:
+            transport_shape_ok = False
+        findings.append(AuditFinding(
+            role="Coding",
+            operator="ParallelTransport.forward",
+            check="ParallelTransport output shape matches J shape [B,N,d_field,d_field]",
+            passed=transport_shape_ok,
+            severity=SEVERITY_CRITICAL if not transport_shape_ok else SEVERITY_INFO,
+            evidence=(
+                f"models/causal_field.py:182-213 — output shape match: {transport_shape_ok}"
+            ),
+            recommendation=(
+                "Transport shape contract satisfied."
+                if transport_shape_ok else
+                "Investigate spinor_contrib broadcast logic at lines 208-211."
+            ),
+        ))
+
+        # Check 4: No .cpu() or .numpy() calls in transport chain (device safety)
+        cf_path = (
+            pathlib.Path(__file__).resolve().parents[1] / "models" / "causal_field.py"
+        )
+        source = cf_path.read_text(encoding="utf-8")
+        cpu_call_count = source.count(".cpu()") + source.count(".numpy()")
+        device_safe = cpu_call_count == 0
+        findings.append(AuditFinding(
+            role="Coding",
+            operator="models/causal_field.py",
+            check="No .cpu() or .numpy() calls in transport chain (GPU-safe)",
+            passed=device_safe,
+            severity=SEVERITY_MEDIUM if not device_safe else SEVERITY_INFO,
+            evidence=(
+                f"models/causal_field.py — found {cpu_call_count} .cpu()/.numpy() call(s)"
+            ),
+            recommendation=(
+                "Device-safe: no forced CPU transfers found."
+                if device_safe else
+                "Replace .cpu()/.numpy() calls with device-agnostic alternatives."
+            ),
+        ))
+
+        return findings
+
+
+class ValidationAgent:
+    """
+    Runs quantitative numerical checks on the transport and fiber bundle operators.
+    """
+
+    def audit(self) -> List[AuditFinding]:
+        findings: List[AuditFinding] = []
+        CausalFieldLayer, ParallelTransport, CliffordConnection = _import_causal_field()
+        Tetrad, _ = _import_tetrad()
+
+        d_field, d_spinor = 16, 4
+        layer = CausalFieldLayer(d_model=32, d_field=d_field, d_spinor=d_spinor, kernel_size=8)
+
+        # Check 1: CliffordConnection output norm is reasonable
+        gamma = layer.Gamma_conn()
+        gamma_norm = gamma.norm().item()
+        gamma_norm_ok = 0.0 < gamma_norm < 1e4
+        findings.append(AuditFinding(
+            role="Validation",
+            operator="CliffordConnection",
+            check="CliffordConnection output Frobenius norm is in (0, 1e4)",
+            passed=gamma_norm_ok,
+            severity=SEVERITY_HIGH if not gamma_norm_ok else SEVERITY_INFO,
+            evidence=f"||Gamma||_F = {gamma_norm:.4g}",
+            recommendation=(
+                "Norm within expected range."
+                if gamma_norm_ok else
+                "Normalize tetrad or gamma_matrices initialization."
+            ),
+        ))
+
+        # Check 2: ParallelTransport output is finite for random input
+        J = torch.randn(2, 8, d_field, d_field)
+        transported = layer.Pi(J, gamma)
+        transport_finite = torch.isfinite(transported).all().item()
+        findings.append(AuditFinding(
+            role="Validation",
+            operator="ParallelTransport",
+            check="ParallelTransport output is finite for random J",
+            passed=bool(transport_finite),
+            severity=SEVERITY_CRITICAL if not transport_finite else SEVERITY_INFO,
+            evidence=(
+                f"max={transported.abs().max().item():.4g}, "
+                f"has_nan={transported.isnan().any().item()}, "
+                f"has_inf={transported.isinf().any().item()}"
+            ),
+            recommendation=(
+                "Transport output is finite."
+                if transport_finite else
+                "Add gradient clipping or scale initialization."
+            ),
+        ))
+
+        # Check 3: Tetrad orthonormality for 4-d anisotropic metric
+        tet = Tetrad(dim=4, learnable=False)
+        g_aniso = torch.tensor([4.0, 1.0, 2.0, 0.5])
+        e = tet.compute_from_metric(g_aniso)
+        is_ortho, max_err = tet.verify_orthonormality(e)
+        findings.append(AuditFinding(
+            role="Validation",
+            operator="kernels.tetrad.Tetrad",
+            check="Tetrad orthonormality for 4-d anisotropic metric (max error < 1e-5)",
+            passed=is_ortho,
+            severity=SEVERITY_HIGH if not is_ortho else SEVERITY_INFO,
+            evidence=f"max_error = {max_err:.4g}",
+            recommendation=(
+                "Orthonormality verified."
+                if is_ortho else
+                "Check sqrt computation for near-zero metric components."
+            ),
+        ))
+
+        # Check 4: Full CausalFieldLayer forward — no NaN with typical batch
+        x = torch.randn(2, 16, 32)
+        out, _ = layer(x)
+        no_nan = torch.isfinite(out).all().item()
+        findings.append(AuditFinding(
+            role="Validation",
+            operator="CausalFieldLayer (full pipeline)",
+            check="Full CausalFieldLayer forward is NaN/Inf-free for typical batch",
+            passed=bool(no_nan),
+            severity=SEVERITY_CRITICAL if not no_nan else SEVERITY_INFO,
+            evidence=(
+                f"out has_nan={out.isnan().any().item()}, "
+                f"has_inf={out.isinf().any().item()}, "
+                f"max_abs={out.abs().max().item():.4g}"
+            ),
+            recommendation=(
+                "Full pipeline forward is stable."
+                if no_nan else
+                "Enable diagnose=True and trace the NaN source."
+            ),
+        ))
+
+        return findings
+
+
+class MoraleAgent:
+    """
+    Monitors team health and workload sustainability.
+    """
+
+    def audit(self, findings: List[AuditFinding]) -> List[str]:
+        notes: List[str] = []
+        total = len(findings)
+        failed = sum(1 for f in findings if not f.passed)
+        critical = sum(1 for f in findings if not f.passed and f.severity == SEVERITY_CRITICAL)
+        high = sum(1 for f in findings if not f.passed and f.severity == SEVERITY_HIGH)
+
+        notes.append(
+            f"Team health check: {total} checks completed, {failed} failed "
+            f"({critical} CRITICAL, {high} HIGH)."
+        )
+        if critical > 0:
+            notes.append(
+                "⚠  CRITICAL findings present. Recommend immediate coordinator review "
+                "before scheduling follow-up work to avoid team overload."
+            )
+        if failed > total * 0.5:
+            notes.append(
+                "⚠  Majority of checks failing. Suggest breaking the remediation "
+                "into two sequential sprints: (1) pipeline wiring fixes, "
+                "(2) physical/geometric constraint enforcement."
+            )
+        else:
+            notes.append(
+                "✓  Workload appears sustainable. Proceed in one sprint "
+                "once coordinator obtains approval."
+            )
+        notes.append(
+            "Morale note: Findings at this stage are PLAN-ONLY. "
+            "No code has been changed. Approval is required before execution."
+        )
+        return notes
+
+
+class ScribeAgent:
+    """
+    Consolidates all findings into a structured decision log.
+    """
+
+    def consolidate(
+        self,
+        findings: List[AuditFinding],
+        wiring_checks: List[PipelineWiringCheck],
+    ) -> ScribeLog:
+        failed = [f for f in findings if not f.passed]
+
+        summary_lines = [
+            f"Total checks: {len(findings)}",
+            f"Passed: {sum(1 for f in findings if f.passed)}",
+            f"Failed: {len(failed)}",
+            f"Pipeline wiring issues: {sum(1 for w in wiring_checks if not w.wired)}",
+        ]
+        summary = " | ".join(summary_lines)
+
+        action_items = []
+        for f in failed:
+            action_items.append(
+                f"[{f.severity}] [{f.role}] {f.operator} — {f.check}: {f.recommendation}"
+            )
+        if not action_items:
+            action_items.append("No action items — all checks passed.")
+
+        return ScribeLog(
+            findings=findings,
+            wiring_checks=wiring_checks,
+            summary=summary,
+            action_items=action_items,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Pipeline wiring checker (static / structural)
+# ---------------------------------------------------------------------------
+
+def _check_pipeline_wiring() -> List[PipelineWiringCheck]:
+    """
+    Inspect source files to determine whether the transport and fiber bundle
+    operators are wired into the pipeline.
+    """
+    checks: List[PipelineWiringCheck] = []
+    repo_root = pathlib.Path(__file__).resolve().parents[1]
+
+    # Read causal_field.py source directly (avoid import issues)
+    cf_src = (repo_root / "models" / "causal_field.py").read_text(encoding="utf-8")
+
+    # Find the CausalFieldLayer forward method body for scoped checks
+    layer_start = cf_src.find("class CausalFieldLayer")
+    layer_src = cf_src[layer_start:] if layer_start >= 0 else cf_src
+
+    # 1. Is ParallelTransport instantiated and called in CausalFieldLayer?
+    checks.append(PipelineWiringCheck(
+        operator="ParallelTransport",
+        wired=("self.Pi" in layer_src and "self.Pi(" in layer_src),
+        entry_point="models.causal_field.CausalFieldLayer",
+        notes="Pi is instantiated at line ~295 and called at line ~375.",
+    ))
+
+    # 2. Is CliffordConnection instantiated and called in CausalFieldLayer?
+    checks.append(PipelineWiringCheck(
+        operator="CliffordConnection",
+        wired=("self.Gamma_conn" in layer_src and "self.Gamma_conn()" in layer_src),
+        entry_point="models.causal_field.CausalFieldLayer",
+        notes="Gamma_conn is instantiated at line ~298 and called at line ~371.",
+    ))
+
+    # 3. Is Phi (bivector) contracted into the forward pass?
+    forward_start = layer_src.find("    def forward(")
+    forward_end = layer_src.find("\n    def ", forward_start + 1)
+    forward_body = (
+        layer_src[forward_start:forward_end]
+        if forward_end > 0 else layer_src[forward_start:]
+    )
+    phi_wired = "get_phi" in forward_body or (
+        "self.Phi" in forward_body and "def get_phi" not in forward_body
+    )
+    checks.append(PipelineWiringCheck(
+        operator="Phi bivector",
+        wired=phi_wired,
+        entry_point="models.causal_field.CausalFieldLayer.forward",
+        notes=(
+            "get_phi() is defined and Phi is initialized but never called in forward(); "
+            "the field equation T = α J + (1-α) ∫ k Pi Γ J is missing the Phi factor."
+        ),
+    ))
+
+    # 4. Is kernels.tetrad.Tetrad imported/used in causal_field.py?
+    tetrad_imported = (
+        "from ..kernels" in cf_src or
+        "kernels.tetrad" in cf_src or
+        "from kernels" in cf_src
+    )
+    checks.append(PipelineWiringCheck(
+        operator="kernels.tetrad.Tetrad (fiber bundle)",
+        wired=tetrad_imported,
+        entry_point="models/causal_field.py",
+        notes=(
+            "kernels/tetrad.py Tetrad is NOT imported in causal_field.py. "
+            "CliffordConnection uses its own independent tetrad nn.Parameter. "
+            "The shared fiber bundle is not connected."
+        ),
+    ))
+
+    # 5. Is Tetrad exported from kernels/__init__.py?
+    kernels_init = (repo_root / "kernels" / "__init__.py").read_text(encoding="utf-8")
+    tetrad_exported = "Tetrad" in kernels_init
+    checks.append(PipelineWiringCheck(
+        operator="kernels.tetrad.Tetrad export",
+        wired=tetrad_exported,
+        entry_point="kernels/__init__.py",
+        notes="Tetrad is exported from kernels/__init__.py at line ~39-41.",
+    ))
+
+    # 6. Is ParallelTransport exported from models/__init__.py?
+    models_init = (repo_root / "models" / "__init__.py").read_text(encoding="utf-8")
+    pt_exported = "ParallelTransport" in models_init
+    checks.append(PipelineWiringCheck(
+        operator="models.ParallelTransport export",
+        wired=pt_exported,
+        entry_point="models/__init__.py",
+        notes="ParallelTransport is exported from models/__init__.py at line ~36.",
+    ))
+
+    return checks
+
+
+# ---------------------------------------------------------------------------
+# Seven-Agent Audit Team (public entry point)
+# ---------------------------------------------------------------------------
+
+class TransportFiberAuditTeam:
+    """
+    Seven-agent specialist team that audits the transport and fiber bundle
+    operators and their pipeline connections.
+
+    STATUS: AWAITING APPROVAL TO EXECUTE
+    Call run() to produce a full AuditReport; no code changes are made.
+    """
+
+    def run(self) -> AuditReport:
+        """
+        Execute the full audit and return the report.
+        Does NOT make any code changes — findings are plan-only.
+        """
+        coordinator = CoordinatorAgent()
+        physics = PhysicsAgent()
+        geometry = GeometryAgent()
+        coding = CodingAgent()
+        validation = ValidationAgent()
+        morale = MoraleAgent()
+        scribe = ScribeAgent()
+
+        # Collect findings from specialist agents
+        all_findings: List[AuditFinding] = []
+        all_findings.extend(physics.audit())
+        all_findings.extend(geometry.audit())
+        all_findings.extend(coding.audit())
+        all_findings.extend(validation.audit())
+
+        # Check pipeline wiring
+        wiring_checks = _check_pipeline_wiring()
+
+        # Morale notes
+        morale_notes = morale.audit(all_findings)
+
+        # Scribe consolidation
+        scribe_log = scribe.consolidate(all_findings, wiring_checks)
+
+        return AuditReport(
+            coordinator_scope=coordinator.scope(),
+            findings=all_findings,
+            wiring_checks=wiring_checks,
+            morale_notes=morale_notes,
+            scribe_log=scribe_log,
+            approval_status="AWAITING APPROVAL TO EXECUTE",
+        )

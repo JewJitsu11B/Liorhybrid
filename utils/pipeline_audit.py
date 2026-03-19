@@ -111,6 +111,57 @@ def write_summary() -> Path:
         return out
 
 
+def write_transport_fiber_audit_report(
+    label: str = "transport_fiber_bundle_audit",
+) -> Path:
+    """
+    Run the seven-agent transport & fiber bundle audit and append findings to
+    the audit markdown.  No code changes are made — findings are plan-only.
+    """
+    from .transport_fiber_audit_team import TransportFiberAuditTeam
+
+    report = TransportFiberAuditTeam().run()
+    out = _audit_path()
+    out.parent.mkdir(parents=True, exist_ok=True)
+
+    with _LOCK:
+        with out.open("a", encoding="utf-8") as f:
+            f.write(f"\n## Transport & Fiber Bundle Audit Team ({label})\n")
+            f.write(f"- Approval status: `{report.approval_status}`\n")
+            f.write(f"- Coordinator scope: {report.coordinator_scope}\n")
+            f.write(f"- Overall: `{'PASS' if report.passed else 'FAIL'}`\n\n")
+
+            f.write("### Agent Findings\n")
+            for finding in report.findings:
+                status = "PASS" if finding.passed else "FAIL"
+                f.write(
+                    f"- `{status}` | `{finding.severity}` | `{finding.role}` | "
+                    f"`{finding.operator}` | {finding.check} | "
+                    f"evidence: {finding.evidence}\n"
+                )
+
+            f.write("\n### Pipeline Wiring Checks\n")
+            for wc in report.wiring_checks:
+                wired_str = "WIRED" if wc.wired else "NOT WIRED"
+                f.write(
+                    f"- `{wired_str}` | `{wc.operator}` | "
+                    f"entry: {wc.entry_point} | {wc.notes}\n"
+                )
+
+            f.write("\n### Morale Notes\n")
+            for note in report.morale_notes:
+                f.write(f"- {note}\n")
+
+            f.write("\n### Scribe: Summary\n")
+            f.write(f"- {report.scribe_log.summary}\n")
+
+            f.write("\n### Scribe: Action Items (Pending Approval)\n")
+            for item in report.scribe_log.action_items:
+                f.write(f"- {item}\n")
+
+    return out
+
+
 def write_math_validation_report(label: str = "full_pipeline_math_validation") -> Path:
     """
     Run multi-agent math validation and append findings to the audit markdown.
