@@ -1482,46 +1482,58 @@ def configure_trainer2_params(config):
     print("=" * 70)
 
     # -------------------------------------------------------------------------
-    # SECTION A: SCALING (safe, affects memory/compute)
+    # SECTION A: SCALING (safe, affects memory/compute)  [commented out — using defaults]
     # -------------------------------------------------------------------------
-    print("\n[A] SCALING (safe - affects memory/compute)")
-    print("-" * 50)
-
-    config['tbptt_window_steps'] = int(input(f"  tbptt_window_steps [64]: ").strip() or config.get('tbptt_window_steps', 64))
-    config['trainer2_sdm_capacity'] = int(input(f"  sdm_capacity [2048]: ").strip() or config.get('trainer2_sdm_capacity', 2048))
-    config['lr'] = float(input(f"  learning_rate [1e-4]: ").strip() or config.get('lr', 1e-4))
-    config['retrieval_beta'] = float(input(f"  retrieval_beta [5.0]: ").strip() or config.get('retrieval_beta', 5.0))
-
-    # -------------------------------------------------------------------------
-    # SECTION B: PHYSICS (safe, changes dynamics)
-    # -------------------------------------------------------------------------
-    print("\n[B] PHYSICS (safe - changes dynamics)")
-    print("-" * 50)
-    print("  frame_mode: rotor | derived | learned_lowrank")
-    config['frame_mode'] = input(f"  frame_mode [rotor]: ").strip() or config.get('frame_mode', 'rotor')
-    print("  R_source: constitutive | curvature")
-    config['R_source'] = input(f"  R_source [constitutive]: ").strip() or config.get('R_source', 'constitutive')
-    print("  rotor_mode: stateful | derived | off")
-    config['rotor_mode'] = input(f"  rotor_mode [stateful]: ").strip() or config.get('rotor_mode', 'stateful')
-    config['beta_nudge'] = float(input(f"  beta_nudge [1e-3]: ").strip() or config.get('beta_nudge', 1e-3))
+    # print("\n[A] SCALING (safe - affects memory/compute)")
+    # print("-" * 50)
+    # config['tbptt_window_steps'] = int(input(f"  tbptt_window_steps [64]: ").strip() or config.get('tbptt_window_steps', 64))
+    # config['trainer2_sdm_capacity'] = int(input(f"  sdm_capacity [2048]: ").strip() or config.get('trainer2_sdm_capacity', 2048))
+    # config['lr'] = float(input(f"  learning_rate [1e-4]: ").strip() or config.get('lr', 1e-4))
+    # config['retrieval_beta'] = float(input(f"  retrieval_beta [5.0]: ").strip() or config.get('retrieval_beta', 5.0))
+    config.setdefault('tbptt_window_steps', 64)
+    config.setdefault('trainer2_sdm_capacity', 2048)
+    config.setdefault('lr', 1e-4)
+    config.setdefault('retrieval_beta', 5.0)
 
     # -------------------------------------------------------------------------
-    # SECTION E: DYNAMICS MODE (field evolution method)
+    # SECTION B: PHYSICS (safe, changes dynamics)  [commented out — using defaults]
     # -------------------------------------------------------------------------
-    print("\n[E] DYNAMICS MODE (field evolution)")
-    print("-" * 50)
-    print("  symplectic: Phase-space preserving (default, no memory bleed)")
-    print("  dissipative: Standard gradient-based")
-    config['dynamics_mode'] = input(f"  dynamics_mode [symplectic]: ").strip() or config.get('dynamics_mode', 'symplectic')
+    # print("\n[B] PHYSICS (safe - changes dynamics)")
+    # print("-" * 50)
+    # print("  frame_mode: rotor | derived | learned_lowrank")
+    # config['frame_mode'] = input(f"  frame_mode [rotor]: ").strip() or config.get('frame_mode', 'rotor')
+    # print("  R_source: constitutive | curvature")
+    # config['R_source'] = input(f"  R_source [constitutive]: ").strip() or config.get('R_source', 'constitutive')
+    # print("  rotor_mode: stateful | derived | off")
+    # config['rotor_mode'] = input(f"  rotor_mode [stateful]: ").strip() or config.get('rotor_mode', 'stateful')
+    # config['beta_nudge'] = float(input(f"  beta_nudge [1e-3]: ").strip() or config.get('beta_nudge', 1e-3))
+    config.setdefault('frame_mode', 'rotor')
+    config.setdefault('R_source', 'constitutive')
+    config.setdefault('rotor_mode', 'stateful')
+    config.setdefault('beta_nudge', 1e-3)
 
-    if config['dynamics_mode'] == 'symplectic':
-        print("\n  Symplectic parameters (Stormer-Verlet integration):")
-        config['symplectic_dt'] = float(input(f"    symplectic_dt [0.005]: ").strip() or config.get('symplectic_dt', 0.005))
-        config['symplectic_m_cog'] = float(input(f"    symplectic_m_cog (inertia) [1.0]: ").strip() or config.get('symplectic_m_cog', 1.0))
-        config['symplectic_hbar_cog'] = float(input(f"    symplectic_hbar_cog [0.1]: ").strip() or config.get('symplectic_hbar_cog', 0.1))
-        print("    symplectic_potential: zero | harmonic | gaussian_well")
-        config['symplectic_potential'] = input(f"    symplectic_potential [harmonic]: ").strip() or config.get('symplectic_potential', 'harmonic')
-        config['symplectic_stiffness'] = float(input(f"    symplectic_stiffness [0.01]: ").strip() or config.get('symplectic_stiffness', 0.01))
+    # -------------------------------------------------------------------------
+    # SECTION E: DYNAMICS MODE (field evolution method)  [commented out — using defaults]
+    # -------------------------------------------------------------------------
+    # print("\n[E] DYNAMICS MODE (field evolution)")
+    # print("-" * 50)
+    # print("  symplectic: Phase-space preserving (default, no memory bleed)")
+    # print("  dissipative: Standard gradient-based")
+    # config['dynamics_mode'] = input(f"  dynamics_mode [symplectic]: ").strip() or config.get('dynamics_mode', 'symplectic')
+    # if config['dynamics_mode'] == 'symplectic':
+    #     print("\n  Symplectic parameters (Stormer-Verlet integration):")
+    #     config['symplectic_dt'] = float(input(f"    symplectic_dt [0.005]: ").strip() or config.get('symplectic_dt', 0.005))
+    #     config['symplectic_m_cog'] = float(input(f"    symplectic_m_cog (inertia) [1.0]: ").strip() or config.get('symplectic_m_cog', 1.0))
+    #     config['symplectic_hbar_cog'] = float(input(f"    symplectic_hbar_cog [0.1]: ").strip() or config.get('symplectic_hbar_cog', 0.1))
+    #     print("    symplectic_potential: zero | harmonic | gaussian_well")
+    #     config['symplectic_potential'] = input(f"    symplectic_potential [harmonic]: ").strip() or config.get('symplectic_potential', 'harmonic')
+    #     config['symplectic_stiffness'] = float(input(f"    symplectic_stiffness [0.01]: ").strip() or config.get('symplectic_stiffness', 0.01))
+    config.setdefault('dynamics_mode', 'symplectic')
+    config.setdefault('symplectic_dt', 0.005)
+    config.setdefault('symplectic_m_cog', 1.0)
+    config.setdefault('symplectic_hbar_cog', 0.1)
+    config.setdefault('symplectic_potential', 'harmonic')
+    config.setdefault('symplectic_stiffness', 0.01)
 
     # -------------------------------------------------------------------------
     # SECTION C: CORE ARCHITECTURE (main param count drivers)
