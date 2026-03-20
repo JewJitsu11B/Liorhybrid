@@ -1,18 +1,18 @@
 {
   "__init__.py": {
-    "call_count": 82,
+    "call_count": 84,
     "first_called": "2026-01-23T23:34:38.855996",
-    "last_called": "2026-03-20T14:09:03.296753"
+    "last_called": "2026-03-20T15:33:58.940450"
   },
   "core/__init__.py": {
-    "call_count": 82,
+    "call_count": 84,
     "first_called": "2026-01-23T23:34:38.857088",
-    "last_called": "2026-03-20T14:09:03.297825"
+    "last_called": "2026-03-20T15:33:58.941542"
   },
   "core/config.py": {
-    "call_count": 82,
+    "call_count": 84,
     "first_called": "2026-01-23T23:34:38.860139",
-    "last_called": "2026-03-20T14:09:03.298883"
+    "last_called": "2026-03-20T15:33:58.942632"
   },
   "core/tensor_field.py": {
     "call_count": 71,
@@ -500,9 +500,9 @@
     "last_called": "2026-01-27T22:53:11.997818"
   },
   "utils/__init__.py": {
-    "call_count": 97,
+    "call_count": 98,
     "first_called": "2026-01-23T23:34:38.943397",
-    "last_called": "2026-03-20T14:09:04.569916"
+    "last_called": "2026-03-20T15:34:12.207819"
   },
   "utils/comprehensive_similarity.py": {
     "call_count": 5,
@@ -540,9 +540,9 @@
     "last_called": "2026-01-28T19:34:59.503498"
   },
   "utils/telemetry_pipeline_audit_team.py": {
-    "call_count": 1,
+    "call_count": 2,
     "first_called": "2026-03-20T13:33:36.497974",
-    "last_called": "2026-03-20T13:33:36.497974"
+    "last_called": "2026-03-20T15:34:19.219401"
   },
   "utils/transport_fiber_audit_team.py": {
     "call_count": 6,
