@@ -280,7 +280,17 @@ class NeighborSelector(nn.Module):
         # |q×c| approximated via (q·g·q)(c·g·c) - (q·g·c)²
         q_norm_sq = (query * metric * query).sum(dim=-1, keepdim=True)  # (batch, 1)
         c_norm_sq = (candidates * metric_exp * candidates).sum(dim=-1)  # (batch, N_cand)
-        # Use absolute values before sqrt so negative-metric components don't produce NaN
+        # Negative q_norm_sq indicates the metric has negative diagonal entries,
+        # which means it is not positive-definite.  Warn once and use abs() to
+        # avoid NaN from sqrt of a negative number.
+        if q_norm_sq.min() < 0:
+            import warnings
+            warnings.warn(
+                "NeighborSelector: metric has negative diagonal entries — "
+                "not a valid Riemannian metric.  Abs() applied for numerical stability.",
+                RuntimeWarning,
+                stacklevel=4,
+            )
         q_norm_sq_abs = q_norm_sq.abs()
         c_norm_sq_abs = c_norm_sq.abs()
         wedge_scores = torch.sqrt(
@@ -959,9 +969,9 @@ def compute_address_uniqueness_score(addresses: Address) -> float:
     mask = ~torch.eye(similarity.shape[0], dtype=torch.bool, device=similarity.device)
     similarity = similarity * mask.float()
     
-    # Average dissimilarity (1 - similarity), clamped to valid [0, 1] range
-    dissimilarity = 1.0 - similarity
-    uniqueness_score = dissimilarity[mask].mean().clamp(0.0, 1.0).item()
+    # Average dissimilarity (1 - similarity), clamped per-element then averaged
+    dissimilarity = (1.0 - similarity)[mask].clamp(0.0, 1.0)
+    uniqueness_score = dissimilarity.mean().item()
     
     return uniqueness_score
 

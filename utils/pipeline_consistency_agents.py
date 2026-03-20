@@ -202,6 +202,10 @@ class ScanningAgent:
 
     When the variable is no longer present in a step's outputs the agent
     records a break and releases itself back to the coordinator.
+
+    Note: designed for single-threaded use through ``_BaseConsistencyTeam``.
+    The ``BookkeeperAgent`` it writes to is thread-safe, but ``ScanningAgent``
+    itself is not and should not be shared across threads.
     """
 
     def __init__(self, agent_id: int, bookkeeper: BookkeeperAgent):
@@ -339,7 +343,7 @@ class _BaseConsistencyTeam:
         self._refill_markers(step)
 
         # 4. Advance every busy scanner; collect those that just finished.
-        for scanner in list(self.scanners):
+        for scanner in self.scanners:
             if scanner.is_busy:
                 tracked_name = scanner.current_name
                 outcome = self._advance_scanner(scanner, step)
