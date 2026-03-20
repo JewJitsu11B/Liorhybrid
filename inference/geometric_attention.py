@@ -646,27 +646,33 @@ class GeometricAttention(nn.Module):
         neighbor_embeddings: Optional[torch.Tensor] = None,  # Option 6: raw neighbors
         metric: Optional[torch.Tensor] = None,  # Option 6: diagonal metric
         Q_address: Optional[Address] = None,  # Option 6 Extended: full Address structure
+        address: Optional[Address] = None,     # alias for Q_address
+        enable_address_probing: bool = False,  # ignored; presence of address/Q_address is the signal
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Forward pass supporting multiple input modes:
-        
+
         1. Address-based probing (Option 6 Extended, preferred):
-           Pass Q_address with populated neighbors
+           Pass address= (or Q_address=) with populated neighbors.
            - Uses probe_address_neighbors() for full Address integration
            - Consumes 6 similarity scores per neighbor
            - O(N × 64 × d') complexity, no dense matmul
-        
+
         2. Neighbor embedding probing (Option 6):
-           Pass neighbor_embeddings instead of K/V
+           Pass neighbor_embeddings instead of K/V.
            - Uses probe_neighbors() for O(N × 64 × d') complexity
            - NO dense matmul, NO softmax collapse
            - Born gate |ψ|² normalization
 
         3. Legacy K/V attention:
-           Pass K, V for standard geometric attention
+           Pass K, V for standard geometric attention.
            - O(N²) complexity via Q @ K.T matmul
            - Softmax normalization
         """
+        # Normalise: accept address= as alias for Q_address=
+        if Q_address is None and address is not None:
+            Q_address = address
+
         # Route to Address-based probing if Q_address provided (Option 6 Extended)
         if Q_address is not None:
             return self.probe_address_neighbors(Q_address=Q_address)

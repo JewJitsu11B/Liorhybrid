@@ -345,6 +345,10 @@ class GeometricStack(nn.Module):
             candidate_embeddings = field_flat.repeat(repeats, 1)[:n_candidates]
         
         # Project candidates to d_model//2 to match encoder output
+        # Handle complex tensors by interleaving real and imaginary parts so no
+        # information is lost before projecting to the real-valued embedding space.
+        if candidate_embeddings.is_complex():
+            candidate_embeddings = torch.view_as_real(candidate_embeddings).flatten(-2)
         if not hasattr(self, '_candidate_proj'):
             self._candidate_proj = nn.Linear(
                 candidate_embeddings.shape[-1],
@@ -366,7 +370,7 @@ class GeometricStack(nn.Module):
         try:
             addresses = self.address_builder(
                 embedding=query_embedding,
-                candidate_embeddings=candidate_embeddings,
+                neighbor_embeddings=candidate_embeddings,
                 enable_probing=True  # Option 6 mode
             )
         except ValueError as e:

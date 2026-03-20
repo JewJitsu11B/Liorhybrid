@@ -1,23 +1,23 @@
 {
   "__init__.py": {
-    "call_count": 46,
+    "call_count": 61,
     "first_called": "2026-01-23T23:34:38.855996",
-    "last_called": "2026-03-19T21:39:55.576916"
+    "last_called": "2026-03-20T00:09:41.960630"
   },
   "core/__init__.py": {
-    "call_count": 46,
+    "call_count": 61,
     "first_called": "2026-01-23T23:34:38.857088",
-    "last_called": "2026-03-19T21:39:55.577910"
+    "last_called": "2026-03-20T00:09:41.961749"
   },
   "core/config.py": {
-    "call_count": 46,
+    "call_count": 61,
     "first_called": "2026-01-23T23:34:38.860139",
-    "last_called": "2026-03-19T21:39:55.578892"
+    "last_called": "2026-03-20T00:09:41.962848"
   },
   "core/tensor_field.py": {
-    "call_count": 43,
+    "call_count": 57,
     "first_called": "2026-01-23T23:34:38.936975",
-    "last_called": "2026-03-19T21:39:56.778526"
+    "last_called": "2026-03-20T00:09:43.126608"
   },
   "core\\__init__.py": {
     "call_count": 2,
@@ -40,44 +40,44 @@
     "last_called": "2026-01-29T05:44:10.026043"
   },
   "inference/__init__.py": {
-    "call_count": 25,
+    "call_count": 35,
     "first_called": "2026-01-23T23:35:40.768227",
-    "last_called": "2026-03-19T21:34:15.160626"
+    "last_called": "2026-03-20T00:09:43.576520"
   },
   "inference/address.py": {
-    "call_count": 8,
+    "call_count": 18,
     "first_called": "2026-03-19T21:31:30.042844",
-    "last_called": "2026-03-19T21:34:15.166733"
+    "last_called": "2026-03-20T00:09:43.591304"
   },
   "inference/composite_k.py": {
-    "call_count": 23,
+    "call_count": 32,
     "first_called": "2026-01-23T23:36:07.690711",
-    "last_called": "2026-03-19T21:34:15.169952"
+    "last_called": "2026-03-20T00:09:43.650580"
   },
   "inference/constitutive_state.py": {
-    "call_count": 23,
+    "call_count": 32,
     "first_called": "2026-01-23T23:36:07.693622",
-    "last_called": "2026-03-19T21:34:15.171507"
+    "last_called": "2026-03-20T00:09:43.652201"
   },
   "inference/field_extraction.py": {
-    "call_count": 25,
+    "call_count": 35,
     "first_called": "2026-01-23T23:35:40.771472",
-    "last_called": "2026-03-19T21:34:15.162596"
+    "last_called": "2026-03-20T00:09:43.578581"
   },
   "inference/geometric_attention.py": {
-    "call_count": 25,
+    "call_count": 35,
     "first_called": "2026-01-23T23:35:40.774875",
-    "last_called": "2026-03-19T21:34:15.163699"
+    "last_called": "2026-03-20T00:09:43.584311"
   },
   "inference/geometric_products.py": {
-    "call_count": 25,
+    "call_count": 35,
     "first_called": "2026-01-23T23:35:40.770288",
-    "last_called": "2026-03-19T21:34:15.161622"
+    "last_called": "2026-03-20T00:09:43.577579"
   },
   "inference/geometric_stack.py": {
-    "call_count": 24,
+    "call_count": 34,
     "first_called": "2026-01-23T23:36:07.681931",
-    "last_called": "2026-03-19T21:34:15.168769"
+    "last_called": "2026-03-20T00:09:43.640906"
   },
   "inference/inference.py": {
     "call_count": 4,
@@ -90,9 +90,9 @@
     "last_called": "2026-03-19T21:34:15.173684"
   },
   "inference/triality_coordinate_head.py": {
-    "call_count": 24,
+    "call_count": 34,
     "first_called": "2026-01-23T23:36:07.542199",
-    "last_called": "2026-03-19T21:34:15.164619"
+    "last_called": "2026-03-20T00:09:43.585288"
   },
   "inference\\__init__.py": {
     "call_count": 2,
@@ -140,14 +140,14 @@
     "last_called": "2026-01-28T04:03:35.851722"
   },
   "kernels/bayesian.py": {
-    "call_count": 48,
+    "call_count": 62,
     "first_called": "2026-01-23T23:34:38.941164",
-    "last_called": "2026-03-19T21:39:56.780058"
+    "last_called": "2026-03-20T00:09:43.128105"
   },
   "kernels/fractional_memory.py": {
-    "call_count": 48,
+    "call_count": 62,
     "first_called": "2026-01-23T23:34:38.942419",
-    "last_called": "2026-03-19T21:39:56.781110"
+    "last_called": "2026-03-20T00:09:43.129138"
   },
   "kernels/gradients.py": {
     "call_count": 3,
@@ -160,9 +160,9 @@
     "last_called": "2026-01-28T04:03:35.852493"
   },
   "kernels/metric_context.py": {
-    "call_count": 22,
+    "call_count": 36,
     "first_called": "2026-01-28T14:46:54.474315",
-    "last_called": "2026-03-19T21:39:56.782147"
+    "last_called": "2026-03-20T00:09:43.130196"
   },
   "kernels\\__init__.py": {
     "call_count": 2,
@@ -190,44 +190,49 @@
     "last_called": "2026-01-28T04:03:34.863598"
   },
   "models/__init__.py": {
-    "call_count": 44,
+    "call_count": 63,
     "first_called": "2026-01-23T23:22:02.580518",
-    "last_called": "2026-03-19T21:39:57.660343"
+    "last_called": "2026-03-20T00:09:43.641903"
   },
   "models/activations.py": {
-    "call_count": 24,
+    "call_count": 43,
     "first_called": "2026-01-23T23:36:07.688246",
-    "last_called": "2026-03-19T21:39:57.738344"
+    "last_called": "2026-03-20T00:09:43.649406"
   },
   "models/biquaternion.py": {
-    "call_count": 34,
+    "call_count": 53,
     "first_called": "2026-01-23T23:22:05.011579",
-    "last_called": "2026-03-19T21:39:57.678442"
+    "last_called": "2026-03-20T00:09:43.648244"
   },
   "models/causal_field.py": {
-    "call_count": 48,
+    "call_count": 67,
     "first_called": "2026-01-23T23:22:05.009741",
-    "last_called": "2026-03-19T21:39:57.674888"
+    "last_called": "2026-03-20T00:09:43.647213"
   },
   "models/complex_metric.py": {
-    "call_count": 34,
+    "call_count": 53,
     "first_called": "2026-01-23T23:22:05.005439",
-    "last_called": "2026-03-19T21:39:57.667798"
+    "last_called": "2026-03-20T00:09:43.644967"
+  },
+  "models/entropy_softmax.py": {
+    "call_count": 10,
+    "first_called": "2026-03-19T23:38:41.719578",
+    "last_called": "2026-03-20T00:09:43.639508"
   },
   "models/language_head.py": {
-    "call_count": 30,
+    "call_count": 49,
     "first_called": "2026-01-23T23:22:02.581950",
-    "last_called": "2026-03-19T21:39:57.661895"
+    "last_called": "2026-03-20T00:09:43.642853"
   },
   "models/lior_kernel.py": {
-    "call_count": 34,
+    "call_count": 53,
     "first_called": "2026-01-23T23:22:05.003870",
-    "last_called": "2026-03-19T21:39:57.664971"
+    "last_called": "2026-03-20T00:09:43.643877"
   },
   "models/manifold.py": {
-    "call_count": 34,
+    "call_count": 53,
     "first_called": "2026-01-23T23:22:05.007271",
-    "last_called": "2026-03-19T21:39:57.671272"
+    "last_called": "2026-03-20T00:09:43.646047"
   },
   "models\\__init__.py": {
     "call_count": 2,
@@ -300,9 +305,24 @@
     "last_called": "2026-01-23T23:22:11.653335"
   },
   "tests/__init__.py": {
-    "call_count": 13,
+    "call_count": 25,
     "first_called": "2026-02-15T04:18:18.442258",
-    "last_called": "2026-03-19T21:39:57.611702"
+    "last_called": "2026-03-20T00:09:43.573837"
+  },
+  "tests/test_address_builder.py": {
+    "call_count": 7,
+    "first_called": "2026-03-19T23:38:41.603563",
+    "last_called": "2026-03-20T00:09:43.575525"
+  },
+  "tests/test_address_option6.py": {
+    "call_count": 2,
+    "first_called": "2026-03-19T23:45:23.092297",
+    "last_called": "2026-03-19T23:47:34.966532"
+  },
+  "tests/test_address_probing_integration.py": {
+    "call_count": 2,
+    "first_called": "2026-03-19T23:45:23.173864",
+    "last_called": "2026-03-19T23:47:35.048465"
   },
   "tests/test_algebras.py": {
     "call_count": 1,
@@ -319,45 +339,50 @@
     "first_called": "2026-02-15T04:18:18.443478",
     "last_called": "2026-03-19T21:23:50.985374"
   },
+  "tests/test_pipeline_consistency_agents.py": {
+    "call_count": 3,
+    "first_called": "2026-03-20T00:06:34.118362",
+    "last_called": "2026-03-20T00:09:35.579694"
+  },
   "tests/test_transport_fiber_audit_team.py": {
     "call_count": 6,
     "first_called": "2026-03-19T21:09:46.579776",
     "last_called": "2026-03-19T21:39:57.638840"
   },
   "training/__init__.py": {
-    "call_count": 26,
+    "call_count": 45,
     "first_called": "2026-01-23T23:36:07.544666",
-    "last_called": "2026-03-19T21:39:57.680201"
+    "last_called": "2026-03-20T00:09:43.619828"
   },
   "training/biquat_optimizer.py": {
-    "call_count": 26,
+    "call_count": 45,
     "first_called": "2026-01-23T23:36:07.672782",
-    "last_called": "2026-03-19T21:39:57.725597"
+    "last_called": "2026-03-20T00:09:43.633108"
   },
   "training/checkpoint_utils.py": {
-    "call_count": 26,
+    "call_count": 45,
     "first_called": "2026-01-23T23:36:07.678248",
-    "last_called": "2026-03-19T21:39:57.734564"
+    "last_called": "2026-03-20T00:09:43.636400"
   },
   "training/datasets.py": {
-    "call_count": 41,
+    "call_count": 79,
     "first_called": "2026-01-23T23:36:07.571872",
-    "last_called": "2026-03-19T21:39:57.701274"
+    "last_called": "2026-03-20T00:09:43.624492"
   },
   "training/embeddings.py": {
-    "call_count": 26,
+    "call_count": 45,
     "first_called": "2026-01-23T23:36:07.566306",
-    "last_called": "2026-03-19T21:39:57.687959"
+    "last_called": "2026-03-20T00:09:43.622193"
   },
   "training/execution_tracker.py": {
-    "call_count": 25,
+    "call_count": 44,
     "first_called": "2026-01-23T23:36:07.679458",
-    "last_called": "2026-03-19T21:39:57.736304"
+    "last_called": "2026-03-20T00:09:43.637374"
   },
   "training/file_reader.py": {
-    "call_count": 26,
+    "call_count": 45,
     "first_called": "2026-01-23T23:36:07.640836",
-    "last_called": "2026-03-19T21:39:57.723427"
+    "last_called": "2026-03-20T00:09:43.631748"
   },
   "training/geometric_diagnostics.py": {
     "call_count": 17,
@@ -365,39 +390,39 @@
     "last_called": "2026-01-28T04:03:36.109630"
   },
   "training/gpu_cleanup.py": {
-    "call_count": 26,
+    "call_count": 45,
     "first_called": "2026-01-23T23:36:07.675734",
-    "last_called": "2026-03-19T21:39:57.730699"
+    "last_called": "2026-03-20T00:09:43.635303"
   },
   "training/lior_optimizer.py": {
-    "call_count": 26,
+    "call_count": 45,
     "first_called": "2026-01-23T23:36:07.674192",
-    "last_called": "2026-03-19T21:39:57.728040"
+    "last_called": "2026-03-20T00:09:43.634242"
   },
   "training/lior_trainer.py": {
-    "call_count": 26,
+    "call_count": 45,
     "first_called": "2026-01-23T23:36:07.637952",
-    "last_called": "2026-03-19T21:39:57.719686"
+    "last_called": "2026-03-20T00:09:43.630679"
   },
   "training/losses.py": {
-    "call_count": 26,
+    "call_count": 45,
     "first_called": "2026-01-23T23:36:07.573853",
-    "last_called": "2026-03-19T21:39:57.704538"
+    "last_called": "2026-03-20T00:09:43.625863"
   },
   "training/metrics.py": {
-    "call_count": 26,
+    "call_count": 45,
     "first_called": "2026-01-23T23:36:07.581853",
-    "last_called": "2026-03-19T21:39:57.714845"
+    "last_called": "2026-03-20T00:09:43.628010"
   },
   "training/tokenizer.py": {
-    "call_count": 26,
+    "call_count": 45,
     "first_called": "2026-01-23T23:36:07.548284",
-    "last_called": "2026-03-19T21:39:57.684201"
+    "last_called": "2026-03-20T00:09:43.620856"
   },
   "training/trainer.py": {
-    "call_count": 26,
+    "call_count": 45,
     "first_called": "2026-01-23T23:36:07.579935",
-    "last_called": "2026-03-19T21:39:57.711190"
+    "last_called": "2026-03-20T00:09:43.626985"
   },
   "training/trainer2.py": {
     "call_count": 17,
@@ -475,9 +500,9 @@
     "last_called": "2026-01-27T22:53:11.997818"
   },
   "utils/__init__.py": {
-    "call_count": 63,
+    "call_count": 77,
     "first_called": "2026-01-23T23:34:38.943397",
-    "last_called": "2026-03-19T21:39:57.639883"
+    "last_called": "2026-03-20T00:09:43.131593"
   },
   "utils/comprehensive_similarity.py": {
     "call_count": 5,
@@ -485,9 +510,9 @@
     "last_called": "2026-01-29T07:29:08.030279"
   },
   "utils/cpu_tasks.py": {
-    "call_count": 55,
+    "call_count": 67,
     "first_called": "2026-01-23T23:35:40.766749",
-    "last_called": "2026-03-19T21:39:57.642828"
+    "last_called": "2026-03-20T00:09:43.572786"
   },
   "utils/math_validation_team.py": {
     "call_count": 5,
@@ -495,14 +520,19 @@
     "last_called": "2026-03-19T21:23:50.990288"
   },
   "utils/metrics.py": {
-    "call_count": 61,
+    "call_count": 74,
     "first_called": "2026-01-23T23:34:38.944903",
-    "last_called": "2026-03-19T21:39:57.640941"
+    "last_called": "2026-03-20T00:09:43.133521"
   },
   "utils/pipeline_audit.py": {
     "call_count": 16,
     "first_called": "2026-01-23T23:41:00.149159",
     "last_called": "2026-03-19T21:39:57.654104"
+  },
+  "utils/pipeline_consistency_agents.py": {
+    "call_count": 3,
+    "first_called": "2026-03-20T00:06:34.122930",
+    "last_called": "2026-03-20T00:09:35.584626"
   },
   "utils/spectral_primes.py": {
     "call_count": 6,
@@ -515,9 +545,9 @@
     "last_called": "2026-03-19T21:39:57.649071"
   },
   "utils/visualization.py": {
-    "call_count": 61,
+    "call_count": 74,
     "first_called": "2026-01-23T23:34:38.945866",
-    "last_called": "2026-03-19T21:39:57.641883"
+    "last_called": "2026-03-20T00:09:43.134524"
   },
   "utils\\__init__.py": {
     "call_count": 2,
