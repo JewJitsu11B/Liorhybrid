@@ -161,7 +161,7 @@ def test_callable_name_supports_callable_instances():
     from training.trainer2 import _callable_name
 
     class CallableHook:
-        def __call__(self, *args, **kwargs):
+        def __call__(self):
             return None
 
     hook = CallableHook()
