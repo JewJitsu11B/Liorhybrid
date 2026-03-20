@@ -53,7 +53,7 @@ Usage
     # … or wrap a callable with the context manager:
     with team.instrument("neighbor_selector.select_neighbors") as ctx:
         result = selector.select_neighbors(...)
-        ctx.record_outputs({"selected_neighbors": result[0], "scores": result[1]})
+        ctx.record_outputs({"selected_embeddings": result[0], "scores": result[1]})
 """
 try:
     import usage_tracker

@@ -207,7 +207,8 @@ class NeighborSelector(nn.Module):
         3. Spinor product  — transport-normalised rotational displacement, ≥ 0
         4. Energy          — sigmoid of negative distance, in (-1, 0]
                              (near neighbour → ~0, far neighbour → -1)
-        5. Heap rank       — normalised position within the 64-slot list, in [0, 1]
+        5. Parallel transport alignment — squared cosine between displacement and
+                              transport fiber direction, in [0, 1]
     """
     
     def __init__(self, config: Optional[AddressConfig] = None):
@@ -234,7 +235,7 @@ class NeighborSelector(nn.Module):
             ch 2  tensor   normalised element-wise correlation        [ 0, ~1]
             ch 3  spinor   transport-normalised rotational disp.      [ 0,  ∞)
             ch 4  energy   sigmoid of -distance (near~0, far→-1)      (-1,  0]
-            ch 5  rank     heap position / 64                         [ 0,  1]
+            ch 5  transport  squared cosine(displacement, transport)   [ 0,  1]
 
         Distance formula (diagonal metric):
             d²(q, c) = (q - c)ᵀ g (q - c)
@@ -317,9 +318,15 @@ class NeighborSelector(nn.Module):
         #   sigmoid(-distance) maps [0, ∞) → (-1, 0] (near=~0, far→-1)
         scores_6ch[..., 4] = -torch.sigmoid(distances)           # dimensionless (-1, 0]
         
-        # Channel 5: Heap rank (will be filled in select_neighbors)
-        # Placeholder zeros for now
-        
+        # Channel 5: Parallel transport alignment
+        # Squared cosine between the displacement vector (c-q) and the local
+        # transport fiber direction.  In [0, 1]; no dependency on heap rank.
+        diff_euc_norm = diff.norm(dim=-1).clamp(min=1e-8)  # (batch, N_cand)
+        transport_unit = transport / transport.norm(dim=-1, keepdim=True).clamp(min=1e-8)
+        transport_unit_exp = transport_unit.unsqueeze(1)  # (batch, 1, d)
+        proj_onto_transport = (diff * transport_unit_exp).sum(dim=-1)  # (batch, N_cand)
+        scores_6ch[..., 5] = (proj_onto_transport / diff_euc_norm).pow(2).clamp(0.0, 1.0)
+
         return distances, scores_6ch
     
     def select_neighbors(
@@ -335,10 +342,10 @@ class NeighborSelector(nn.Module):
         Partition layout (in order):
           Slots  0–31: 32 nearest neighbors (smallest metric distance), sorted
                        ascending by distance.
-          Slots 32–47: 16 attractor neighbors — max-heap of the primary sim score
-                       (channel 0, metric-weighted dot product), sorted descending.
-          Slots 48–63: 16 repulsor neighbors — min-heap of the primary sim score,
-                       sorted ascending (lowest similarity / most dissimilar).
+          Slots 32–47: 16 maxheap interactions — highest sim scores (channel 0),
+                       sorted descending.
+          Slots 48–63: 16 minheap interactions — lowest sim scores (channel 0),
+                       sorted ascending.
 
         Fails fast if:
         - metric is None or invalid (contains NaN/Inf)
@@ -415,7 +422,7 @@ class NeighborSelector(nn.Module):
             dim=-1,
             sorted=True,
             largest=True,
-        )  # (batch, n_attractors), descending
+        )  # (batch, n_maxheap_k), descending
 
         # Slots 48–63: 16 minheap neighbors (lowest sim scores first)
         _, minheap_idx = torch.topk(
@@ -424,10 +431,10 @@ class NeighborSelector(nn.Module):
             dim=-1,
             sorted=True,
             largest=False,
-        )  # (batch, n_repulsors), ascending
+        )  # (batch, n_minheap_k), ascending
 
         # Combine indices: [32 nearest | 16 maxheap | 16 minheap]
-        selected_indices = torch.cat([nearest_idx, attractor_idx, repulsor_idx], dim=1)  # (batch, 64)
+        selected_indices = torch.cat([nearest_idx, maxheap_idx, minheap_idx], dim=1)  # (batch, 64)
         
         # Gather selected embeddings
         batch_indices = torch.arange(batch_size, device=query_embedding.device).view(-1, 1).expand(-1, n_total)
@@ -435,11 +442,6 @@ class NeighborSelector(nn.Module):
         
         # Gather selected scores
         selected_scores = scores_6ch[batch_indices, selected_indices]  # (batch, 64, 6)
-        
-        # Update channel 5: Heap rank (position within each partition, normalised to [0, 1])
-        heap_ranks = torch.arange(n_total, device=query_embedding.device, dtype=selected_scores.dtype)
-        heap_ranks = heap_ranks.unsqueeze(0).expand(batch_size, -1)  # (batch, 64)
-        selected_scores[..., 5] = heap_ranks / n_total
         
         return selected_embeddings, selected_scores, selected_indices
 
@@ -636,31 +638,16 @@ class Address:
         return blocked[..., :self.config.n_nearest, :]
 
     @property
-    def maxheap_neighbors(self) -> torch.Tensor:
-        """N33-N48: 16 highest sim scores, shape (..., 16, d_block)."""
-        blocked = self.neighbors_blocked
-        start = self.config.n_nearest
-        end = start + self.config.n_high_sim
-        return blocked[..., start:end, :]
-
-    @property
-    def minheap_neighbors(self) -> torch.Tensor:
-        """N49-N64: 16 lowest sim scores, shape (..., 16, d_block)."""
-        blocked = self.neighbors_blocked
-        start = self.config.n_nearest + self.config.n_high_sim
-        return blocked[..., start:, :]
-
-    @property
-    def maxheap_neighbors(self) -> torch.Tensor:
-        """N33-N48: 16 highest sim scores, shape (..., 16, d_block)."""
+    def maxheap_interactions(self) -> torch.Tensor:
+        """N33-N48: 16 highest-sim interactions, shape (..., 16, d_block)."""
         blocked = self.neighbors_blocked
         start = self.config.n_nearest
         end = start + self.config.n_maxheap
         return blocked[..., start:end, :]
 
     @property
-    def minheap_neighbors(self) -> torch.Tensor:
-        """N49-N64: 16 lowest sim scores, shape (..., 16, d_block)."""
+    def minheap_interactions(self) -> torch.Tensor:
+        """N49-N64: 16 lowest-sim interactions, shape (..., 16, d_block)."""
         blocked = self.neighbors_blocked
         start = self.config.n_nearest + self.config.n_maxheap
         return blocked[..., start:, :]
@@ -830,7 +817,7 @@ class AddressBuilder(nn.Module):
         """
         Build address from embedding and neighbors.
 
-        Slot layout: 32 nearest (metric distance) | 16 maxheap | 16 minheap.
+        Slot layout: 32 nearest neighbors | 16 maxheap interactions | 16 minheap interactions.
         Requires at least config.n_nearest (32) candidates in the pool.
 
         Args:
@@ -868,7 +855,7 @@ class AddressBuilder(nn.Module):
         addr.metric = self.metric_proj(embedding)
         addr.transport = self.transport_proj(embedding)
 
-        # Fill neighbors (MANDATORY for address probing)
+        # Fill 32 nearest neighbors + 16 maxheap + 16 minheap interactions (MANDATORY)
         if self.config.enable_address_probing:
             # Ensure the pool has at least n_nearest candidates (= largest topk)
             n_min = self.config.n_nearest
@@ -880,16 +867,16 @@ class AddressBuilder(nn.Module):
                 repeats = (n_min + neighbor_embeddings.shape[1] - 1) // neighbor_embeddings.shape[1]
                 neighbor_embeddings = neighbor_embeddings.repeat(1, repeats, 1)[:, :n_min, :]
             
-            # Select 64 neighbors with role typing, also returns 6-channel geometric scores
-            selected_neighbors, scores, _ = self.neighbor_selector.select_neighbors(
+            # Select 32 nearest + 16 maxheap + 16 minheap interactions; 6-channel geometric scores
+            selected_embeddings, scores, _ = self.neighbor_selector.select_neighbors(
                 embedding, neighbor_embeddings, addr.metric, addr.transport
             )  # (batch, 64, d), (batch, 64, 6)
-            
-            # Project each neighbor to get value, metric, transport, coords
-            values = self.value_proj(selected_neighbors)  # (batch, 64, d')
-            neighbor_metrics = self.neighbor_metric_proj(selected_neighbors)  # (batch, 64, d_neighbor_metric)
-            neighbor_transports = self.neighbor_transport_proj(selected_neighbors)  # (batch, 64, d_neighbor_transport)
-            coords = self.coord_proj(selected_neighbors)  # (batch, 64, k)
+
+            # Project each selected embedding to get value, metric, transport, coords
+            values = self.value_proj(selected_embeddings)  # (batch, 64, d')
+            neighbor_metrics = self.neighbor_metric_proj(selected_embeddings)  # (batch, 64, d_neighbor_metric)
+            neighbor_transports = self.neighbor_transport_proj(selected_embeddings)  # (batch, 64, d_neighbor_transport)
+            coords = self.coord_proj(selected_embeddings)  # (batch, 64, k)
             
             # Pack into neighbor blocks
             # Block layout: [value | neighbor_metric | neighbor_transport | scores | coords]
@@ -971,8 +958,10 @@ def compute_address_uniqueness_score(addresses: Address) -> float:
     mask = ~torch.eye(similarity.shape[0], dtype=torch.bool, device=similarity.device)
     similarity = similarity * mask.float()
     
-    # Mean off-diagonal similarity — lower means addresses are more distinct
-    uniqueness_score = 1.0 - similarity[mask].mean().item()
+    # Mean off-diagonal similarity — lower means addresses are more distinct.
+    # Clamp to [0, 1]: random embeddings can have negative mean cosine similarity,
+    # which would push (1 - mean) above 1.
+    uniqueness_score = (1.0 - similarity[mask].mean()).clamp(0.0, 1.0).item()
     
     return uniqueness_score
 

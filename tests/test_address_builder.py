@@ -3,7 +3,7 @@ Test Address Builder with mandatory 64-slot neighbor probing (Option 6).
 
 Verifies:
 - Shape validation (correct total dimension)
-- 64 neighbors populated with role typing (32 nearest, 16 attractors, 16 repulsors)
+- 64 slots: 32 nearest neighbors + 16 maxheap interactions + 16 minheap interactions
 - 6 similarity score channels per neighbor
 - Metric and transport features per neighbor
 - ECC and timestamps present
@@ -106,7 +106,7 @@ def test_address_builder_6_score_channels():
 
 
 def test_address_builder_role_typed_partitions():
-    """Test that neighbors are partitioned into 32 nearest, 16 attractors, 16 repulsors."""
+    """Test that slots partition into 32 nearest neighbors, 16 maxheap and 16 minheap interactions."""
     config = AddressConfig(d=128, enable_address_probing=True)
     builder = AddressBuilder(config)
     
@@ -119,12 +119,12 @@ def test_address_builder_role_typed_partitions():
     
     # Get role-typed neighbor blocks
     nearest = addr.nearest_neighbors
-    attractors = addr.attractor_neighbors
-    repulsors = addr.repulsor_neighbors
+    maxheap = addr.maxheap_interactions
+    minheap = addr.minheap_interactions
     
     assert nearest.shape == (batch_size, 32, config.d_block)
-    assert attractors.shape == (batch_size, 16, config.d_block)
-    assert repulsors.shape == (batch_size, 16, config.d_block)
+    assert maxheap.shape == (batch_size, 16, config.d_block)
+    assert minheap.shape == (batch_size, 16, config.d_block)
 
 
 def test_address_builder_metric_transport_per_neighbor():
