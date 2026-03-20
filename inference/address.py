@@ -41,8 +41,8 @@ Dimensions (default d=512):
 
 Neighbor roles by position (mandatory, no fallbacks):
 - N1-N32: absolute nearest (similarity grounding)
-- N33-N48: high_sim neighbors (maximum similarity interactions)
-- N49-N64: low_sim neighbors (minimum similarity, contrastive examples)
+- N33-N48: maxheap neighbors (16 highest sim scores)
+- N49-N64: minheap neighbors (16 lowest sim scores)
 
 Per-neighbor block (d_block = 86):
 - value: d' = 64 (reduced interaction vector)
@@ -72,7 +72,7 @@ class AddressConfig:
     """Configuration for address dimensions.
     
     Address-based neighbor probing (Option 6) with mandatory 64-slot structure:
-    - 64 neighbors: 32 nearest, 16 attractors, 16 repulsors (role-typed)
+    - 64 neighbors: 32 nearest, 16 maxheap, 16 minheap (role-typed)
     - 6 similarity scores per neighbor (mandatory, no fallbacks)
     - Each neighbor slot stores metric/transport info of that neighbor
     - ECC and timestamps present but excluded from similarity scoring
@@ -86,8 +86,8 @@ class AddressConfig:
 
     # Neighbors (fixed, mandatory)
     n_nearest: int = 32
-    n_high_sim: int = 16  # formerly n_attractors
-    n_low_sim: int = 16   # formerly n_repulsors
+    n_maxheap: int = 16  # 16 highest sim scores
+    n_minheap: int = 16  # 16 lowest sim scores
 
     # Per-neighbor dimensions
     d_prime: int = 64   # value dim (interaction output)
@@ -107,7 +107,7 @@ class AddressConfig:
 
     @property
     def n_neighbors(self) -> int:
-        return self.n_nearest + self.n_high_sim + self.n_low_sim
+        return self.n_nearest + self.n_maxheap + self.n_minheap
 
     @property
     def d_block(self) -> int:
@@ -191,10 +191,8 @@ class NeighborSelector(nn.Module):
     
     Selects exactly 64 neighbors partitioned into three groups:
       - 32 nearest: smallest metric distance (sorted ascending by distance)
-      - 16 attractors: max-heap of primary sim score (channel 0, metric-weighted
-        dot product), sorted descending — most similar candidates first
-      - 16 repulsors: min-heap of primary sim score, sorted ascending —
-        least similar candidates first
+      - 16 maxheap: 16 highest sim scores (channel 0), sorted descending
+      - 16 minheap: 16 lowest sim scores (channel 0), sorted ascending
     
     Selection is performed using ONLY the learned/curved metric from
     Address.metric/transport.  NO FALLBACK to Euclidean or cosine distance.
@@ -383,8 +381,8 @@ class NeighborSelector(nn.Module):
         batch_size = query_embedding.shape[0]
         n_cand = candidate_embeddings.shape[1]
         n_nearest = self.config.n_nearest      # 32
-        n_attractors = self.config.n_high_sim  # 16
-        n_repulsors = self.config.n_low_sim    # 16
+        n_maxheap_k = self.config.n_maxheap  # 16
+        n_minheap_k = self.config.n_minheap    # 16
         n_total = self.config.n_neighbors      # 64
         # Minimum pool size = largest single topk (n_nearest)
         if n_cand < n_nearest:
@@ -407,28 +405,28 @@ class NeighborSelector(nn.Module):
             largest=True,
         )  # (batch, n_nearest)
 
-        # Primary sim score used for attractor/repulsor heaps
+        # Primary sim score used for maxheap/minheap selection
         sim_scores = scores_6ch[..., 0]  # (batch, N_cand)
 
-        # Slots 32–47: 16 attractor neighbors — max-heap (highest sim scores first)
-        _, attractor_idx = torch.topk(
+        # Slots 32–47: 16 maxheap neighbors (highest sim scores first)
+        _, maxheap_idx = torch.topk(
             sim_scores,
-            k=n_attractors,
+            k=n_maxheap_k,
             dim=-1,
             sorted=True,
             largest=True,
         )  # (batch, n_attractors), descending
 
-        # Slots 48–63: 16 repulsor neighbors — min-heap (lowest sim scores first)
-        _, repulsor_idx = torch.topk(
+        # Slots 48–63: 16 minheap neighbors (lowest sim scores first)
+        _, minheap_idx = torch.topk(
             sim_scores,
-            k=n_repulsors,
+            k=n_minheap_k,
             dim=-1,
             sorted=True,
             largest=False,
         )  # (batch, n_repulsors), ascending
 
-        # Combine indices: [32 nearest | 16 attractors | 16 repulsors]
+        # Combine indices: [32 nearest | 16 maxheap | 16 minheap]
         selected_indices = torch.cat([nearest_idx, attractor_idx, repulsor_idx], dim=1)  # (batch, 64)
         
         # Gather selected embeddings
@@ -638,29 +636,34 @@ class Address:
         return blocked[..., :self.config.n_nearest, :]
 
     @property
-    def high_sim_neighbors(self) -> torch.Tensor:
-        """N33-N48: attractor neighbors (max-heap by sim score), shape (..., 16, d_block)."""
+    def maxheap_neighbors(self) -> torch.Tensor:
+        """N33-N48: 16 highest sim scores, shape (..., 16, d_block)."""
         blocked = self.neighbors_blocked
         start = self.config.n_nearest
         end = start + self.config.n_high_sim
         return blocked[..., start:end, :]
 
     @property
-    def low_sim_neighbors(self) -> torch.Tensor:
-        """N49-N64: repulsor neighbors (min-heap by sim score), shape (..., 16, d_block)."""
+    def minheap_neighbors(self) -> torch.Tensor:
+        """N49-N64: 16 lowest sim scores, shape (..., 16, d_block)."""
         blocked = self.neighbors_blocked
         start = self.config.n_nearest + self.config.n_high_sim
         return blocked[..., start:, :]
 
     @property
-    def attractor_neighbors(self) -> torch.Tensor:
-        """N33-N48: max-heap of primary sim score (most similar), shape (..., 16, d_block)."""
-        return self.high_sim_neighbors
+    def maxheap_neighbors(self) -> torch.Tensor:
+        """N33-N48: 16 highest sim scores, shape (..., 16, d_block)."""
+        blocked = self.neighbors_blocked
+        start = self.config.n_nearest
+        end = start + self.config.n_maxheap
+        return blocked[..., start:end, :]
 
     @property
-    def repulsor_neighbors(self) -> torch.Tensor:
-        """N49-N64: min-heap of primary sim score (most dissimilar), shape (..., 16, d_block)."""
-        return self.low_sim_neighbors
+    def minheap_neighbors(self) -> torch.Tensor:
+        """N49-N64: 16 lowest sim scores, shape (..., 16, d_block)."""
+        blocked = self.neighbors_blocked
+        start = self.config.n_nearest + self.config.n_maxheap
+        return blocked[..., start:, :]
     
     @property
     def neighbor_similarity_vectors(self) -> torch.Tensor:
@@ -773,7 +776,7 @@ class AddressBuilder(nn.Module):
     
     Option 6 Requirements:
     - Uses NeighborSelector with metric-only distances (no Euclidean fallback)
-    - Enforces exactly 64 neighbor slots (32 nearest, 16 high_sim, 16 low_sim)
+    - Enforces exactly 64 neighbor slots (32 nearest, 16 maxheap, 16 minheap)
     - Computes 6 geometric similarity scores per neighbor (dot, wedge, tensor, spinor, energy, rank)
     - Fails fast if metric is missing or invalid
     - Addresses are naturally unique based on embeddings (no collision detection)
@@ -827,8 +830,7 @@ class AddressBuilder(nn.Module):
         """
         Build address from embedding and neighbors.
 
-        Slot layout: 32 nearest (metric distance) | 16 attractors (max-heap sim)
-                     | 16 repulsors (min-heap sim).
+        Slot layout: 32 nearest (metric distance) | 16 maxheap | 16 minheap.
         Requires at least config.n_nearest (32) candidates in the pool.
 
         Args:
@@ -969,9 +971,8 @@ def compute_address_uniqueness_score(addresses: Address) -> float:
     mask = ~torch.eye(similarity.shape[0], dtype=torch.bool, device=similarity.device)
     similarity = similarity * mask.float()
     
-    # Average dissimilarity (1 - similarity), clamped per-element then averaged
-    dissimilarity = (1.0 - similarity)[mask].clamp(0.0, 1.0)
-    uniqueness_score = dissimilarity.mean().item()
+    # Mean off-diagonal similarity — lower means addresses are more distinct
+    uniqueness_score = 1.0 - similarity[mask].mean().item()
     
     return uniqueness_score
 
@@ -1001,8 +1002,8 @@ Per-neighbor block (86 floats):
 
 Neighbor roles:
   N1-N32  (idx 0-31):   absolute nearest (metric-based)
-  N33-N48 (idx 32-47):  high_sim (high dot product)
-  N49-N64 (idx 48-63):  low_sim (high wedge product, orthogonal)
+  N33-N48 (idx 32-47):  maxheap (16 highest sim scores)
+  N49-N64 (idx 48-63):  minheap (16 lowest sim scores)
 
 6 Geometric Similarity Score Channels:
   Channel 0: Dot product (metric-weighted inner product q·g·c)

@@ -778,42 +778,62 @@ def configure_full_training():
         'dropout': dropout,
     })
 
-    # Architecture choice
-    print("\n┌─ ARCHITECTURE ───────────────────────────────────────────────┐")
-    print("│  1. Standard Transformer (O(N^2) attention)                  │")
-    print("│  2. Causal Field (O(N log N) parallel) - RECOMMENDED         │")
-    print("└──────────────────────────────────────────────────────────────┘")
 
-    arch_choice = input("\n▶ Select architecture [1-2]: ").strip()
-    config['use_causal_field'] = (arch_choice == '2')
+    if choice != '4':
+        # Architecture choice
+        print("\n┌─ ARCHITECTURE ───────────────────────────────────────────────┐")
+        print("│  1. Standard Transformer (O(N^2) attention)                  │")
+        print("│  2. Causal Field (O(N log N) parallel) - RECOMMENDED         │")
+        print("└──────────────────────────────────────────────────────────────┘")
 
-    # Training epochs override
-    default_epochs = 10
-    epochs_input = input(f"\n▶ Max epochs [{default_epochs}]: ").strip()
-    max_epochs = int(epochs_input) if epochs_input else default_epochs
+        arch_choice = input("\n▶ Select architecture [1-2]: ").strip()
+        config['use_causal_field'] = (arch_choice == '2')
 
-    # Timing debug toggle
-    timing_input = input("\n▶ Enable timing debug? [y/N]: ").strip().lower()
-    timing_debug = (timing_input == 'y')
+        # Training epochs override
+        default_epochs = 10
+        epochs_input = input(f"\n▶ Max epochs [{default_epochs}]: ").strip()
+        max_epochs = int(epochs_input) if epochs_input else default_epochs
 
-    # NaN diagnostic toggle
-    diagnose_input = input("▶ Enable NaN diagnostics? [y/N]: ").strip().lower()
-    diagnose_nan = (diagnose_input == 'y')
+        # Timing debug toggle
+        timing_input = input("\n▶ Enable timing debug? [y/N]: ").strip().lower()
+        timing_debug = (timing_input == 'y')
 
-    # Step progress logging (within each window)
-    step_progress_input = input("▶ Log progress every N steps within window (0=off) [50]: ").strip()
-    step_progress_every = int(step_progress_input) if step_progress_input else 50
+        # NaN diagnostic toggle
+        diagnose_input = input("▶ Enable NaN diagnostics? [y/N]: ").strip().lower()
+        diagnose_nan = (diagnose_input == 'y')
 
-    # Training
-    config.update({
-        'max_epochs': max_epochs,
-        'adaptive_field': True,
-        'output_dir': './checkpoints/full',
-        'log_interval': 1,  # Log every step
-        'timing_debug': timing_debug,
-        'diagnose_nan': diagnose_nan,
-        'step_progress_every': step_progress_every
-    })
+        # Step progress logging (within each window)
+        step_progress_input = input("▶ Log progress every N steps within window (0=off) [50]: ").strip()
+        step_progress_every = int(step_progress_input) if step_progress_input else 50
+
+        # Training
+        config.update({
+            'max_epochs': max_epochs,
+            'adaptive_field': True,
+            'output_dir': './checkpoints/full',
+            'log_interval': 1,  # Log every step
+            'timing_debug': timing_debug,
+            'diagnose_nan': diagnose_nan,
+            'step_progress_every': step_progress_every
+        })
+    else:
+        # Skip - use all defaults silently
+        config['use_causal_field'] = True
+        max_epochs = 10
+        timing_debug = False
+        diagnose_nan = False
+        step_progress_every = 50
+
+        # Training
+        config.update({
+            'max_epochs': max_epochs,
+            'adaptive_field': True,
+            'output_dir': './checkpoints/full',
+            'log_interval': 1,  # Log every step
+            'timing_debug': timing_debug,
+            'diagnose_nan': diagnose_nan,
+            'step_progress_every': step_progress_every
+        })
 
     return config
 
