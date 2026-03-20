@@ -1,18 +1,18 @@
 {
   "__init__.py": {
-    "call_count": 75,
+    "call_count": 77,
     "first_called": "2026-01-23T23:34:38.855996",
-    "last_called": "2026-03-20T05:52:27.205778"
+    "last_called": "2026-03-20T13:33:16.519148"
   },
   "core/__init__.py": {
-    "call_count": 75,
+    "call_count": 77,
     "first_called": "2026-01-23T23:34:38.857088",
-    "last_called": "2026-03-20T05:52:27.206779"
+    "last_called": "2026-03-20T13:33:16.520136"
   },
   "core/config.py": {
-    "call_count": 75,
+    "call_count": 77,
     "first_called": "2026-01-23T23:34:38.860139",
-    "last_called": "2026-03-20T05:52:27.207784"
+    "last_called": "2026-03-20T13:33:16.521134"
   },
   "core/tensor_field.py": {
     "call_count": 65,
@@ -538,6 +538,11 @@
     "call_count": 6,
     "first_called": "2026-01-28T19:30:05.416231",
     "last_called": "2026-01-28T19:34:59.503498"
+  },
+  "utils/telemetry_pipeline_audit_team.py": {
+    "call_count": 1,
+    "first_called": "2026-03-20T13:33:36.497974",
+    "last_called": "2026-03-20T13:33:36.497974"
   },
   "utils/transport_fiber_audit_team.py": {
     "call_count": 6,

@@ -1,7 +1,7 @@
 # Requirements for Python 3.13t (free-threaded)
-# NumPy 2.1+ required for free-threaded support
-torch>=2.5.0
-numpy>=2.1.0
+# Install torch with CUDA 13.0 wheels (and NVIDIA runtime deps) first:
+#   pip install "torch==2.10.0+cu130" --index-url https://download.pytorch.org/whl/cu130 --extra-index-url https://pypi.nvidia.com
+torch==2.10.0+cu130
 scipy>=1.14.0
 matplotlib>=3.9.0
 pytest>=8.3.0

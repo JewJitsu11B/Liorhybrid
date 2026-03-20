@@ -5,12 +5,11 @@
 #    (Select "free-threaded" build or use: pyenv install 3.13t)
 # 2. Create venv: python3.13t -m venv env313t
 # 3. Activate: source env313t/bin/activate
-# 4. Install PyTorch nightly (3.13t support):
-#    pip install --pre torch --index-url https://download.pytorch.org/whl/nightly/cu124
+# 4. Install PyTorch CUDA 13.0 and NVIDIA runtime deps:
+#    pip install "torch==2.10.0+cu130" --index-url https://download.pytorch.org/whl/cu130 --extra-index-url https://pypi.nvidia.com
 # 5. pip install -r requirements_313t.txt
 
 # Core ML - versions with free-threaded wheels
-numpy>=2.1.0
 scipy>=1.14.0
 
 # Transformers / NLP
