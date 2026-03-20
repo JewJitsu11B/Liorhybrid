@@ -1,18 +1,18 @@
 {
   "__init__.py": {
-    "call_count": 84,
+    "call_count": 88,
     "first_called": "2026-01-23T23:34:38.855996",
-    "last_called": "2026-03-20T15:33:58.940450"
+    "last_called": "2026-03-20T15:57:20.468972"
   },
   "core/__init__.py": {
-    "call_count": 84,
+    "call_count": 88,
     "first_called": "2026-01-23T23:34:38.857088",
-    "last_called": "2026-03-20T15:33:58.941542"
+    "last_called": "2026-03-20T15:57:20.470057"
   },
   "core/config.py": {
-    "call_count": 84,
+    "call_count": 88,
     "first_called": "2026-01-23T23:34:38.860139",
-    "last_called": "2026-03-20T15:33:58.942632"
+    "last_called": "2026-03-20T15:57:20.471170"
   },
   "core/tensor_field.py": {
     "call_count": 71,
@@ -349,6 +349,11 @@
     "first_called": "2026-03-19T21:09:46.579776",
     "last_called": "2026-03-19T21:39:57.638840"
   },
+  "tests/test_update_signal_audit_team.py": {
+    "call_count": 3,
+    "first_called": "2026-03-20T15:57:43.289722",
+    "last_called": "2026-03-20T16:04:26.251519"
+  },
   "training/__init__.py": {
     "call_count": 62,
     "first_called": "2026-01-23T23:36:07.544666",
@@ -500,9 +505,9 @@
     "last_called": "2026-01-27T22:53:11.997818"
   },
   "utils/__init__.py": {
-    "call_count": 98,
+    "call_count": 99,
     "first_called": "2026-01-23T23:34:38.943397",
-    "last_called": "2026-03-20T15:34:12.207819"
+    "last_called": "2026-03-20T15:57:43.291100"
   },
   "utils/comprehensive_similarity.py": {
     "call_count": 5,
@@ -540,14 +545,19 @@
     "last_called": "2026-01-28T19:34:59.503498"
   },
   "utils/telemetry_pipeline_audit_team.py": {
-    "call_count": 3,
+    "call_count": 4,
     "first_called": "2026-03-20T13:33:36.497974",
-    "last_called": "2026-03-20T15:35:38.797654"
+    "last_called": "2026-03-20T16:03:12.039291"
   },
   "utils/transport_fiber_audit_team.py": {
     "call_count": 6,
     "first_called": "2026-03-19T21:09:46.588336",
     "last_called": "2026-03-19T21:39:57.649071"
+  },
+  "utils/update_signal_audit_team.py": {
+    "call_count": 4,
+    "first_called": "2026-03-20T15:53:18.185375",
+    "last_called": "2026-03-20T16:04:26.235086"
   },
   "utils/visualization.py": {
     "call_count": 93,
