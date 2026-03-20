@@ -555,9 +555,9 @@
     "last_called": "2026-03-19T21:39:57.649071"
   },
   "utils/update_signal_audit_team.py": {
-    "call_count": 4,
+    "call_count": 5,
     "first_called": "2026-03-20T15:53:18.185375",
-    "last_called": "2026-03-20T16:04:26.235086"
+    "last_called": "2026-03-20T16:54:16.820414"
   },
   "utils/visualization.py": {
     "call_count": 93,
