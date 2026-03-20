@@ -155,6 +155,22 @@ def test_set_random_seed_execution():
         pytest.fail(f"set_random_seed should not raise error: {e}")
 
 
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available, cannot import trainer2")
+def test_callable_name_supports_callable_instances():
+    """Ensure trainer2 hook diagnostics handle callable objects, not only plain functions."""
+    from training.trainer2 import _callable_name
+
+    class CallableHook:
+        def __call__(self):
+            return None
+
+    hook = CallableHook()
+    name = _callable_name(hook)
+    assert isinstance(name, str)
+    assert name
+    assert "CallableHook" in name
+
+
 def test_no_cpu_fallback_in_trainer2():
     """
     Verify that trainer2 does not have CPU fallback code.

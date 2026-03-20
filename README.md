@@ -50,8 +50,7 @@ pip install -e .
 
 Core requirements:
 - Python ≥ 3.8
-- PyTorch ≥ 2.0
-- NumPy ≥ 1.21.0
+- PyTorch 2.10.0+cu130
 - SciPy ≥ 1.7.0
 - Matplotlib ≥ 3.5.0 (for visualization)
 
@@ -64,6 +63,7 @@ Development tools:
 
 Install all dependencies:
 ```bash
+pip install "torch==2.10.0+cu130" --index-url https://download.pytorch.org/whl/cu130 --extra-index-url https://pypi.nvidia.com
 pip install -r requirements.txt
 ```
 ```

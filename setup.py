@@ -28,8 +28,7 @@ setup(
     ],
     python_requires=">=3.13",
     install_requires=[
-        "torch>=2.5.0",
-        "numpy>=2.1.0",
+        "torch==2.10.0+cu130",
         "scipy>=1.14.0",
         "matplotlib>=3.9.0",
     ],

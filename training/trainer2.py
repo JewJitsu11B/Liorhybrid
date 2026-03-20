@@ -380,6 +380,19 @@ def mode_signature(cfg: TrainConfig) -> str:
         f"rotor={cfg.rotor_mode}|n={cfg.coord_dim_n}|r={cfg.lowrank_r}|k={cfg.rotor_k}"
     )
 
+
+def _callable_name(fn: Any) -> str:
+    """Best-effort callable name for diagnostics (supports callable objects/partials)."""
+    name = getattr(fn, "__qualname__", None) or getattr(fn, "__name__", None)
+    if name:
+        return str(name)
+    call = getattr(fn, "__call__", None)
+    call_name = getattr(call, "__qualname__", None) or getattr(call, "__name__", None)
+    if call_name:
+        return str(call_name)
+    return type(fn).__name__
+
+
 def trainer2_entrypoint(
     cfg: TrainConfig,
     *,
@@ -430,9 +443,9 @@ def trainer2_entrypoint(
 
     model.train()
     print(
-        f"[trainer2] hooks: build={hooks.build_retrieval_batch.__qualname__}, "
-        f"step={hooks.step_dynamics.__qualname__}, "
-        f"vel={hooks.get_velocity.__qualname__}"
+        f"[trainer2] hooks: build={_callable_name(hooks.build_retrieval_batch)}, "
+        f"step={_callable_name(hooks.step_dynamics)}, "
+        f"vel={_callable_name(hooks.get_velocity)}"
     )
     print(
         f"[trainer2] memory={type(memory).__name__} field={type(field).__name__} "
@@ -448,7 +461,6 @@ def trainer2_entrypoint(
     batch_count = 0
     t_epoch_start = time.time()
 
-    epoch_idx = 0
     try:
         for epoch_idx in range(int(cfg.max_epochs)):
             print(f"[{_ts()}] EPOCH {epoch_idx}/{cfg.max_epochs-1} started")
@@ -561,11 +573,22 @@ def trainer2_entrypoint(
             epoch_time = t_epoch_end - t_batch_start
             batches_per_sec = batches_this_epoch / max(epoch_time, 0.001)
             print(f"[{_ts()}] EPOCH {epoch_idx} done: {batches_this_epoch} batches in {epoch_time:.1f}s ({batches_per_sec:.2f} batch/s)")
+            force_checkpoint(
+                window_idx=window_idx,
+                epoch_idx=epoch_idx,
+                cfg=cfg,
+                model=model,
+                field=field,
+                memory=memory,
+                rotor_state=rotor_state,
+                tokenizer=tokenizer,
+                reason="end_epoch",
+            )
     except KeyboardInterrupt:
-        print(f"[{_ts()}] manual quit requested; saving checkpoint before exit")
-        maybe_checkpoint(
+        print(f"[{_ts()}] KeyboardInterrupt received: forcing checkpoint before exit")
+        force_checkpoint(
             window_idx=window_idx,
-            epoch_idx=epoch_idx,
+            epoch_idx=0,
             cfg=cfg,
             model=model,
             field=field,
@@ -579,6 +602,17 @@ def trainer2_entrypoint(
 
     total_time = time.time() - t_epoch_start
     print(f"[{_ts()}] training complete: {batch_count} total batches in {total_time:.1f}s")
+    force_checkpoint(
+        window_idx=window_idx,
+        epoch_idx=max(int(cfg.max_epochs) - 1, 0),
+        cfg=cfg,
+        model=model,
+        field=field,
+        memory=memory,
+        rotor_state=rotor_state,
+        tokenizer=tokenizer,
+        reason="training_complete",
+    )
     _close_telemetry(telemetry)
 
 # ==============================================================================
@@ -3172,30 +3206,35 @@ def _get_tokenizer_dict(tokenizer: Any) -> Optional[dict]:
     }
 
 
-def maybe_checkpoint(*args: Any, **kwargs: Any) -> None:
-    window_idx = kwargs.get("window_idx", None)
-    cfg = kwargs.get("cfg", None)
-    model = kwargs.get("model", None)
-    field = kwargs.get("field", None)
-    memory = kwargs.get("memory", None)
-    rotor_state = kwargs.get("rotor_state", None)
-    epoch_idx = kwargs.get("epoch_idx", 0)
-    tokenizer = kwargs.get("tokenizer", None)
-    manual_quit = bool(kwargs.get("manual_quit", False))
+def _checkpoint_path(
+    cfg: TrainConfig,
+    *,
+    window_idx: int,
+    epoch_idx: int,
+    reason: str,
+    force: bool,
+) -> str:
+    base = f"{cfg.run_name}_window{window_idx}"
+    if force:
+        suffix = f"_epoch{epoch_idx}_{reason}"
+        return os.path.join(cfg.run_dir, f"{base}{suffix}.pt")
+    return os.path.join(cfg.run_dir, f"{base}.pt")
 
-    if cfg is None:
-        return
-    if window_idx is None:
-        window_idx = 0
-    if not manual_quit:
-        if cfg.save_every_windows <= 0:
-            return
-        if window_idx % cfg.save_every_windows != 0:
-            return
 
-    os.makedirs(cfg.run_dir, exist_ok=True)
-    ckpt_tag = f"manual_quit_window{window_idx}" if manual_quit else f"window{window_idx}"
-    ckpt_path = os.path.join(cfg.run_dir, f"{cfg.run_name}_{ckpt_tag}.pt")
+def _build_checkpoint_payload(
+    *,
+    cfg: TrainConfig,
+    model: Any,
+    field: Any,
+    memory: Any,
+    rotor_state: Any,
+    tokenizer: Any,
+    window_idx: int,
+    epoch_idx: int,
+    reason: str,
+) -> dict:
+    selector = str(getattr(cfg, "selector", "entropymax")).lower()
+    nu_inference = float(getattr(cfg, "nu_inference", 1.0))
 
     # Build inference-compatible config
     inference_config = {
@@ -3208,6 +3247,8 @@ def maybe_checkpoint(*args: Any, **kwargs: Any) -> None:
         'max_seq_len': 512,
         'spatial_size': [8, 8],
         'use_mamba': True,
+        'selector': selector,
+        'nu_inference': nu_inference,
     }
 
     field_state_dict = None
@@ -3219,7 +3260,7 @@ def maybe_checkpoint(*args: Any, **kwargs: Any) -> None:
     if field_state_dict is None:
         field_state_dict = _snapshot_any(field)
 
-    ckpt = {
+    return {
         # Inference-compatible keys (required by inference/inference.py)
         "epoch": epoch_idx,
         "global_step": window_idx,
@@ -3229,6 +3270,7 @@ def maybe_checkpoint(*args: Any, **kwargs: Any) -> None:
         "input_embedding_state_dict": model.input_embedding.state_dict() if hasattr(model, 'input_embedding') and model.input_embedding is not None else None,
         "lm_head_state_dict": model.lm_head.state_dict() if hasattr(model, 'lm_head') and model.lm_head is not None else None,
         "tokenizer": _get_tokenizer_dict(tokenizer),
+        "checkpoint_reason": reason,
         # trainer2-specific keys (for resume)
         "window_idx": window_idx,
         "epoch_idx": epoch_idx,
@@ -3238,9 +3280,90 @@ def maybe_checkpoint(*args: Any, **kwargs: Any) -> None:
         "memory_state": _snapshot_any(memory),
         "rotor_state": _snapshot_any(rotor_state),
     }
+
+
+def _save_checkpoint(
+    *,
+    cfg: TrainConfig,
+    model: Any,
+    field: Any,
+    memory: Any,
+    rotor_state: Any,
+    tokenizer: Any,
+    window_idx: int,
+    epoch_idx: int,
+    reason: str,
+    force: bool,
+) -> str:
+    os.makedirs(cfg.run_dir, exist_ok=True)
+    ckpt_path = _checkpoint_path(
+        cfg,
+        window_idx=window_idx,
+        epoch_idx=epoch_idx,
+        reason=reason,
+        force=force,
+    )
+    ckpt = _build_checkpoint_payload(
+        cfg=cfg,
+        model=model,
+        field=field,
+        memory=memory,
+        rotor_state=rotor_state,
+        tokenizer=tokenizer,
+        window_idx=window_idx,
+        epoch_idx=epoch_idx,
+        reason=reason,
+    )
     torch.save(ckpt, ckpt_path)
-    trigger = "manual quit" if manual_quit else "periodic"
-    print(f"[{_ts()}] checkpoint saved ({trigger}): {ckpt_path}")
+    print(f"[{_ts()}] checkpoint saved ({reason}): {ckpt_path}")
+    return ckpt_path
+
+
+def force_checkpoint(*args: Any, **kwargs: Any) -> None:
+    kwargs = dict(kwargs)
+    kwargs["force"] = True
+    _checkpoint_impl(**kwargs)
+
+
+def maybe_checkpoint(*args: Any, **kwargs: Any) -> None:
+    kwargs = dict(kwargs)
+    kwargs["force"] = False
+    _checkpoint_impl(**kwargs)
+
+
+def _checkpoint_impl(*args: Any, **kwargs: Any) -> None:
+    window_idx = kwargs.get("window_idx", None)
+    cfg = kwargs.get("cfg", None)
+    model = kwargs.get("model", None)
+    field = kwargs.get("field", None)
+    memory = kwargs.get("memory", None)
+    rotor_state = kwargs.get("rotor_state", None)
+    epoch_idx = kwargs.get("epoch_idx", 0)
+    tokenizer = kwargs.get("tokenizer", None)
+    reason = kwargs.get("reason", "periodic")
+    force = bool(kwargs.get("force", False))
+
+    if cfg is None or window_idx is None:
+        return
+    if model is None:
+        return
+    if (not force) and cfg.save_every_windows <= 0:
+        return
+    if (not force) and window_idx % cfg.save_every_windows != 0:
+        return
+
+    _save_checkpoint(
+        cfg=cfg,
+        model=model,
+        field=field,
+        memory=memory,
+        rotor_state=rotor_state,
+        tokenizer=tokenizer,
+        window_idx=int(window_idx),
+        epoch_idx=int(epoch_idx),
+        reason=str(reason),
+        force=force,
+    )
 
 # ==============================================================================
 # SECTION 14: ENTRYPOINT, SMOKE TESTS, AND STRICT FAILURE SEMANTICS
