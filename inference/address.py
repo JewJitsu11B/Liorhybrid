@@ -415,7 +415,7 @@ class NeighborSelector(nn.Module):
         # Primary sim score used for maxheap/minheap selection
         sim_scores = scores_6ch[..., 0]  # (batch, N_cand)
 
-        # Slots 32–47: 16 maxheap neighbors (highest sim scores first)
+        # Slots 32–47: 16 maxheap interactions (highest sim scores first)
         _, maxheap_idx = torch.topk(
             sim_scores,
             k=n_maxheap_k,
@@ -424,7 +424,7 @@ class NeighborSelector(nn.Module):
             largest=True,
         )  # (batch, n_maxheap_k), descending
 
-        # Slots 48–63: 16 minheap neighbors (lowest sim scores first)
+        # Slots 48–63: 16 minheap interactions (lowest sim scores first)
         _, minheap_idx = torch.topk(
             sim_scores,
             k=n_minheap_k,

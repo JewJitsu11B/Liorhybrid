@@ -38,7 +38,7 @@ class TestAddressConfig:
         assert config.n_minheap == 16
     
     def test_d_block_calculation(self):
-        """Verify d_block = d_prime + d_neighbor_metric + d_neighbor_transport + m + k = 64+16+16+6+16 = 118."""
+        """Verify d_block = d_prime + d_neighbor_metric + d_neighbor_transport + m + k = 64 + 16 + 16 + 6 + 16 = 118."""
         config = AddressConfig()
         assert config.d_block == 118, f"Expected 118, got {config.d_block}"
     
