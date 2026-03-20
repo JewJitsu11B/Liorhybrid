@@ -490,6 +490,7 @@ def trainer2_entrypoint(
     telemetry = TelemetryState()
     _ensure_jsonl(telemetry, cfg)
     window_idx = 0
+    epoch_idx = 0  # initialised before the loop so the KeyboardInterrupt handler always has a valid value
     nudge_every = max(int(cfg.nudge_every_windows), 1)
     did_log_first_batch = False
 
@@ -631,17 +632,20 @@ def trainer2_entrypoint(
             )
     except KeyboardInterrupt:
         print(f"[{_ts()}] KeyboardInterrupt received: forcing checkpoint before exit")
-        force_checkpoint(
-            window_idx=window_idx,
-            epoch_idx=0,
-            cfg=cfg,
-            model=model,
-            field=field,
-            memory=memory,
-            rotor_state=rotor_state,
-            tokenizer=tokenizer,
-            reason="manual_quit",
-        )
+        try:
+            force_checkpoint(
+                window_idx=window_idx,
+                epoch_idx=epoch_idx,
+                cfg=cfg,
+                model=model,
+                field=field,
+                memory=memory,
+                rotor_state=rotor_state,
+                tokenizer=tokenizer,
+                reason="manual_quit",
+            )
+        except Exception as ckpt_err:
+            print(f"[{_ts()}] WARNING: checkpoint save failed on interrupt: {ckpt_err}")
         _close_telemetry(telemetry)
         raise
 
