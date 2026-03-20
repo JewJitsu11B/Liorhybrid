@@ -595,7 +595,7 @@ def trainer2_entrypoint(
             memory=memory,
             rotor_state=rotor_state,
             tokenizer=tokenizer,
-            manual_quit=True,
+            reason="manual_quit",
         )
         _close_telemetry(telemetry)
         raise
@@ -3186,6 +3186,7 @@ def maybe_log_metrics(
         "batch": batch_idx,
         "total_loss": lior,
         "lior_mean": lior,
+        "perplexity": math.exp(min(lior, 20.0)),
         "R_mean": r_mean,
         "spd_mean": spd,
         "window_ms": window_ms,

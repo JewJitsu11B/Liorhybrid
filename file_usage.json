@@ -540,9 +540,9 @@
     "last_called": "2026-01-28T19:34:59.503498"
   },
   "utils/telemetry_pipeline_audit_team.py": {
-    "call_count": 2,
+    "call_count": 3,
     "first_called": "2026-03-20T13:33:36.497974",
-    "last_called": "2026-03-20T15:34:19.219401"
+    "last_called": "2026-03-20T15:35:38.797654"
   },
   "utils/transport_fiber_audit_team.py": {
     "call_count": 6,
