@@ -84,8 +84,8 @@ class AddressLayout(Protocol):
 class DefaultAddressLayout:
     d: int = 512
     n_nearest: int = 32
-    n_high_sim: int = 16
-    n_low_sim: int = 16
+    n_maxheap: int = 16
+    n_minheap: int = 16
     d_prime: int = 64
     m: int = 6
     k: int = 16
@@ -94,7 +94,7 @@ class DefaultAddressLayout:
 
     @property
     def n_neighbors(self) -> int:
-        return self.n_nearest + self.n_high_sim + self.n_low_sim
+        return self.n_nearest + self.n_maxheap + self.n_minheap
 
     @property
     def d_geom(self) -> int:

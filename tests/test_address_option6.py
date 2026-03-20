@@ -6,7 +6,7 @@ Verifies:
 - NeighborSelector with strict metric-only selection
 - AddressBuilder integration
 - Collision detection with route_hash
-- 64-slot population (32 nearest, 16 high_sim, 16 low_sim)
+- 64-slot population (32 nearest neighbors, 16 maxheap interactions, 16 minheap interactions)
 - Fail-fast semantics when metric missing or invalid
 """
 try:
@@ -34,20 +34,20 @@ class TestAddressConfig:
         assert config.m == 6, "Should have 6 score channels (not 8)"
         assert config.n_neighbors == 64, "Should have 64 neighbors"
         assert config.n_nearest == 32
-        assert config.n_high_sim == 16
-        assert config.n_low_sim == 16
+        assert config.n_maxheap == 16
+        assert config.n_minheap == 16
     
     def test_d_block_calculation(self):
-        """Verify d_block = d_prime + m + k = 64 + 6 + 16 = 86."""
+        """Verify d_block = d_prime + d_neighbor_metric + d_neighbor_transport + m + k = 64 + 16 + 16 + 6 + 16 = 118."""
         config = AddressConfig()
-        assert config.d_block == 86, f"Expected 86, got {config.d_block}"
+        assert config.d_block == 118, f"Expected 118, got {config.d_block}"
     
     def test_total_dim_calculation(self):
-        """Verify total dimension with 6 scores: 7074 for d=512."""
+        """Verify total dimension with 6 scores: 9122 for d=512."""
         config = AddressConfig(d=512)
-        expected = 512 + 1024 + (64 * 86) + 34  # core + geom + neighbors + integrity
+        expected = 512 + 1024 + (64 * 118) + 34  # core + geom + neighbors(64*118) + integrity
         assert config.total_dim == expected, f"Expected {expected}, got {config.total_dim}"
-        assert config.total_dim == 7074
+        assert config.total_dim == 9122
 
 
 class TestNeighborSelector:
@@ -147,7 +147,7 @@ class TestNeighborSelector:
         
         batch_size = 2
         d = 512
-        n_cand = 32  # Too few!
+        n_cand = 16  # Too few (need at least n_nearest=32)
         
         query_embedding = torch.randn(batch_size, d)
         candidate_embeddings = torch.randn(batch_size, n_cand, d)
@@ -155,7 +155,7 @@ class TestNeighborSelector:
         transport = torch.randn(batch_size, d)
         
         # Should raise ValueError for insufficient candidates
-        with pytest.raises(ValueError, match="Need at least 64 candidates"):
+        with pytest.raises(ValueError, match="Need at least 32 candidates"):
             selector.select_neighbors(
                 query_embedding=query_embedding,
                 candidate_embeddings=candidate_embeddings,
@@ -238,7 +238,7 @@ class TestNeighborSelector:
         assert selected_indices.max() < n_cand
         
         # Check that we got 64 unique selections (or allow some overlap)
-        # In practice, there might be overlap between nearest/attractors/repulsors
+        # In practice, there might be overlap between nearest/maxheap/minheap slots
         assert selected_indices.shape[1] == 64
 
 
@@ -331,41 +331,42 @@ class TestAddressBuilder:
         # Timestamps should be non-zero (current time)
         assert (timestamps > 0).any()
     
-    def test_fails_with_insufficient_candidates(self):
-        """Fail fast when candidate count < 64."""
+    def test_handles_insufficient_candidates_via_padding(self):
+        """Builder pads short candidate pools rather than crashing."""
         config = AddressConfig(d=512)
         builder = AddressBuilder(config=config, enable_collision_check=False)
         
         batch_size = 2
-        n_cand = 32  # Too few
+        n_cand = 16  # Fewer than n_nearest=32 — builder should pad
         
         embedding = torch.randn(batch_size, config.d)
         candidate_embeddings = torch.randn(batch_size, n_cand, config.d)
         
-        with pytest.raises(ValueError, match="Strict neighbor selection failed"):
-            builder(
-                embedding=embedding,
-                candidate_embeddings=candidate_embeddings,
-                enable_probing=True
-            )
+        # Builder pads candidates; should succeed without raising
+        addr = builder(
+            embedding=embedding,
+            candidate_embeddings=candidate_embeddings,
+            enable_probing=True
+        )
+        assert addr.data.shape[0] == batch_size
 
 
 class TestAddressStructure:
     """Test Address data structure access patterns."""
     
     def test_neighbor_role_slices(self):
-        """Verify neighbor role slices (nearest, attractors, repulsors)."""
+        """Verify slot role slices (nearest neighbors, maxheap/minheap interactions)."""
         config = AddressConfig(d=512)
         address = Address.zeros(2, config=config)
         
         nearest = address.nearest_neighbors
-        high_sim = address.high_sim_neighbors
-        low_sim = address.low_sim_neighbors
+        maxheap = address.maxheap_interactions
+        minheap = address.minheap_interactions
         
         # Check shapes
         assert nearest.shape == (2, 32, config.d_block)
-        assert high_sim.shape == (2, 16, config.d_block)
-        assert low_sim.shape == (2, 16, config.d_block)
+        assert maxheap.shape == (2, 16, config.d_block)
+        assert minheap.shape == (2, 16, config.d_block)
     
     def test_neighbor_scores_6_channels(self):
         """Verify neighbor scores have 6 channels."""

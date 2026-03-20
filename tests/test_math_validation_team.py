@@ -24,7 +24,7 @@ def test_math_validation_team_passes_default_pipeline():
 
 def test_math_validation_team_detects_precompute_contract_break():
     team = MathValidationTeam()
-    broken_cfg = DefaultAddressLayout(n_nearest=30, n_high_sim=10, n_low_sim=10, m=5)
+    broken_cfg = DefaultAddressLayout(n_nearest=30, n_maxheap=10, n_minheap=10, m=5)
 
     report = team.validate_all(address_config=broken_cfg)
     failed = [f for f in report.failed_checks if "Precompute dimensions satisfy Option-6 contracts" in f.check]
