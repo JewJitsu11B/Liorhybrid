@@ -19,10 +19,13 @@ import pytest
 
 from ..utils.pipeline_consistency_agents import (
     BookkeeperAgent,
+    CheckpointSurveySpecialistAgent,
     DimensionConsistencyTeam,
+    LeadCheckpointInferenceAgent,
     MarkerAgent,
     PathOutcome,
     PathRecord,
+    PipelineSidesReadySpecialistAgent,
     PipelineStep,
     ScanningAgent,
     VariableConsistencyTeam,
@@ -352,3 +355,19 @@ class TestInstrumentContextManager:
             ctx.record_outputs({"z": _FakeTensor((2, 32))})  # shape break
         team.finalise()
         assert team.has_breaks
+
+
+class TestLeadCheckpointInferenceAgent:
+    def test_lead_agent_assigns_two_specialists(self):
+        agent = LeadCheckpointInferenceAgent()
+        report = agent.run()
+        assert CheckpointSurveySpecialistAgent.NAME in report.assigned_specialists
+        assert PipelineSidesReadySpecialistAgent.NAME in report.assigned_specialists
+        assert len(report.assigned_specialists) == 2
+
+    def test_lead_agent_finds_periodic_and_manual_quit_checkpoint_signals(self):
+        agent = LeadCheckpointInferenceAgent()
+        report = agent.run()
+        checks = {f.check: f for f in report.findings}
+        assert checks["Periodic checkpoint cadence setting exists"].passed
+        assert checks["Manual quit checkpoint save exists"].passed

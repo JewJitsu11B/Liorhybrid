@@ -448,117 +448,134 @@ def trainer2_entrypoint(
     batch_count = 0
     t_epoch_start = time.time()
 
-    for epoch_idx in range(int(cfg.max_epochs)):
-        print(f"[{_ts()}] EPOCH {epoch_idx}/{cfg.max_epochs-1} started")
-        t_batch_start = time.time()
-        batches_this_epoch = 0
+    epoch_idx = 0
+    try:
+        for epoch_idx in range(int(cfg.max_epochs)):
+            print(f"[{_ts()}] EPOCH {epoch_idx}/{cfg.max_epochs-1} started")
+            t_batch_start = time.time()
+            batches_this_epoch = 0
 
-        for batch in train_loader:
-            batch_count += 1
-            batches_this_epoch += 1
+            for batch in train_loader:
+                batch_count += 1
+                batches_this_epoch += 1
 
-            # Batch received indicator
-            t_recv = time.time()
-            if batch_count <= 3 or batch_count % 50 == 0:
-                print(f"[{_ts()}] batch {batch_count} received (epoch {epoch_idx})")
+                # Batch received indicator
+                t_recv = time.time()
+                if batch_count <= 3 or batch_count % 50 == 0:
+                    print(f"[{_ts()}] batch {batch_count} received (epoch {epoch_idx})")
 
-            batch = to_device(batch)
-            t_device = time.time()
+                batch = to_device(batch)
+                t_device = time.time()
 
-            if not did_log_first_batch:
-                if isinstance(batch, dict):
-                    shape_info = {
-                        k: (tuple(v.shape) if torch.is_tensor(v) else type(v).__name__)
-                        for k, v in batch.items()
-                    }
-                    print(f"[{_ts()}] first batch keys: {list(batch.keys())}")
-                    print(f"[{_ts()}] first batch shapes: {shape_info}")
+                if not did_log_first_batch:
+                    if isinstance(batch, dict):
+                        shape_info = {
+                            k: (tuple(v.shape) if torch.is_tensor(v) else type(v).__name__)
+                            for k, v in batch.items()
+                        }
+                        print(f"[{_ts()}] first batch keys: {list(batch.keys())}")
+                        print(f"[{_ts()}] first batch shapes: {shape_info}")
+                    else:
+                        print(f"[{_ts()}] first batch type: {type(batch).__name__}")
+                    print(f"[{_ts()}] to_device took {(t_device - t_recv)*1000:.1f}ms")
+                    print(f"[{_ts()}] starting window 0, epoch {epoch_idx}")
+                    did_log_first_batch = True
+
+                # Run window (free or free+nudge)
+                t_window_start = time.time()
+                if window_idx % nudge_every == 0:
+                    if batch_count <= 3:
+                        print(f"[{_ts()}] window {window_idx}: running two-phase (free+nudge)")
+                    free, _nudged = run_two_phase_and_update(
+                        model=model,
+                        field=field,
+                        memory=memory,
+                        rotor_state=rotor_state,
+                        batch=batch,
+                        cfg=cfg,
+                        geom=geom,
+                        hooks=hooks,
+                        window_idx=window_idx,
+                        epoch_idx=epoch_idx,
+                    )
+                    metrics = free.metrics
                 else:
-                    print(f"[{_ts()}] first batch type: {type(batch).__name__}")
-                print(f"[{_ts()}] to_device took {(t_device - t_recv)*1000:.1f}ms")
-                print(f"[{_ts()}] starting window 0, epoch {epoch_idx}")
-                did_log_first_batch = True
+                    if batch_count <= 3:
+                        print(f"[{_ts()}] window {window_idx}: running free-only")
+                    free = run_window(
+                        model=model,
+                        field=field,
+                        memory=memory,
+                        rotor_state=rotor_state,
+                        batch=batch,
+                        cfg=cfg,
+                        geom=geom,
+                        hooks=hooks,
+                        external_nudge=None,
+                        window_idx=window_idx,
+                        epoch_idx=epoch_idx,
+                    )
+                    metrics = free.metrics
+                t_window_end = time.time()
 
-            # Run window (free or free+nudge)
-            t_window_start = time.time()
-            if window_idx % nudge_every == 0:
+                # Log timing for first few batches
                 if batch_count <= 3:
-                    print(f"[{_ts()}] window {window_idx}: running two-phase (free+nudge)")
-                free, _nudged = run_two_phase_and_update(
+                    print(f"[{_ts()}] window {window_idx} took {(t_window_end - t_window_start)*1000:.1f}ms")
+
+                # Single commit point (after free-only or free+nudge window)
+                _maybe_update_memory(memory, free)
+
+                mem_norm = memory.bank_coord.norm().item() if hasattr(memory, 'bank_coord') else 0.0
+                maybe_log_metrics(
+                    window_idx,
+                    metrics,
+                    cfg,
+                    telemetry,
+                    epoch_idx=epoch_idx,
+                    window_ms=(t_window_end - t_window_start) * 1000.0,
+                    mem_norm=mem_norm,
+                    batch_idx=batch_count,
+                )
+                maybe_checkpoint(
+                    window_idx=window_idx,
+                    epoch_idx=epoch_idx,
+                    cfg=cfg,
                     model=model,
                     field=field,
                     memory=memory,
                     rotor_state=rotor_state,
-                    batch=batch,
-                    cfg=cfg,
-                    geom=geom,
-                    hooks=hooks,
-                    window_idx=window_idx,
-                    epoch_idx=epoch_idx,
+                    tokenizer=tokenizer,
                 )
-                metrics = free.metrics
-            else:
-                if batch_count <= 3:
-                    print(f"[{_ts()}] window {window_idx}: running free-only")
-                free = run_window(
-                    model=model,
-                    field=field,
-                    memory=memory,
-                    rotor_state=rotor_state,
-                    batch=batch,
-                    cfg=cfg,
-                    geom=geom,
-                    hooks=hooks,
-                    external_nudge=None,
-                    window_idx=window_idx,
-                    epoch_idx=epoch_idx,
-                )
-                metrics = free.metrics
-            t_window_end = time.time()
 
-            # Log timing for first few batches
-            if batch_count <= 3:
-                print(f"[{_ts()}] window {window_idx} took {(t_window_end - t_window_start)*1000:.1f}ms")
+                window_idx += 1
+                # Window progression diagnostic
+                print(f"[PROGRESS] window={window_idx} mem_norm={mem_norm:.4f} lior={metrics.lior_mean.item():.6f}")
 
-            # Single commit point (after free-only or free+nudge window)
-            _maybe_update_memory(memory, free)
+                if cfg.max_windows > 0 and window_idx >= cfg.max_windows:
+                    print(f"[{_ts()}] max_windows reached: {cfg.max_windows}")
+                    _close_telemetry(telemetry)
+                    return
 
-            mem_norm = memory.bank_coord.norm().item() if hasattr(memory, 'bank_coord') else 0.0
-            maybe_log_metrics(
-                window_idx,
-                metrics,
-                cfg,
-                telemetry,
-                epoch_idx=epoch_idx,
-                window_ms=(t_window_end - t_window_start) * 1000.0,
-                mem_norm=mem_norm,
-                batch_idx=batch_count,
-            )
-            maybe_checkpoint(
-                window_idx=window_idx,
-                epoch_idx=epoch_idx,
-                cfg=cfg,
-                model=model,
-                field=field,
-                memory=memory,
-                rotor_state=rotor_state,
-                tokenizer=tokenizer,
-            )
-
-            window_idx += 1
-            # Window progression diagnostic
-            print(f"[PROGRESS] window={window_idx} mem_norm={mem_norm:.4f} lior={metrics.lior_mean.item():.6f}")
-
-            if cfg.max_windows > 0 and window_idx >= cfg.max_windows:
-                print(f"[{_ts()}] max_windows reached: {cfg.max_windows}")
-                _close_telemetry(telemetry)
-                return
-
-        # End of epoch summary
-        t_epoch_end = time.time()
-        epoch_time = t_epoch_end - t_batch_start
-        batches_per_sec = batches_this_epoch / max(epoch_time, 0.001)
-        print(f"[{_ts()}] EPOCH {epoch_idx} done: {batches_this_epoch} batches in {epoch_time:.1f}s ({batches_per_sec:.2f} batch/s)")
+            # End of epoch summary
+            t_epoch_end = time.time()
+            epoch_time = t_epoch_end - t_batch_start
+            batches_per_sec = batches_this_epoch / max(epoch_time, 0.001)
+            print(f"[{_ts()}] EPOCH {epoch_idx} done: {batches_this_epoch} batches in {epoch_time:.1f}s ({batches_per_sec:.2f} batch/s)")
+    except KeyboardInterrupt:
+        print(f"[{_ts()}] manual quit requested; saving checkpoint before exit")
+        maybe_checkpoint(
+            window_idx=window_idx,
+            epoch_idx=epoch_idx,
+            cfg=cfg,
+            model=model,
+            field=field,
+            memory=memory,
+            rotor_state=rotor_state,
+            tokenizer=tokenizer,
+            manual_quit=True,
+        )
+        _close_telemetry(telemetry)
+        raise
 
     total_time = time.time() - t_epoch_start
     print(f"[{_ts()}] training complete: {batch_count} total batches in {total_time:.1f}s")
@@ -3164,16 +3181,21 @@ def maybe_checkpoint(*args: Any, **kwargs: Any) -> None:
     rotor_state = kwargs.get("rotor_state", None)
     epoch_idx = kwargs.get("epoch_idx", 0)
     tokenizer = kwargs.get("tokenizer", None)
+    manual_quit = bool(kwargs.get("manual_quit", False))
 
-    if cfg is None or window_idx is None:
+    if cfg is None:
         return
-    if cfg.save_every_windows <= 0:
-        return
-    if window_idx % cfg.save_every_windows != 0:
-        return
+    if window_idx is None:
+        window_idx = 0
+    if not manual_quit:
+        if cfg.save_every_windows <= 0:
+            return
+        if window_idx % cfg.save_every_windows != 0:
+            return
 
     os.makedirs(cfg.run_dir, exist_ok=True)
-    ckpt_path = os.path.join(cfg.run_dir, f"{cfg.run_name}_window{window_idx}.pt")
+    ckpt_tag = f"manual_quit_window{window_idx}" if manual_quit else f"window{window_idx}"
+    ckpt_path = os.path.join(cfg.run_dir, f"{cfg.run_name}_{ckpt_tag}.pt")
 
     # Build inference-compatible config
     inference_config = {
@@ -3217,7 +3239,8 @@ def maybe_checkpoint(*args: Any, **kwargs: Any) -> None:
         "rotor_state": _snapshot_any(rotor_state),
     }
     torch.save(ckpt, ckpt_path)
-    print(f"[{_ts()}] checkpoint saved: {ckpt_path}")
+    trigger = "manual quit" if manual_quit else "periodic"
+    print(f"[{_ts()}] checkpoint saved ({trigger}): {ckpt_path}")
 
 # ==============================================================================
 # SECTION 14: ENTRYPOINT, SMOKE TESTS, AND STRICT FAILURE SEMANTICS
