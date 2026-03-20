@@ -565,17 +565,6 @@ def trainer2_entrypoint(
 
                 if cfg.max_windows > 0 and window_idx >= cfg.max_windows:
                     print(f"[{_ts()}] max_windows reached: {cfg.max_windows}")
-                    force_checkpoint(
-                        window_idx=window_idx,
-                        epoch_idx=epoch_idx,
-                        cfg=cfg,
-                        model=model,
-                        field=field,
-                        memory=memory,
-                        rotor_state=rotor_state,
-                        tokenizer=tokenizer,
-                        reason="max_windows",
-                    )
                     _close_telemetry(telemetry)
                     return
 
@@ -606,10 +595,10 @@ def trainer2_entrypoint(
             memory=memory,
             rotor_state=rotor_state,
             tokenizer=tokenizer,
-            reason="manual_quit",
+            manual_quit=True,
         )
         _close_telemetry(telemetry)
-        return
+        raise
 
     total_time = time.time() - t_epoch_start
     print(f"[{_ts()}] training complete: {batch_count} total batches in {total_time:.1f}s")

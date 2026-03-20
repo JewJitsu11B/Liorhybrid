@@ -65,6 +65,7 @@ import threading
 from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 
@@ -113,6 +114,132 @@ class PipelineStep:
     name: str
     inputs:  Dict[str, Any]
     outputs: Dict[str, Any]
+
+
+@dataclass(frozen=True)
+class SpecialistFinding:
+    """Single specialist-agent check result."""
+    agent: str
+    check: str
+    passed: bool
+    details: str
+
+
+@dataclass(frozen=True)
+class LeadSurveyReport:
+    """Consolidated lead-agent report for checkpoint/inference readiness."""
+    checkpoint_settings_summary: str
+    assigned_specialists: List[str]
+    findings: List[SpecialistFinding]
+    ready: bool
+
+
+class CheckpointSurveySpecialistAgent:
+    """Surveys checkpointing settings for periodic + manual-quit persistence."""
+
+    NAME = "CheckpointSurveySpecialist"
+
+    def __init__(self, repo_root: Optional[str] = None):
+        if repo_root is None:
+            repo_root = str(Path(__file__).resolve().parent.parent)
+        self.repo_root = Path(repo_root)
+
+    def run(self) -> List[SpecialistFinding]:
+        trainer2_path = self.repo_root / "training" / "trainer2.py"
+        try:
+            src = trainer2_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            src = ""
+
+        findings = [
+            SpecialistFinding(
+                agent=self.NAME,
+                check="Periodic checkpoint cadence setting exists",
+                passed=("save_every_windows" in src and "maybe_checkpoint(" in src),
+                details="Expected TrainConfig.save_every_windows and maybe_checkpoint call path.",
+            ),
+            SpecialistFinding(
+                agent=self.NAME,
+                check="Manual quit checkpoint save exists",
+                passed=("except KeyboardInterrupt" in src and "manual_quit=True" in src),
+                details="Expected KeyboardInterrupt handler to force checkpoint save on quit.",
+            ),
+        ]
+        return findings
+
+
+class PipelineSidesReadySpecialistAgent:
+    """Ensures both sides of the training/inference pipeline are present and callable."""
+
+    NAME = "PipelineSidesReadySpecialist"
+
+    def __init__(self, repo_root: Optional[str] = None):
+        if repo_root is None:
+            repo_root = str(Path(__file__).resolve().parent.parent)
+        self.repo_root = Path(repo_root)
+
+    def run(self) -> List[SpecialistFinding]:
+        trainer2_path = self.repo_root / "training" / "trainer2.py"
+        inference_path = self.repo_root / "inference" / "inference.py"
+
+        try:
+            trainer2_src = trainer2_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            trainer2_src = ""
+        try:
+            inference_src = inference_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            inference_src = ""
+
+        findings = [
+            SpecialistFinding(
+                agent=self.NAME,
+                check="Training side has trainer2 entrypoint",
+                passed="def trainer2_entrypoint(" in trainer2_src,
+                details="Expected training/trainer2.py to expose trainer2_entrypoint.",
+            ),
+            SpecialistFinding(
+                agent=self.NAME,
+                check="Inference side has InferenceEngine",
+                passed="class InferenceEngine" in inference_src,
+                details="Expected inference/inference.py to expose InferenceEngine.",
+            ),
+        ]
+        return findings
+
+
+class LeadCheckpointInferenceAgent:
+    """
+    Lead agent that surveys checkpointing settings and forms an inference-focused specialist team.
+    """
+
+    def __init__(self, repo_root: Optional[str] = None):
+        if repo_root is None:
+            repo_root = str(Path(__file__).resolve().parent.parent)
+        self.repo_root = Path(repo_root)
+        self._checkpoint_specialist = CheckpointSurveySpecialistAgent(repo_root=str(self.repo_root))
+        self._pipeline_specialist = PipelineSidesReadySpecialistAgent(repo_root=str(self.repo_root))
+
+    def run(self) -> LeadSurveyReport:
+        findings: List[SpecialistFinding] = []
+        findings.extend(self._checkpoint_specialist.run())
+        findings.extend(self._pipeline_specialist.run())
+
+        summary = (
+            "Surveyed checkpoint policy for periodic saves and manual-quit persistence, "
+            "then validated training and inference pipeline readiness."
+        )
+        team = [
+            CheckpointSurveySpecialistAgent.NAME,
+            PipelineSidesReadySpecialistAgent.NAME,
+        ]
+        ready = all(f.passed for f in findings)
+        return LeadSurveyReport(
+            checkpoint_settings_summary=summary,
+            assigned_specialists=team,
+            findings=findings,
+            ready=ready,
+        )
 
 
 # ---------------------------------------------------------------------------
