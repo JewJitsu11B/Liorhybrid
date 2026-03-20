@@ -210,6 +210,19 @@ class NeighborSelector(nn.Module):
                              (near neighbour → ~0, far neighbour → -1)
         5. Parallel transport alignment — squared cosine between displacement and
                               transport fiber direction, in [0, 1]
+                              Chosen over alternatives because:
+                              - Pure geometry: derived entirely from (c-q) and the transport
+                                fiber; no learned parameters, no circular dependency on heap rank.
+                              - Dimensionless by construction: both vectors are unit-normalised
+                                before the cosine, so the output sits in [0,1] matching ch0-ch4.
+                              - Captures a distinct physical quantity: how well the direction to
+                                candidate c aligns with the manifold's local parallel-transport
+                                axis at q. Ch0 measures angular similarity of the embeddings
+                                themselves; ch5 measures the geometric path alignment — orthogonal
+                                information that makes the 6D score vector maximally informative.
+                              - Non-circular: computed once in compute_geometric_scores from raw
+                                geometry, never updated by select_neighbors, so position in the
+                                heap has no influence on the score itself.
     """
     
     def __init__(self, config: Optional[AddressConfig] = None):
