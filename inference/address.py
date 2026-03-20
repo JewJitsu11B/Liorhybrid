@@ -41,8 +41,8 @@ Dimensions (default d=512):
 
 Neighbor roles by position (mandatory, no fallbacks):
 - N1-N32: absolute nearest (similarity grounding)
-- N33-N48: maxheap neighbors (16 highest sim scores)
-- N49-N64: minheap neighbors (16 lowest sim scores)
+- N33-N48: maxheap interactions (16 highest sim scores)
+- N49-N64: minheap interactions (16 lowest sim scores)
 
 Per-neighbor block (d_block = 86):
 - value: d' = 64 (reduced interaction vector)
@@ -72,7 +72,7 @@ class AddressConfig:
     """Configuration for address dimensions.
     
     Address-based neighbor probing (Option 6) with mandatory 64-slot structure:
-    - 64 neighbors: 32 nearest, 16 maxheap, 16 minheap (role-typed)
+    - 64 slots: 32 nearest neighbors + 16 maxheap interactions + 16 minheap interactions
     - 6 similarity scores per neighbor (mandatory, no fallbacks)
     - Each neighbor slot stores metric/transport info of that neighbor
     - ECC and timestamps present but excluded from similarity scoring
@@ -189,10 +189,11 @@ class NeighborSelector(nn.Module):
     """
     Strict metric-only neighbor selector.
     
-    Selects exactly 64 neighbors partitioned into three groups:
-      - 32 nearest: smallest metric distance (sorted ascending by distance)
-      - 16 maxheap: 16 highest sim scores (channel 0), sorted descending
-      - 16 minheap: 16 lowest sim scores (channel 0), sorted ascending
+    Selects exactly 64 slots: 32 nearest neighbors + 16 maxheap interactions +
+    16 minheap interactions.
+      - 32 nearest neighbors: smallest metric distance (sorted ascending)
+      - 16 maxheap interactions: 16 highest sim scores (channel 0), sorted descending
+      - 16 minheap interactions: 16 lowest sim scores (channel 0), sorted ascending
     
     Selection is performed using ONLY the learned/curved metric from
     Address.metric/transport.  NO FALLBACK to Euclidean or cosine distance.
@@ -337,7 +338,8 @@ class NeighborSelector(nn.Module):
         transport: torch.Tensor,              # (batch, d)
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
-        Select exactly 64 neighbors using strict metric-only selection.
+        Select exactly 64 slots (32 nearest neighbors + 16 maxheap interactions +
+        16 minheap interactions) using strict metric-only selection.
 
         Partition layout (in order):
           Slots  0–31: 32 nearest neighbors (smallest metric distance), sorted
@@ -763,7 +765,7 @@ class AddressBuilder(nn.Module):
     
     Option 6 Requirements:
     - Uses NeighborSelector with metric-only distances (no Euclidean fallback)
-    - Enforces exactly 64 neighbor slots (32 nearest, 16 maxheap, 16 minheap)
+    - Enforces exactly 64 slots (32 nearest neighbors + 16 maxheap + 16 minheap interactions)
     - Computes 6 geometric similarity scores per neighbor (dot, wedge, tensor, spinor, energy, rank)
     - Fails fast if metric is missing or invalid
     - Addresses are naturally unique based on embeddings (no collision detection)
