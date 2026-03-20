@@ -380,6 +380,19 @@ def mode_signature(cfg: TrainConfig) -> str:
         f"rotor={cfg.rotor_mode}|n={cfg.coord_dim_n}|r={cfg.lowrank_r}|k={cfg.rotor_k}"
     )
 
+
+def _callable_name(fn: Any) -> str:
+    """Best-effort callable name for diagnostics (supports callable objects/partials)."""
+    name = getattr(fn, "__qualname__", None) or getattr(fn, "__name__", None)
+    if name:
+        return str(name)
+    call = getattr(fn, "__call__", None)
+    call_name = getattr(call, "__qualname__", None) or getattr(call, "__name__", None)
+    if call_name:
+        return str(call_name)
+    return type(fn).__name__
+
+
 def trainer2_entrypoint(
     cfg: TrainConfig,
     *,
@@ -430,9 +443,9 @@ def trainer2_entrypoint(
 
     model.train()
     print(
-        f"[trainer2] hooks: build={hooks.build_retrieval_batch.__qualname__}, "
-        f"step={hooks.step_dynamics.__qualname__}, "
-        f"vel={hooks.get_velocity.__qualname__}"
+        f"[trainer2] hooks: build={_callable_name(hooks.build_retrieval_batch)}, "
+        f"step={_callable_name(hooks.step_dynamics)}, "
+        f"vel={_callable_name(hooks.get_velocity)}"
     )
     print(
         f"[trainer2] memory={type(memory).__name__} field={type(field).__name__} "
