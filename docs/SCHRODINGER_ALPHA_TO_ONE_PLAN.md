@@ -19,13 +19,27 @@ $$
 
 ## 0. Three facts that fix the shape of the derivation
 
-**F1. With the poster's convention, $\alpha\to1^-$ does not send $k\to\delta$.**
-"$\alpha_{\rm frac}=3$ gives $(t-\tau)^2/2$" fixes $k_\alpha(\tau)=\tau^{\alpha-1}/\Gamma(\alpha)$, the RL kernel; Eq. (9) $\to 3J+2J^-$ checks. As $\alpha\to1^-$ this tends to $\Theta(\tau)$, the plain FTC accumulator. The $\delta$-collapse belongs to the other end: $\tau^{\alpha-1}/\Gamma(\alpha)\approx\alpha\,\tau^{\alpha-1}\to\delta$ as $\alpha\to0^+$. Prop. 1 in `proof_hierarchy2` uses $w\to\delta$, so it has to be re-derived, not just re-labelled.
+**F1. The kernel convention is a choice, and the limit depends on it.**
+Nothing outside the CAL fixes $k$. There are two readings.
 
-*Aside.* A $\delta$ does appear at $\alpha\to1^-$ if the kernel is $(t-\tau)^{-\alpha}$. Then $(1-\alpha)\tau^{-\alpha}$ has unit mass on $[0,1]$ and concentrates at $0$. That kernel is the Caputo kernel of order $1-\alpha$, though, and it contradicts the $\alpha=3$ statement. Switch to it only if you drop that statement.
+- **Reading A: memory $=(1-\alpha)\,I^\alpha$.** This is the literal sense of "$\alpha_{\rm frac}$ is the fractional integration order", with $k_\alpha=\tau^{\alpha-1}/\Gamma(\alpha)$. As $\alpha\to1^-$, $k_\alpha\to\Theta(\tau)$ (the FTC accumulator) and the memory weight goes to $0$. There is no $\delta$; the $\delta$ sits at $\alpha\to0^+$ of this kernel.
+- **Reading B: weight and kernel taken together.** Memory $=(1-\alpha)\tau^{-\alpha}=\Gamma(2-\alpha)\,k_{I^{1-\alpha}}$. On $[0,T]$ this has mass $T^{1-\alpha}\to1$ and it concentrates at $0$, so it tends to $\delta(\tau)$. The draft's $w\to\delta$ is then *derived*, not assumed. The cost is that the history's integration order becomes $1-\alpha_{\rm frac}$, so the bottom-line sentence would have to say so.
 
-**F2. At $\alpha=1$ exactly, $T=J$.**
-$\Pi$, every $P$, $\Phi$ and $k$ sit inside the $(1-\alpha)$ term. So the mass, the potential and the memory corrections are all $O(\varepsilon)$. The gauge field also enters through the covariant $\nabla$ in the dynamical principle (C2 below). The limit is therefore singular: the target lives in a window $\varepsilon\to0$ with $\varepsilon\,\Phi_0$ held fixed ($\Phi_0$ is the coincidence strength of $\Pi\Phi$). This has the same structure as the van Hove / Davies weak-coupling limit, $\lambda\to0$ with $\lambda^2t$ fixed. **The "$1^-$" is essential.** At $\alpha=1$ nothing massive survives, and a massless field has no Schrödinger limit.
+The dynamical principle (C2 below) differentiates the memory term. That makes the two readings give structurally different equations of motion. The symbols below were checked numerically.
+
+| | Reading A | Reading B |
+|---|---|---|
+| time part of $\partial_\mu(\text{memory})$ | $\partial_tI^\alpha=D^{1-\alpha}\to\mathbb 1$ | $\partial_tI^{1-\alpha}=D^{\alpha}\to\partial_t$ |
+| memory at $\alpha\to1$ | non-derivative term $\varepsilon\mathcal K_0J$: mass/potential type, $O(\varepsilon)$ | derivative term $\sim\mathcal K_0\,\bar\partial J$: renormalizes the Weyl operator, $O(1)$ |
+| where the mass comes from | the memory itself, in a singular window ($\varepsilon\mathcal K_0$ fixed) | not from constant $\Phi,\Pi$. Only from $\partial\Phi,\partial\Pi\neq0$ at coincidence or from the connection, i.e. a background field (e.g. the $J_H$ dependence the draft gives $K_L$) |
+| corrections for $\alpha<1$ | $O(\varepsilon)$ through $D^{\varepsilon}$ | $O(\varepsilon)$ through $I^{\varepsilon}$ |
+
+**Recommendation.** Use A if C2 is the dynamics, because it is the only reading in which the CAL itself produces a mass term. Use B if you want the draft's $\delta$-collapse and will source the mass from a background. The rest of this plan follows A and notes where B differs.
+
+**F2. Under A, at $\alpha=1$ exactly, $T=J$.**
+$\Pi$, every $P$, $\Phi$ and $k$ sit inside the $(1-\alpha)$ term. So the mass, the potential and the memory corrections are all $O(\varepsilon)$. The gauge field also enters through the covariant $\nabla$ in C2. The limit is therefore singular: the target lives in a window $\varepsilon\to0$ with $\varepsilon\,\mathcal K_0$ held fixed ($\mathcal K_0$ is $\Pi\Phi$ at coincidence). This has the same structure as the van Hove / Davies weak-coupling limit, $\lambda\to0$ with $\lambda^2t$ fixed. **The "$1^-$" is essential.** At $\alpha=1$ nothing massive survives, and a massless field has no Schrödinger limit.
+
+*Under B* the picture is different. $T\to(1-\mathcal K_0)J$ provided the spatial slice of the kernel is normalized and supported in the cone, so that the $\tau$-collapse also collapses space. The memory survives at $O(1)$ and there is no singular window. The price is the mass problem in the table above.
 
 **F3. The CAL is a constitutive law, not an equation of motion.**
 It defines $T$ from $J$. Getting dynamics takes one more principle, stated as an axiom. The recommended one is $\nabla_\mu T^{\mu\nu a}{}_{\rho\sigma}=0$, the same divergence-free principle the poster already uses for Lovelock.
@@ -36,7 +50,7 @@ It defines $T$ from $J$. Getting dynamics takes one more principle, stated as an
 
 | Choice | Recommended | Reason |
 |---|---|---|
-| C1 kernel | $k_\alpha=\tau^{\alpha-1}/\Gamma(\alpha)$, with $\tau$ an invariant (proper-time / interval) argument | Forced by the $\alpha=3$ statement; invariance is needed for gate K4 |
+| C1 kernel | Reading A: $k_\alpha=\tau^{\alpha-1}/\Gamma(\alpha)$, with $\tau$ an invariant (proper-time / interval) argument | Under C2, the only reading where the CAL produces a mass (F1); invariance is needed for gate K4 |
 | C2 dynamics | $\nabla_\mu T^{\mu\cdots}=0$, with $\nabla$ built from the same connection whose parallel transport is $P$ | Covariant; matches the Lovelock panel; supplies minimal coupling at $O(\varepsilon^0)$ |
 | C3 sector ansatz | the $\mu$ index of $J$ rides on the paravector basis, $J^\mu\leftrightarrow\bar e^{\mu}J$ with $\bar e^\mu=(1,-e_k)$, so $\partial_\mu J^\mu=\bar\partial J$, $\bar\partial\equiv\partial_{ct}-e_k\partial_k$; the $\nu\rho\sigma$ indices ride along as a fixed tensor | Without an explicit sector ansatz there is nothing for C2 to act on |
 | C4 carrier algebra | $J=\sum_a Z_ae_a\in M_2(\mathbb C)\cong Cl(3,0)$, $e_0=1$, $e_k=\sigma_k$ | Born: $\tfrac12{\rm tr}\,JJ^\dagger=\sum_a\lvert Z_a\rvert^2$. Lorentz: $\det J=Z_0^2-\mathbf Z\cdot\mathbf Z$ |
@@ -71,25 +85,31 @@ Split the coincidence action on the carrier into three pieces:
 2. The part that commutes with the carrier. This is a scalar potential.
 3. Any part that is non-Hermitian and not proportional to $\iota$. This is dissipation, and it must vanish or be $O(\varepsilon)$ (gate K1).
 
-**2.3 Time memory and localization.**
-As $\alpha\to1$, $k\to\Theta$, so the $O(\varepsilon)$ term is formally nonlocal. Taken from $-\infty$, it is IR-divergent on zero-frequency components. On a carrier with a fast phase, $J=e^{-\iota\omega t}\phi$ with $\phi$ slow, the Laplace symbol $\int_0^\infty k_\alpha e^{-s\tau}d\tau=s^{-\alpha}$ gives
+**2.3 Time memory: what C2 actually sees.**
+C2 differentiates the memory term. So the operators that matter are $\partial_tI^\alpha$ and $\partial_kI^\alpha$, not $I^\alpha$ alone.
+
+*Time component.* $\partial_tI^\alpha=D^{1-\alpha}$, which is exactly the identity at $\alpha=1$: no $1/\omega$ tail and no $\dot\phi$ terms. So at $\alpha=1$ the time part of the memory is the local, non-derivative term $\varepsilon\mathcal K_0J$. Any $\iota$ in the mass term must come from the algebra of $\mathcal K_0$ (gate K1).
+
+*Spatial-flux components.* $\partial_kI^\alpha$ keeps the accumulator. Use the Laplace symbol $\int_0^\infty k_\alpha e^{-s\tau}d\tau=s^{-\alpha}$. On a carrier with a fast phase, $J=e^{-\iota\omega t}\phi$ with $\phi$ slow,
 
 $$
-\int_0^\infty k_\alpha(\tau)\,e^{-\iota\omega(t-\tau)}\phi(t-\tau)\,d\tau
-=e^{-\iota\omega t}\Big[(-\iota\omega)^{-\alpha}\phi(t)-\alpha(-\iota\omega)^{-\alpha-1}\dot\phi(t)+\dots\Big].
+I^\alpha\big[e^{-\iota\omega\tau}\phi\big](t)=e^{-\iota\omega t}\Big[(-\iota\omega)^{-\alpha}\phi(t)-\alpha(-\iota\omega)^{-\alpha-1}\dot\phi(t)+\dots\Big],
 $$
 
-Each term is local in time: the fast phase localizes the history. At $\alpha=1$, $(-\iota\omega)^{-1}=\iota/\omega$.
+and at $\alpha=1$ the factor is $(-\iota\omega)^{-1}=\iota/\omega$.
 
-- **The accumulated past of an oscillating carrier is local and carries $\iota$.** This is a *dynamical* source of the $i$. It must agree with the algebraic one from 2.2 (gate K2).
-- The expansion parameter is $\lvert\dot\phi\rvert/(\omega\lvert\phi\rvert)$, i.e. kinetic energy over rest energy. So the Markov reduction and the nonrelativistic reduction run on the same small parameter, plus $\varepsilon$.
-- Covariant version: in momentum space the memory term is $\varepsilon\Phi_0\,\tilde k_\alpha(p)\,J(p)$, evaluated on shell. Locality in the NR sense means $\tilde k_\alpha$ is smooth near the mass shell.
+- The flux part of the memory is local and carries $\iota/\omega$. That is a dynamical $\iota$, but it appears **only on the derivative terms**.
+- Its coefficient is $\varepsilon\mathcal K_k/\omega$. This is $O(1)$ in the window, since $\varepsilon\mathcal K_0\sim\omega_C$. It changes the effective speed in the kinetic term, which is gate K4.
+- The expansion parameter is $\lvert\dot\phi\rvert/(\omega\lvert\phi\rvert)$, i.e. kinetic energy over rest energy. So the Markov reduction and the NR reduction run on the same small parameter, plus $\varepsilon$.
+- Taken from $-\infty$, $I^1$ diverges on zero-frequency components. The fast phase makes the matter sector Abel-summable.
 
-**2.4 Gap equation (mass from memory).**
-The mass coefficient from 2.2 and 2.3 depends on $\omega$ through $(-\iota\omega)^{-\alpha}$, or covariantly through $\tilde k_\alpha(p^2)$. So $m$ is fixed self-consistently: the determinant of the full symbol (leading $\bar\partial$ plus memory) vanishes. That is the poster's "Lorentz by determinant" closure, made dynamical. The expected form is $m^2\propto\varepsilon\Phi_0\,\tilde k_\alpha(m^2)$; the exact form is a deliverable.
+*Under B,* $\partial_\mu I^{1-\alpha}\to\partial_\mu$: no accumulator survives and there are no $\iota/\omega$ terms.
+
+**2.4 Mass and dispersion.**
+Under A at $\alpha=1$, the mass coefficient is read off directly. $mc^2/\hbar$ is $\varepsilon$ times the chirality-flip part of $\mathcal K_0$. The time part needs no self-consistency, because $D^0=\mathbb 1$. The $\iota/\omega$ flux terms do make the dispersion relation $\omega$-dependent. So the pole comes from setting the determinant of the full symbol to zero (leading $\bar\partial$, plus mass, plus flux memory). That is the poster's "Lorentz by determinant" closure, made dynamical. **Deliverable:** that determinant and its zeros.
 
 **2.5 Scaling window and error terms.**
-Take $\varepsilon\to0$ with $\varepsilon\Phi_0$ fixed. The errors are $O(\varepsilon\ln\varepsilon)$ and $O(\lvert\dot\phi\rvert/\omega\lvert\phi\rvert)$. Davies (1974) is the template for making this rigorous.
+Take $\varepsilon\to0$ with $\varepsilon\mathcal K_0$ fixed. The errors are $O(\varepsilon\ln\varepsilon)$ and $O(\lvert\dot\phi\rvert/\omega\lvert\phi\rvert)$. Davies (1974) is the template for making this rigorous.
 
 ---
 
@@ -120,14 +140,14 @@ Use the standard Dirac → Pauli → Schrödinger reduction in APS form (Baylis;
 
 | Quantity | Source |
 |---|---|
-| $m=\hbar\omega_C/c^2$ | gap equation (2.4) |
+| $m=\hbar\omega_C/c^2$ | pole of the symbol (2.4) |
 | $\mathbf A$, $V$ | connection in C2 and $P$ |
 | extra scalar potential | the commuting part of $\Phi$ (2.2) |
 | $-(q\hbar/2m)\,\boldsymbol\sigma\cdot\mathbf B$ | appears automatically (Pauli); scalar Schrödinger is the spin-independent sector |
-| the $-\alpha(-\iota\omega)^{-\alpha-1}\dot\phi$ term | renormalizes the coefficient of $\partial_t$ (a $Z$ factor). In the scaling window it is $O(\varepsilon\Phi_0/\omega_C^2)=O(1)$, **not small** |
+| the flux memory term $\varepsilon\mathcal K_k(\iota/\omega)\partial_k$ | changes the coefficient of the kinetic term. It is $O(1)$ in the window, **not small** |
 
 **K4 (inertial mass = rest mass).**
-If the memory-induced mass depends on coordinate frequency, $\mu=\mu(\omega)$, the $Z$ factor makes $m_{\rm kin}\neq m_{\rm rest}$ at $O(1)$. If $k$ depends only on the invariant interval, then $\mu=\mu(p^2)$, the pole $p^2=m^2c^2$ is Lorentz invariant, and $m_{\rm kin}=m_{\rm rest}$ automatically. This is why C1 requires an invariant $\tau$.
+Unless $\mathcal K_k$ and $\mathcal K_0$ are related covariantly, the flux term makes $m_{\rm kin}\neq m_{\rm rest}$ at $O(1)$. They are related covariantly when $k$ depends only on the invariant interval: then the symbol depends only on $p^2$, the pole $p^2=m^2c^2$ is Lorentz invariant, and $m_{\rm kin}=m_{\rm rest}$ automatically. This is why C1 requires an invariant $\tau$. The time part of the memory adds no $Z$ factor at $\alpha=1$, since $D^0=\mathbb 1$; for $\alpha<1$ it adds only $O(\varepsilon)$.
 
 ---
 
@@ -148,7 +168,9 @@ At $\varepsilon=0$, $D^0=1$ and Phase 3 applies. For $\varepsilon>0$, put an eig
 - **Power-law transients** of amplitude $\propto\varepsilon\,t^{-\alpha}$ (Mittag-Leffler, since $1/\Gamma(1-\alpha)\approx\varepsilon$).
 - **The energy zero is physical for $\alpha<1$.** $\psi\to e^{\iota\theta t}\psi$ is not a symmetry of $D^\varepsilon$. Expect Galilean covariance (Bargmann central charge) to hold only at $\alpha=1$; this needs proof.
 
-**Bound.** By F2 the mass *is* memory, so the rest phase passes through $D^\varepsilon$ and $\Gamma\sim\varepsilon\,mc^2/\hbar$. Inputs:
+**Under B,** the corrections run through $I^{\varepsilon}$, whose symbol is $(-\iota\omega)^{-\varepsilon}$, with the opposite phase. Depending on the sign the memory enters with, the same-size effect can be **growth** (a runaway) rather than decay. That is a separate kill check.
+
+**Bound.** Under A the mass *is* memory (F2), so the rest phase passes through $D^\varepsilon$ and $\Gamma\sim\varepsilon\,mc^2/\hbar$. Under B the bound has the same order whenever the rest energy passes through the memory. Inputs:
 - invisible nucleon-decay limits (KamLAND, SNO+): $\tau_N\gtrsim10^{29}$ yr $=3.2\times10^{36}$ s;
 - nucleon rest frequency: $\omega_N=1.43\times10^{24}\ {\rm s^{-1}}$.
 
@@ -169,10 +191,10 @@ So for matter, $\alpha_{\rm frac}=1$ to about 61 decimal places, and $\Phi_0$ ha
 3. **Phase 1.** Weyl equation at $\varepsilon^0$.
 4. **K1.** Compute $\Pi\Phi$ at coincidence in the $e_a$ basis. If there is no chirality flip and no $\iota$-proportional anti-Hermitian part, the limit is diffusion: Nelson's $D=\hbar/2m$ without the $i$, which is exactly what `CAUSAL_FIELD_HAMILTONIAN_REVIEW.md` found for the code operator. Stop and find the complex structure.
 5. **Phase 2,** with two gates:
-   - **K2:** the $\iota$ from 2.3 (dynamical) equals the $\iota$ from 2.2 (algebraic).
+   - **K2:** the $\iota$ on the flux terms (2.3, dynamical) is the same $\iota$ as in the mass term (2.2, algebraic). If they differ, there are two complex structures, and no single $i$ exists.
    - **K3:** the sign of the memory-induced $\mu^2$. $\iota^2=-1$ and $\iota^\dagger=-\iota$ both enter, and $\mu^2<0$ means a tachyon, which kills the route.
 6. **Phase 3.** Semigroup iff $\alpha=1$; Born conservation forces an anti-Hermitian generator; Stone; limit interchange.
-7. **Phase 4,** with gate **K4:** $m_{\rm kin}=m_{\rm rest}$, which requires the invariant kernel.
+7. **Phase 4,** with gate **K4:** $m_{\rm kin}=m_{\rm rest}$. The risk is the $O(1)$ flux term, and the cure is the invariant kernel.
 8. **Phase 5.** Predictions.
 9. **Numerics** (§9).
 
@@ -180,7 +202,10 @@ So for matter, $\alpha_{\rm frac}=1$ to about 61 decimal places, and $\Phi_0$ ha
 
 ## 8. What changes in `proof_hierarchy2` §5
 
-- Replace "Markovian $=w\to\delta$" with F1/F2 plus 3.1 (semigroup $\iff\alpha=1$).
+- "Markovian $=w\to\delta$" needs fixing either way.
+  - Under A it is false, since $k\to\Theta$.
+  - Under B it is true, but it must be derived from $(1-\alpha)\tau^{-\alpha}\to\delta$, and the history order is then $1-\alpha_{\rm frac}$.
+  - In both readings, the *reason* the limit is Markovian is 3.1 (semigroup $\iff\alpha=1$).
 - Remove the $U=e^{i\theta G}$ ansatz. It is the conclusion, and the steps after it are the definition of a generator.
 - "Convex combination of $I$ and a self-adjoint $R$ … exponentiation yields unitary": $e^{A}$ with $A$ self-adjoint is positive, not unitary. Unitarity needs $e^{-\iota A}$, and supplying that $\iota$ is the actual content (2.3, 3.2).
 - "$R^\dagger=R$ because $J$ is real": a real symmetric generator gives diffusion, not Schrödinger.
