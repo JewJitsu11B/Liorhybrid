@@ -1,198 +1,156 @@
-# Plan: Schrödinger's equation from the Causal Accumulation Law as $\alpha_{\rm frac}\to 1^-$
+# Plan: the CAL field equation collapses to Schrödinger as $\alpha\to1^-$
 
-**Target.** Show that the CAL, with a power-law memory under causal Weyl integration, gives
+Companion plan to the draft *The $\alpha=1$ Unitary Skeleton and the Emergence of Schrödinger Evolution in the $\delta$-Kernel Limit of the CAL* (`schrodinger_axiomatic.pdf`).
 
-$$
-i\hbar\,\partial_t\psi=\Big[\frac{(\mathbf p-q\mathbf A)^2}{2m}+qV\Big]\psi
-$$
+**Goal.** Make the CAL itself, read as a field equation, become $i\hbar\,\partial_t\psi=H\psi$ as $\alpha\to1^-$. This replaces Posit 1 and the identification $H\equiv i\hbar\dot UU^{-1}$ with theorems.
 
-in the limit $\alpha_{\rm frac}\to1^-$, together with one stated equation of motion for the carrier. Every ingredient (first-order time evolution, linearity, the $i$, unitarity, $m$, $V$, $\mathbf A$) is traced to a named source. Nothing equivalent to the conclusion is assumed, so there is no $U=e^{i\theta G}$ ansatz.
+**Kept from the draft:**
+- Axioms 1–3;
+- Definitions 2.3–2.5 ($\mathcal V$, $\mathcal H$, $f_{\rm map}$);
+- Lemma 4.1 (kernel blindness at $\alpha=1$);
+- Theorem 5.1 (skeleton);
+- Theorem 6.1(ii) (invariance forces $\hat R_{\mathcal H}=r_0\nabla^2+r_1$).
 
-**Notation.** $\alpha\equiv\alpha_{\rm frac}$, $\varepsilon\equiv1-\alpha\to0^+$, $\iota\equiv e_1e_2e_3$.
+**Notation.** $\varepsilon\equiv1-\alpha$. Modes are written $e^{-iEt/\hbar}$. $E_c\equiv\hbar/\tau_c$. All complex powers take the principal branch.
 
 ---
 
-## 0. Kernel, and why the limit is taken from below
+## 1. Definitions added
 
-**Choice: power law with causal Weyl integration.**
+**D1 (power-law memory, causal Weyl integration).**
 
 $$
-W^\alpha J(t)=\frac1{\Gamma(\alpha)}\int_{-\infty}^{t}(t-\tau)^{\alpha-1}J(\tau)\,d\tau,
+W^\alpha f(t)=\frac1{\Gamma(\alpha)}\int_{-\infty}^t(t-s)^{\alpha-1}f(s)\,ds .
+$$
+
+$D^\alpha$ is the Weyl derivative, with $D^\alpha W^\alpha=\mathbb 1$ on admissible $f$ (no spectral weight at $E=0$). Symbol: $D^\alpha e^{-iEt/\hbar}=(-iE/\hbar)^\alpha e^{-iEt/\hbar}$.
+
+**D2 (kernel factorization).**
+$k(\tau;x,x')=\tau_c^{-\alpha}\,\dfrac{\tau^{\alpha-1}}{\Gamma(\alpha)}\times g(x-x')$, where $g$ is a nonnegative, normalized, isotropic spatial weight, and the transports are taken time-translation invariant.
+- On the spinless gauge-neutral sector, invariance gives $\hat R_{\mathcal H}=r_0\nabla^2+r_1$ (draft Thm 6.1(ii)).
+- $r_0=\sigma_g^2/6>0$, the second moment of $g$.
+- The cone-supported (non-factorized) kernel is treated in §5.
+
+---
+
+## 2. Axioms
+
+- **Axiom 1 (CAL), Axiom 2 (two channels), Axiom 3 (channel angle $\theta=\alpha\pi/2$):** as in the draft, with one change. Make the *kernel and transports* real, not $J$. Solutions are $\propto e^{-iEt/\hbar}$, so $J$ must be $\mathbb C\otimes\mathbb H$-valued as Axiom 2 already says. Lemma 4.3 needs only $\hat R$ real-symmetric.
+- **Axiom 3 applied to the memory channel.** The memory channel is rotated by $e^{-i\sigma\theta}$ relative to the present channel. Together with the unit of D2, this gives the factor $(\sigma i\tau_c)^{-\alpha}=\tau_c^{-\alpha}e^{-i\sigma\alpha\pi/2}$, with $\sigma=\pm1$ the orientation.
+- **Field equation (FE), replacing Posit 1:**
+
+$$
+T=0:\qquad \alpha J=\varepsilon\,(\sigma i\tau_c)^{-\alpha}\,\hat R_{\mathcal H}\,W^\alpha J .
+$$
+
+$\partial_tT=0$ gives the same tempered solutions: under Weyl admissibility $T$ is a constant, and that constant is $0$.
+
+---
+
+## 3. Lemmas
+
+**L1 (inversion).**
+FE $\iff$ $\alpha\,(\sigma i\tau_c)^\alpha D^\alpha J=\varepsilon\,\hat R_{\mathcal H}J$. *Proof:* apply $D^\alpha$ and use $D^\alpha W^\alpha=\mathbb 1$.
+
+**L2 (phase cancellation, verified numerically).**
+$(\sigma i)^\alpha(-iE)^\alpha$ is real and positive iff ${\rm sign}\,E=\sigma$. For the other sign it is $\lvert E\rvert^\alpha e^{\pm i\alpha\pi}$, which is real only at $\alpha=1$. The channel angle exactly cancels the Weyl symbol's phase on one sign of frequency.
+
+**L3 (operator facts; fixes Lemmas 4.3/4.4).**
+- $\hat R_{\mathcal H}=r_0\nabla^2+r_1(x)$ is self-adjoint on $H^2(\mathbb R^3)$: $\nabla^2$ is essentially self-adjoint on $C_c^\infty$, and $r_1$ is handled by Kato–Rellich.
+- $\lVert\hat R\rVert=\infty$, so draft Lemma 4.4's spectral inclusion is vacuous; use a lower bound instead.
+- Commuting the limit with $\Pi_{\mathcal H}$ needs strong-resolvent convergence of $\hat R_w\to\hat R$, not just $\lVert\Pi_{\mathcal H}\rVert=1$.
+
+---
+
+## 4. Theorems
+
+**Theorem 1 (collapse).**
+Take $\alpha\to1^-$ with $\varepsilon\hat R_{\mathcal H}$ held fixed. That is a double scaling: $\varepsilon r_0$ and $\varepsilon r_1$ are fixed. Then FE becomes
+
+$$
+i\hbar\,\partial_tJ=\sigma\,\varepsilon E_c\,\hat R_{\mathcal H}J
+=\Big[-\frac{\hbar^2}{2m}\nabla^2+V\Big]J,
 \qquad
-T_\alpha=\alpha J-(1-\alpha)\,\kappa\,\tau_*^{-\alpha}\,\widetilde{\mathcal K}\,W^\alpha J .
+\frac{\hbar^2}{2m}=\varepsilon E_c r_0,\quad V=-\varepsilon E_c r_1 .
 $$
 
-- **The fiber factor.** $\widetilde{\mathcal K}$ collects $\Pi\,PPPP\,\Phi\,P$. Here it is taken to be time-translation invariant, with dimensionless strength $\kappa$.
-- **The time scale.** A power law has no scale of its own, so $\tau_*$ has to be supplied for the units to close.
-- **Which side.** Use the left-sided (Liouville) form, which integrates over the past. Some texts, e.g. Miller–Ross, reserve "Weyl" for $\int_t^\infty$; that integrates over the future, the wrong side of time, and is excluded.
-- **Fourier multiplier.** $W^\alpha e^{\iota\omega t}=(\iota\omega)^{-\alpha}e^{\iota\omega t}$ with $(\iota\omega)^{-\alpha}=\lvert\omega\rvert^{-\alpha}e^{-\iota\pi\alpha\,{\rm sgn}\,\omega/2}$. This was verified by direct numerical integration for $\alpha=0.7,\,0.95$ and both signs of $\omega$. The $\iota$ here must be the complex structure of Lemma 2, since that is the one the carrier's time-Fourier analysis uses.
+- **The orientation is fixed by physics.** Positive mass with a nonnegative kernel ($r_0>0$) forces $\sigma=-1$.
+- **The mass formula** is the draft's $\hbar^2/2m=(1-\alpha)r_0$, with $E_c$ restored for units.
+- **Without the double scaling** ($r_0$, $r_1$ fixed), $H\to0$: $J$ freezes, which is Thm 5.1. In this route the skeleton is a frozen $J$; it equals the draft's $E_c\,{\rm Id}$ phase up to an unobservable global phase.
+- **So Thm 5.1 and Thm 6.1 are two scalings of one limit.** At fixed $r_0$ the past drops out (kernel blindness). At fixed $\varepsilon r_0$ the memory stays live and becomes $H$.
 
-**Why $1^-$ and not $1$.**
-- **For $\alpha<1$:** the kernel $(t-\tau)^{\alpha-1}$ decays, so $W^\alpha$ of an oscillating carrier converges (Dirichlet test).
-- **At $\alpha=1$:** the kernel is $\Theta$, which does not decay, so $\int_{-\infty}^te^{\iota\omega\tau}d\tau$ does not converge. Its value $(\iota\omega)^{-1}$ exists only as $\lim_{\alpha\to1^-}(\iota\omega)^{-\alpha}$.
-- **For $\alpha>1$:** the kernel grows and the integral diverges.
-- **Consequence.** On the infinite past, the $\alpha=1$ theory is *defined* as the limit from below, and from below only. On that side the memory weight $1-\alpha$ also stays positive.
+**Theorem 2 (unitarity derived; replaces Posit 1).**
+By Fourier analysis in $t$ and the spectral theorem for $\hat R_{\mathcal H}$, using L1 and L2, for every $\alpha<1$:
+- **Stationary sector.** On ${\rm Ran}\,\mathbb 1_{\varepsilon\hat R\ge0}$ the solutions are $e^{-itE(\hat R)/\hbar}$ with
+  $$E(\hat R)=\sigma E_c\big(\varepsilon\hat R/\alpha\big)^{1/\alpha},$$
+  real. By Stone's theorem this is a unitary group with self-adjoint generator $E(\hat R)$.
+- **Free case** ($\sigma=-1$, kinetic energy $K=\varepsilon E_cr_0k^2$, cap $E_{\rm cap}=\varepsilon E_cr_1$): the stationary sector is exactly $K\le E_{\rm cap}$, with
+  $$E=(K-E_{\rm cap})\big[1+\varepsilon\big(1+\ln\tfrac{E_{\rm cap}-K}{E_c}\big)\big]+O(\varepsilon^2)$$
+  (checked against the exact form to $10^{-5}$ at $\varepsilon=10^{-2}$).
+- **Above the cap.** There is a unique admissible root, and it decays: ${\rm Im}\,E\approx-\pi\varepsilon\lvert E\rvert$ (numerically $-1.01\,\pi\varepsilon\lvert E\rvert$ at $\varepsilon=10^{-2}$).
+- **The limit.** As $\alpha\to1^-$ the damping goes to $0$, L2's restriction disappears, and the flow becomes the full unitary Schrödinger group of Theorem 1.
 
-**Lemma 1 (the past drops out as $\alpha\to1^-$).**
-The memory multiplier is $m_\varepsilon(\omega)=\varepsilon\kappa(\iota\omega\tau_*)^{-(1-\varepsilon)}$.
-- For each $\omega\neq0$, $m_\varepsilon(\omega)\to0$.
-- Uniformly, $\lvert m_\varepsilon(\omega)\rvert\le\varepsilon\kappa\max\!\big(1,(\lvert\omega\rvert\tau_*)^{-1}\big)$.
+**Theorem 3 (why the limit is from below).**
+1. **Convergence.** $W^\alpha$ converges on oscillating input only for $\alpha<1$. At $\alpha=1$ its value exists only as the limit from below.
+2. **Mass sign.** From above, $\varepsilon<0$, so $\hbar^2/2m=\varepsilon E_cr_0<0$ for any nonnegative kernel: negative mass.
+3. **Runaway.** From above, the non-stationary sector *grows*: ${\rm Im}\,E\approx+\pi\lvert\varepsilon\rvert\lvert E\rvert$ (numerically $+0.99$). That is a runaway, the same pathology as the poster's Abraham–Lorentz–Dirac panel, appearing on the wrong side of $\alpha=1$.
 
-Hence
+---
+
+## 5. Causality estimate (the $J^-(x)$ support)
+
+The spatial reach of the memory is at most $c$ times the lag. So $r_0\lesssim(c\tau_{\rm eff})^2/6$, and with $\hbar^2/2m=\varepsilon E_cr_0$:
 
 $$
-\lVert T_\alpha-J\rVert\le\varepsilon\Big[(1+\kappa)\lVert J\rVert+\kappa\,\tau_*^{-1}\lVert W^1J\rVert\Big]=O(\varepsilon)
+\varepsilon\;\gtrsim\;\frac{3\,t_C}{\tau_{\rm eff}},\qquad t_C=\frac{\hbar}{mc^2}\quad(\text{electron: }1.3\times10^{-21}\,{\rm s}).
 $$
 
-whenever $J$ has a square-integrable antiderivative from $-\infty$, i.e. $\int\lvert\hat J\rvert^2/\omega^2\,d\omega<\infty$. That is Weyl's own admissibility condition: no weight at zero frequency.
-
-What the bound implies:
-
-- **The limit is non-uniform in frequency.** At fixed $\varepsilon$, modes with $\lvert\omega\rvert\tau_*\lesssim\varepsilon\kappa$ keep an $O(1)$ memory. Check: at $\varepsilon=10^{-3}$ and $\omega\tau_*=10^{-6}$ the multiplier is about $10^3$. The infrared remembers longest.
-- **Matter has a built-in gap.** The rest phase puts the spectrum at $\lvert\omega\rvert\approx\omega_C=mc^2/\hbar$. The effective small parameter is therefore
-  $$\varepsilon_{\rm eff}=\frac{\varepsilon\kappa}{\omega_C\tau_*},$$
-  not $\varepsilon$. If the memory scale is much shorter than a Compton period ($\tau_*\ll1/\omega_C$), then $\varepsilon_{\rm eff}\gg\varepsilon$.
-- **Massless and soft modes have no gap.** For them the limit from below is not uniform.
-
-**Corollaries.**
-- $f_{\rm map}$ is bounded and linear, so $f_{\rm map}(T_\alpha)\to f_{\rm map}(J)$. Swapping the limit with the projection is immediate; this replaces Eq. (21) of `proof_hierarchy2`.
-- In the limit the state is the present carrier alone. That is Markovian by construction (the poster's "forgetful limit"), with no $\delta$-collapse needed; this replaces Prop. 1.
-
-**Consequence that drives the rest.** In the limit, $\Pi$, $P$, $\Phi$ and $k$ all leave together with the past. So nothing in the Schrödinger equation ($m$, $V$, $\mathbf A$ or $i$) can come from the memory term. The draft's operator form $\hat T_\alpha=\alpha I-(1-\alpha)R$ tends to $I$, so $H=f_{\rm map}[\hat T]$ would be a constant. $H$ has to come from the carrier's own equation of motion (§3).
+- **Consequence.** $\alpha\to1^-$ at fixed $m$ requires $\tau_{\rm eff}/t_C\to\infty$, so the Schrödinger limit is jointly a nonrelativistic limit.
+- **Consequence.** $E_c\ll mc^2$, so the skeleton scale is not the rest energy.
+- **Deliverable.** Redo the estimate with a cone-supported (non-factorized) kernel. The $k^2$ coefficient then acquires frequency dependence; show it reduces to D2 as $c\to\infty$.
 
 ---
 
-## 1. What survives the limit: the carrier
+## 6. Consistency checks
 
-$J=\sum_{a=0}^3Z_ae_a\in M_2(\mathbb C)\cong Cl(3,0)$, with $e_0=1$ and $e_k=\sigma_k$. That is 8 real components, the same content as a Dirac spinor (Baylis's APS eigenspinor, or Hestenes's even STA spinor). Lorentz transformations act on the left: $J\to LJ$, $L\in SL(2,\mathbb C)$.
-
-**Identities (verified numerically):**
-- $J\bar J=\det J\cdot\mathbb 1$;
-- $\tfrac12{\rm tr}\,JJ^\dagger=\sum_a\lvert Z_a\rvert^2$;
-- $\det(JJ^\dagger)=\lvert\det J\rvert^2$;
-- $\sigma_1\sigma_2\sigma_3=i\mathbb 1$.
-
-**How they read physically:**
-- $j\equiv JJ^\dagger$ is the current paravector; it transforms as $j\to LjL^\dagger$.
-- **Born by trace:** $\tfrac12{\rm tr}\,j=j^0$, the probability density.
-- **Lorentz by determinant:** $\det j=j_\mu j^\mu$, an invariant.
-- $\det J=\rho\,e^{\iota\beta}$ packs the scalar and pseudoscalar bilinears together: $\rho\cos\beta=\bar\psi\psi$, $\rho\sin\beta=\bar\psi i\gamma_5\psi$. Then $\lvert\det J\rvert^2=j\cdot j$ is the Fierz identity.
-
-**Deliverable:** prove this dictionary.
+- **The two $i$'s agree.** Axiom 3's $i$ must be Axiom 2's central $i$ of $\mathbb C\otimes\mathbb H$. On the projected spinor sector, the only complex structures commuting with Lorentz are $\pm i$ (commutant $\cong\mathbb C$, checked numerically), so they agree up to $\sigma$.
+- **Equivalence of balance laws.** Under Weyl admissibility, $T=0$ and $\partial_tT=0$ have the same tempered solutions; the dispersion relations are identical.
+- **Weyl admissibility at the cap.** At the cap, $E\to0$, so admissibility fails there; the cap is a genuine boundary.
+- **Constant shifts.** Eq. (11)'s constant shift is inert only at $\alpha=1$. For $\alpha<1$ the zero of energy is physical, because it sets the cap.
 
 ---
 
-## 2. The $i$ is forced
+## 7. Changes to the draft
 
-**Lemma 2.** Project to $\psi=JP_+$, with $P_+=\tfrac12(1+e_3)$; this minimal left ideal has 4 real dimensions.
-- The real span of $SL(2,\mathbb C)$ is all of $M_2(\mathbb C)$, 8-dimensional (checked).
-- So the real-linear maps on the ideal that commute with the Lorentz action are right multiplication by $P_+M_2(\mathbb C)P_+\cong\mathbb C$, a 2-dimensional commutant (checked).
-- The only Lorentz-commuting complex structures are therefore $\pm\iota$. The sign is the time-orientation convention.
-
-The same $\iota$ is the one in the Weyl symbol $(\iota\omega)^{-\alpha}$ (§0). **Deliverable:** write out the proof (half a page).
-
----
-
-## 3. Equation of motion for the limiting carrier: the one real input
-
-**K1: $\nabla_\mu T^{\mu\cdots}=0$ alone gives a massless field.**
-In the limit it becomes $\bar\partial J=0$. On a plane wave $A\,e^{-\iota p\cdot x}$ this reads $\bar pA=0$, and $\det\bar p=p^2$ (checked).
-- If $p^2\neq0$, then $A=0$.
-- If $\det A\neq0$, then $p=0$.
-
-So every nontrivial mode is null with $\det A=0$: massless, and with no Schrödinger limit.
-
-**Recommended: a uniqueness argument.**
-Require the equation to be:
-- first order, linear and local;
-- covariant under left $SL(2,\mathbb C)$;
-- parity invariant;
-- invariant under the $U(1)$ generated by $\iota$. Its Noether current is $JJ^\dagger$, so Born conservation is built in.
-
-Then the classification of first-order Lorentz-covariant equations (Gel'fand–Minlos–Shapiro) should leave Dirac's equation with one real constant $m\ge0$. In STA form it is $\nabla\psi\,\iota\sigma_3\hbar=m\psi\gamma_0$; Baylis gives the APS form. **Deliverable:** the proof, or the theorem with its hypotheses checked.
-
-**Status of $m$.** $m$ is a closure constant, with the same status as $\Lambda$ in the Lovelock panel. It multiplies ${\rm Re}\det J=\bar\psi\psi$.
-
-**Gauge fields.** $\mathbf A$ and $V$ enter through the covariant derivative in this equation.
+| Draft item | Change |
+|---|---|
+| Posit 1, Thm 6.1(i) | Replace with FE plus Theorems 1–2. As written, $H\equiv i\hbar\dot UU^{-1}$ after positing a unitary $U$ is a definition, so the derivation is circular. |
+| Axiom 1 "J real" | Say "kernel and transports real". $J$ is complex by Axiom 2 and by the solutions. |
+| Lemma 4.3 | Real plus symmetric gives *symmetric*. Self-adjointness needs L3. |
+| Lemma 4.4 | $\lVert\hat R\rVert=\infty$. The limit/projection exchange needs strong-resolvent convergence. |
+| Thm 6.1(iii), Cor 6.3 | $m=\hbar^2/(2(1-\alpha)r_0)\to\infty$ at fixed $r_0$. State the double scaling. |
+| Thm 5.1 | $H={\rm Id}$ must carry units: $E_c\,{\rm Id}$, with phase $e^{-iE_ct/\hbar}$. |
+| Remark 5.2 / Table 7.4 | The "$1^-$ edge" is the double-scaled limit, and "from below" is a theorem (Thm 3), not a convention. |
 
 ---
 
-## 4. Unitarity
+## 8. Order of work
 
-1. The Born current is conserved, so $\int j^0\,d^3x$ is constant.
-2. Evolution on $L^2$ of the ideal is therefore unitary.
-3. Stone's theorem gives $U=e^{-\iota Ht/\hbar}$, with $H$ the self-adjoint Dirac Hamiltonian (Kato–Rellich, or the Dirac-specific results in Thaller).
-
----
-
-## 5. Nonrelativistic limit
-
-This is standard (large/small components, or Foldy–Wouthuysen). With $JP_+=e^{-\iota mc^2t/\hbar}(\varphi,\chi)$:
-
-$$
-i\hbar\,\partial_t\varphi=\Big[\frac{(\mathbf p-q\mathbf A)^2}{2m}+qV-\frac{q\hbar}{2m}\boldsymbol\sigma\cdot\mathbf B\Big]\varphi .
-$$
-
-The scalar Schrödinger equation is the spin-independent sector.
-
-**Order of limits.** Take $\alpha\to1^-$ first, then $c\to\infty$. Lemma 1's rate is $\varepsilon\kappa/(\omega_C\tau_*)$, and $\omega_C\propto c^2$, so the memory bound improves as $c\to\infty$ and the limits commute on the massive sector. Check this explicitly.
-
----
-
-## 6. The approach from below: what $\varepsilon>0$ leaves
-
-Expand the Weyl multiplier about $\alpha=1^-$ (verified numerically: the $O(\varepsilon)$ remainder is $\sim\varepsilon^2$ and the $O(\varepsilon^2)$ remainder is $\sim\varepsilon^3$):
-
-$$
-\hat T_\alpha(\omega)=\Big[1-\varepsilon-\frac{\varepsilon\kappa}{\iota\omega\tau_*}
--\frac{\varepsilon^2\kappa}{\iota\omega\tau_*}\Big(\ln(\lvert\omega\rvert\tau_*)+\tfrac{\iota\pi}{2}{\rm sgn}\,\omega\Big)+O(\varepsilon^3)\Big]\hat J(\omega).
-$$
-
-- **$O(\varepsilon)$:** $-\varepsilon\kappa/(\iota\omega\tau_*)=\iota\,\varepsilon\kappa/(\omega\tau_*)$. This is multiplication by $\iota$, a reactive (phase-type) shift, if $\kappa$ is Hermitian and commutes with $\iota$. The power-law shape does not appear at this order: it is the order-1 Weyl integral, the same for any kernel family with this limit.
-- **$O(\varepsilon^2)$: the power-law signature.**
-  - a log running $\propto\varepsilon^2\kappa\ln(\lvert\omega\rvert\tau_*)/(\omega\tau_*)$;
-  - the first non-$\iota$ term, $-\varepsilon^2\kappa\pi/(2\lvert\omega\rvert\tau_*)$, which has the same sign for both signs of $\omega$ (checked).
-- **Decision D6: how $T$ enters the dynamics for $\alpha<1$.** If the equation of motion is imposed on $T$ ($\mathcal D T_\alpha=0$), and the memory multiplier commutes with $\mathcal D$ and is invertible, then $\mathcal DJ=0$ and the memory is invisible. The $\alpha<1$ physics then lives only in $[\mathcal D,\widetilde{\mathcal K}]\neq0$ (the index structure of $\Pi$ and $\Phi$, the $x$-dependence of $P$), or in observables built from $T$ rather than $J$.
-- **No generic bound on $\varepsilon$.** For matter, everything scales with $\varepsilon_{\rm eff}=\varepsilon\kappa/(\omega_C\tau_*)$. A bound needs $\kappa$, $\tau_*$ and D6.
-
----
-
-## 7. Order of work
-
-1. **Lemma 1** as a one-sided limit with the Weyl condition, including the non-uniformity statement.
-2. **The bilinear dictionary** (§1) and **Lemma 2.**
-3. **The equation of motion.** K1 first; then the uniqueness proof leading to Dirac.
-4. **Born → unitary → Stone.**
-5. **NR reduction** and the order of limits.
-6. **D6**, then the $O(\varepsilon)$ and $O(\varepsilon^2)$ terms on the Dirac carrier.
-
----
-
-## 8. What changes in `proof_hierarchy2` §5
-
-- **Prop. 1.** Replace the $\delta$-collapse with Lemma 1. The past drops out as $\alpha\to1^-$ because of the weight $(1-\alpha)$ and the Weyl condition, not because the kernel localizes.
-- **Eq. (21).** It follows immediately from Lemma 1 and a bounded $f_{\rm map}$.
-- **$H=f_{\rm map}[\alpha I-(1-\alpha)R]$.** It tends to $f_{\rm map}[I]$, a constant. $H$ has to come from the carrier's equation of motion.
-- **The $U=e^{i\theta G}$ ansatz.** Remove it: it assumes the conclusion.
-- **"$e^{\text{self-adjoint}}$ is unitary".** It isn't: unitarity needs $e^{-\iota A}$, and Lemma 2 supplies the $\iota$.
-
----
-
-## 9. Numerics (§6 only)
-
-- **Implementation.** The causal Weyl integral is a Fourier multiplier, so implement it by FFT with $(\iota\omega)^{-\alpha}$ on zero-mean input. That avoids the truncation error of a finite history.
-- **Repo code.** `kernels/fractional_memory.py::fractional_kernel_weights` does not compute the GL weights its docstring states. It samples $\tau^{\alpha-1}$ at $10^{-8}\Delta t$ and renormalizes to unit sum; at $\alpha=0.5$ over 100 steps, the present step gets 99.8% of the weight. Don't use it for this.
+1. D1, D2, FE, and L1–L3.
+2. Theorem 2: the Fourier/spectral proof, including the distributional details at the cap.
+3. Theorem 1, using Trotter–Kato for strong convergence of the groups.
+4. Theorem 3: three short lemmas.
+5. §5 with a cone-supported kernel.
+6. §6 checks.
+7. Gauge coupling: transports with $U(1)$ holonomy make $\hat R$ Hermitian rather than real. Redo L3 with the diamagnetic inequality; Theorems 1–2 only need Hermitian and bounded below on the relevant sector.
 
 ---
 
 ## References
 
-- S. G. Samko, A. A. Kilbas, O. I. Marichev, *Fractional Integrals and Derivatives* (Gordon & Breach, 1993): Liouville/Weyl integrals, admissibility.
-- K. S. Miller, B. Ross, *An Introduction to the Fractional Calculus and Fractional Differential Equations* (Wiley, 1993): right-sided "Weyl" convention.
-- W. E. Baylis, *Electrodynamics: A Modern Geometric Approach* (Birkhäuser, 1999).
-- D. Hestenes, *Real spinor fields*, J. Math. Phys. **8**, 798 (1967).
-- I. M. Gel'fand, R. A. Minlos, Z. Ya. Shapiro, *Representations of the Rotation and Lorentz Groups and their Applications* (Pergamon, 1963).
-- B. Thaller, *The Dirac Equation* (Springer, 1992).
-- L. L. Foldy, S. A. Wouthuysen, Phys. Rev. **78**, 29 (1950).
-- M. Reed, B. Simon, *Methods of Modern Mathematical Physics* I–II.
-- M. Naber, J. Math. Phys. **45**, 3339 (2004).
+- S. G. Samko, A. A. Kilbas, O. I. Marichev, *Fractional Integrals and Derivatives* (1993): Weyl/Liouville integrals, admissibility.
+- M. Naber, *Time fractional Schrödinger equation*, J. Math. Phys. **45**, 3339 (2004): the $i^\alpha$ factor; here it comes from Axiom 3.
+- E. Nelson, *Feynman integrals and the Schrödinger equation*, J. Math. Phys. **5**, 332 (1964): boundary values of rotated semigroups.
+- T. Kato, *Perturbation Theory for Linear Operators* (holomorphic semigroups; Kato–Rellich).
+- M. Reed, B. Simon, *Methods of Modern Mathematical Physics* I–II (Stone; Trotter–Kato).
+- M. H. Stone, Ann. of Math. **33**, 643 (1932).
