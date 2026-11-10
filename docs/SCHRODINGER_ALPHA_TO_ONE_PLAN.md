@@ -130,7 +130,7 @@ $\frac{d}{dt}\int\tfrac12{\rm tr}(\psi\psi^\dagger)\,d^3x=0$ for all $\psi$ $\if
 - If C6 uses a finite $t_0$, the boundary term oscillates at $\omega$ relative to the envelope, so averaging (Krylov–Bogoliubov) removes it. At $\alpha<1$ it decays as $(t-t_0)^{\alpha-1}$; that is the Mittag-Leffler tail.
 
 **3.4 Order of limits and projection.**
-Linearity of $f_{\rm map}$ is not enough to exchange the limit with the projection. You need a uniform-in-$\varepsilon$ bound on $\psi_\varepsilon$ together with a bounded $f_{\rm map}$, i.e. dominated convergence. Redo the exchange under the $\varepsilon\Phi_0$-fixed scaling and under $c\to\infty$. Then either show that $\varepsilon\to0$ and $c\to\infty$ commute, or state which order is used.
+Linearity of $f_{\rm map}$ is not enough to exchange the limit with the projection. You need a uniform-in-$\varepsilon$ bound on $\psi_\varepsilon$ together with a bounded $f_{\rm map}$, i.e. dominated convergence. Redo the exchange under the $\varepsilon\mathcal K_0$-fixed scaling and under $c\to\infty$. Then either show that $\varepsilon\to0$ and $c\to\infty$ commute, or state which order is used.
 
 ---
 
@@ -180,7 +180,7 @@ $$
 \varepsilon\lesssim\frac{2}{\pi\,\omega_N\tau_N}\approx1.4\times10^{-61}.
 $$
 
-So for matter, $\alpha_{\rm frac}=1$ to about 61 decimal places, and $\Phi_0$ has to be correspondingly large to keep $\varepsilon\Phi_0$ fixed. The framework must explain that hierarchy, or confine $\alpha<1$ (for example the $\alpha=3$ regime) to a sector that does not carry rest energy. **Do this estimate first.** It decides whether "$\alpha$ visibly below 1" is alive for matter at all.
+So for matter, $\alpha_{\rm frac}=1$ to about 61 decimal places, and $\mathcal K_0$ has to be correspondingly large to keep $\varepsilon\mathcal K_0$ fixed. The framework must explain that hierarchy, or confine $\alpha<1$ to a sector that does not carry rest energy. **Do this estimate first.** It decides whether "$\alpha$ visibly below 1" is alive for matter at all.
 
 ---
 
