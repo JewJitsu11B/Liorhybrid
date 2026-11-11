@@ -1,5 +1,7 @@
 # Plan: the CAL field equation collapses to Schrödinger as $\alpha\to1^-$
 
+**Status:** executed; see `docs/paper/cal_schrodinger_collapse.pdf` and `SCHRODINGER_ALPHA_TO_ONE_RESULTS.md`.
+
 Companion plan to the draft *The $\alpha=1$ Unitary Skeleton and the Emergence of Schrödinger Evolution in the $\delta$-Kernel Limit of the CAL* (`schrodinger_axiomatic.pdf`).
 
 **Goal.** Make the CAL itself, read as a field equation, become $i\hbar\,\partial_t\psi=H\psi$ as $\alpha\to1^-$. This replaces Posit 1 and the identification $H\equiv i\hbar\dot UU^{-1}$ with theorems.
@@ -87,7 +89,7 @@ By Fourier analysis in $t$ and the spectral theorem for $\hat R_{\mathcal H}$, u
 - **Free case** ($\sigma=-1$, kinetic energy $K=\varepsilon E_cr_0k^2$, cap $E_{\rm cap}=\varepsilon E_cr_1$): the stationary sector is exactly $K\le E_{\rm cap}$, with
   $$E=(K-E_{\rm cap})\big[1+\varepsilon\big(1+\ln\tfrac{E_{\rm cap}-K}{E_c}\big)\big]+O(\varepsilon^2)$$
   (checked against the exact form to $10^{-5}$ at $\varepsilon=10^{-2}$).
-- **Above the cap.** *Corrected by the run:* eternal (Weyl) solutions have no component there at all, because the decaying root grows into the past and is not tempered. Switched-on solutions decay there at ${\rm Im}\,E\approx-\pi\varepsilon\lvert E\rvert$ (run B4).
+- **Above the cap.** *Corrected by the run:* eternal (Weyl) solutions have no component there at all, because the decaying root grows into the past and is not tempered. Responses to a source decay there at ${\rm Im}\,E\approx-\pi\varepsilon\lvert E\rvert$ (paper Prop. 5.5; Weyl integration with zero past, no Caputo data).
 - **The limit.** As $\alpha\to1^-$ the damping goes to $0$, L2's restriction disappears, and the flow becomes the full unitary Schrödinger group of Theorem 1.
 
 **Theorem 3 (why the limit is from below).**

@@ -17,9 +17,9 @@ Units: hbar = tau_c = 1, so E_c = 1.  Requires numpy only.
 Sections
   A  Factorized kernel, eternal (Weyl) solutions: exact dispersion and wave-packet
      error against Schrodinger as eps -> 0.                          (Theorems 1, 2)
-  B  Factorized kernel, switched-on solutions: Mittag-Leffler response, cross-checked
-     by time stepping the memory equation (BDF2 convolution quadrature); norm,
-     decay above the cap, runaway from above.                         (Theorems 2, 3)
+  B  Factorized kernel, source-driven solutions: the integral field equation T = S is
+     time-stepped with Weyl integration and a zero past (no Caputo data); persistent
+     response, decay above the cap, runaway or preacceleration from above. (Thm 2, 3)
   C  Cone-supported kernel (memory inside the past light cone): exact dispersion,
      effective mass, and the stationary sector.                       (plan section 5)
 """
@@ -30,73 +30,62 @@ PI = math.pi
 
 
 # --------------------------------------------------------------------------- tools
-def ml_response(alpha, beta, z, t):
-    """Inverse Laplace transform of s^(alpha-beta) / (s^alpha - z) at times t > 0.
+def weyl_int_weights(alpha, n):
+    """BDF2 convolution-quadrature weights of the integral of order alpha.
 
-    Equals t^(beta-1) E_{alpha,beta}(z t^alpha).  Computed as the sum of residues at
-    the poles on the principal sheet plus the branch-cut (Hankel) integral along the
-    negative real axis.  Valid for 0 < alpha < 2 with beta = 1, and alpha > 1 with
-    beta = 2 (the cases used here).
+    Generating function (delta(zeta))^(-alpha), delta = (1-z)+(1-z)^2/2, so that
+    W^alpha J(t_n) ~ h^alpha * sum_j q_j J_{n-j} for J with zero past.
     """
-    t = np.atleast_1d(np.asarray(t, dtype=float))
-    out = np.zeros(t.shape, dtype=complex)
-    # poles s = z^(1/alpha) e^(2 pi i j / alpha) with principal argument in (-pi, pi)
-    for j in range(-3, 4):
-        arg = (np.angle(z) + 2 * PI * j) / alpha
-        if -PI < arg < PI:
-            s = abs(z) ** (1 / alpha) * np.exp(1j * arg)
-            out += s ** (1 - beta) / alpha * np.exp(s * t)
-    # cut: (1/2 pi i) int_0^inf e^{-rt} [F(r e^{-i pi}) - F(r e^{+i pi})] dr
-    x = np.linspace(math.log(1e-12), math.log(60.0 / t.min()), 8000)
-    r = np.exp(x)
-    def F(sign):
-        num = r ** (alpha - beta) * np.exp(sign * 1j * PI * (alpha - beta))
-        den = r ** alpha * np.exp(sign * 1j * PI * alpha) - z
-        return num / den
-    kern = (F(-1) - F(+1)) / (2j * PI) * r            # dr = r dx
-    w = np.exp(-np.outer(t, r)) * kern
-    out += np.trapezoid(w, x, axis=1)
-    return out
-
-
-def ml_series(alpha, beta, w, terms=200):
-    """Power series of E_{alpha,beta}(w) for moderate |w| (validation only)."""
-    acc, term_w = 0j, 1 + 0j
-    for k in range(terms):
-        if alpha * k + beta > 170:              # gamma overflows; terms are negligible
-            break
-        acc += term_w / math.gamma(alpha * k + beta)
-        term_w *= w
-    return acc
-
-
-def bdf2_cq_weights(alpha, n):
-    """Convolution-quadrature weights of (delta(zeta))^alpha, delta = (1-z)+(1-z)^2/2."""
     a = np.empty(n); b = np.empty(n)
     a[0] = b[0] = 1.0
     for j in range(1, n):
-        a[j] = a[j - 1] * (j - 1 - alpha) / j
-        b[j] = b[j - 1] * (j - 1 - alpha) / j / 3.0
-    return (1.5 ** alpha) * np.convolve(a, b)[:n]
+        a[j] = a[j - 1] * (j - 1 + alpha) / j
+        b[j] = b[j - 1] * (j - 1 + alpha) / j / 3.0
+    return (1.5 ** (-alpha)) * np.convolve(a, b)[:n]
 
 
-def time_step_mode(alpha, sigma, lam, T, h, J0, J1=0.0):
-    """Time-step alpha (sigma i)^alpha  ^C D^alpha J = lam J  with full memory.
+def source(t, Omega, t0=10.0, w=2.0):
+    """Gaussian pulse on carrier e^{-i Omega t}; negligible before t = 0."""
+    return np.exp(-(t - t0) ** 2 / (2 * w * w)) * np.exp(-1j * Omega * t)
 
-    Caputo form (switched on at t = 0): u = J - J0 - t J1 has u(0) = 0, and the
-    Riemann-Liouville derivative of u is approximated by BDF2 convolution quadrature.
+
+def source_hat(E, Omega, t0=10.0, w=2.0):
+    """S^(E) = int S(t) e^{iEt} dt."""
+    return math.sqrt(2 * PI) * w * np.exp(-w * w * (E - Omega) ** 2 / 2) * np.exp(1j * (E - Omega) * t0)
+
+
+def step_field_equation(alpha, sigma, lam, T, h, Omega):
+    """Time-step the integral field equation  alpha J - lam e^{-i sigma alpha pi/2} W^alpha J = S.
+
+    Weyl integration with a zero past (J = S = 0 before t = 0), full history kept.
+    This is T = S for one spatial mode; no initial-value (Caputo) data enter.
     """
     n = int(round(T / h))
-    w = bdf2_cq_weights(alpha, n + 1)
-    c = alpha * (sigma * 1j) ** alpha * h ** (-alpha)
-    u = np.zeros(n + 1, dtype=complex)
+    q = weyl_int_weights(alpha, n + 1)
     t = h * np.arange(n + 1)
-    P = np.full(n + 1, J0, dtype=complex) + (t * J1 if alpha > 1 else 0.0)
-    denom = c * w[0] - lam
-    for k in range(1, n + 1):
-        hist = np.dot(w[1:k + 1], u[k - 1::-1])
-        u[k] = (lam * P[k] - c * hist) / denom
-    return t, u + P
+    S = source(t, Omega)
+    kap = lam * np.exp(-1j * sigma * alpha * PI / 2) * h ** alpha
+    J = np.zeros(n + 1, dtype=complex)
+    den = alpha - kap * q[0]
+    for k in range(n + 1):
+        hist = np.dot(q[1:k + 1], J[k - 1::-1]) if k else 0.0
+        J[k] = (S[k] + kap * hist) / den
+    return t, J
+
+
+def symbol(E, alpha, sigma):
+    """g_alpha(E) = alpha (sigma i)^alpha (-i E)^alpha  (E_c = 1)."""
+    return alpha * (sigma * 1j) ** alpha * (-1j * E) ** alpha
+
+
+def green_pole(lam, alpha, sigma, E0):
+    """Complex root of g_alpha(E) = lam near E0 (pole of the response function)."""
+    E = complex(E0)
+    for _ in range(100):
+        f = symbol(E, alpha, sigma) - lam
+        d = (symbol(E + 1e-7, alpha, sigma) - symbol(E - 1e-7, alpha, sigma)) / 2e-7
+        E -= f / d
+    return E
 
 
 def gauss_packet(N=2048, L=400.0, x_width=2.0, k0=1.0):
@@ -150,79 +139,60 @@ def section_A():
 # --------------------------------------------------------------------------- section B
 def section_B():
     print("=" * 78)
-    print("B. Factorized kernel, switched on at t = 0 (Caputo form), sigma = -1")
+    print("B. Factorized kernel, source-driven (Weyl integration, zero past), sigma = -1")
+    print("   One spatial mode: alpha J - lam e^{-i sigma alpha pi/2} W^alpha J = S, pulse at t0 = 10.")
+    print("   Response function G(E) = (sigma i)^a (-iE)^a / (g_a(E) - lam) is analytic in Im E > 0")
+    print("   except at roots of g_a(E) = lam.")
     sigma = -1
-    # B1: validate the Mittag-Leffler evaluator against the power series
-    worst = 0.0
-    for a in (0.9, 0.99, 1.3):
-        for zz in (0.7 * np.exp(1j * 0.3), 1.1 * np.exp(1j * 2.6), 0.5j):
-            for t in (0.5, 1.5):
-                ref = ml_series(a, 1, zz * t ** a)
-                got = ml_response(a, 1, zz, t)[0]
-                worst = max(worst, abs(ref - got))
-    print(f"   B1 Mittag-Leffler evaluator vs power series: max |diff| = {worst:.1e}")
+    # B1: persistent response below the cap = residue at the real pole
+    print("   B1 below the cap (lam = +1): late amplitude vs residue at the real pole E_lam")
+    print(f"      {'alpha':>6} {'h':>6} {'mean|J|, t in [80,120]':>23} {'residue prediction':>19}"
+          f" {'ratio':>8}")
+    for a in (0.9, 0.99, 0.999, 1.0, 1.01):
+        lam = 1.0
+        El = sigma * (lam / a) ** (1 / a)
+        gp = abs((symbol(El + 1e-6, a, sigma) - symbol(El - 1e-6, a, sigma)) / 2e-6)
+        pred = abs((sigma * 1j) ** a * (-1j * El) ** a) * abs(source_hat(El, El)) / gp
+        for h in ((0.02, 0.01) if a in (0.9, 1.0) else (0.01,)):
+            t, J = step_field_equation(a, sigma, lam, 120.0, h, El)
+            late = np.abs(J[t > 80]).mean()
+            print(f"      {a:6.3f} {h:6.3f} {late:23.5f} {pred:19.5f} {late / pred:8.5f}")
+    print("      -> after the pulse the mode oscillates forever at constant amplitude: the")
+    print("         stationary (unitary) solution of Theorem 2, excited causally.")
 
-    # B2: time-stepping the memory equation reproduces the exact response
-    print("   B2 time stepping (BDF2 convolution quadrature, full history) vs exact:")
-    print(f"      {'alpha':>6} {'Lambda':>7} {'h':>7} {'max|J_step - J_exact| (t<=20)':>31}")
-    for a, lam in ((0.9, 1.0), (0.99, 1.0), (0.99, -1.0)):
-        z = lam / (a * (sigma * 1j) ** a)
-        for h in (0.02, 0.01, 0.005):
-            t, J = time_step_mode(a, sigma, lam, 20.0, h, 1.0 + 0j)
-            sel = slice(int(1.0 / h), None, int(0.5 / h))
-            ex = ml_response(a, 1, z, t[sel])
-            print(f"      {a:6.2f} {lam:7.1f} {h:7.3f} {np.max(np.abs(J[sel] - ex)):31.2e}")
-    print("      -> error halves with h (first order: the t^alpha start-up singularity of a")
-    print("         switched-on solution, no correction weights). The stepped field equation")
-    print("         converges to the closed form.")
+    # B2: above the cap: pole off the real axis
+    print("   B2 above the cap (lam = -1): pole of G and measured late-time rate")
+    print(f"      {'alpha':>6} {'pole E':>22} {'-Im E (decay)':>14} {'pi*eps*|E|':>11}"
+          f" {'measured rate':>14}")
+    for a in (0.97, 0.99, 0.999, 1.0, 1.001, 1.01, 1.03):
+        lam = -1.0
+        Ep = green_pole(lam, a, sigma, -sigma * 1.0)
+        t, J = step_field_equation(a, sigma, lam, 120.0, 0.01, Ep.real)
+        i1, i2 = np.searchsorted(t, 40.0), np.searchsorted(t, 80.0)
+        rate = (math.log(abs(J[i1])) - math.log(abs(J[i2]))) / 40.0
+        print(f"      {a:6.3f} {Ep.real:+11.6f}{Ep.imag:+10.6f}i {-Ep.imag:+14.4e}"
+              f" {PI * (1 - a) * abs(Ep):+11.4e} {rate:+14.4e}")
+    print("      -> from below the pole is in Im E < 0: causal decay at pi*eps*|E|.")
+    print("         At alpha = 1 it sits on the real axis. From above it moves to Im E > 0:")
+    print("         the causal response runs away.")
 
-    # B3: wave packet, switched on, error vs Schrodinger and norm
-    m, Ecap = 1.0, 4.0
-    x, k, phik = gauss_packet()
-    lam = Ecap - k ** 2 / (2 * m)
-    keep = np.abs(phik) > 1e-10 * np.abs(phik).max()
-    times = np.linspace(0.25, 40, 160)
-    print("   B3 packet (k0 = 1, below the cap), switched on at t = 0:")
-    print(f"      {'eps':>8} {'sup_t ||J_a - J_1||':>20} {'phase-aligned':>14} {'/eps':>7}"
-          f" {'norm at t=40':>13} {'1/alpha':>9}")
-    for eps in (1e-1, 3e-2, 1e-2, 3e-3, 1e-3):
-        a = 1 - eps
-        Ja = np.zeros((len(times), keep.sum()), dtype=complex)
-        for i, (lm, ph) in enumerate(zip(lam[keep], phik[keep])):
-            z = lm / (a * (sigma * 1j) ** a)
-            Ja[:, i] = ml_response(a, 1, z, times) * ph
-        J1 = np.exp(1j * np.outer(times, lam[keep])) * phik[keep]
-        err = np.linalg.norm(Ja - J1, axis=1).max()
-        ph = np.exp(-1j * np.angle(np.sum(np.conj(J1) * Ja, axis=1)))[:, None]
-        perr = np.linalg.norm(Ja * ph - J1, axis=1).max()
-        nrm = np.linalg.norm(Ja[-1])
-        print(f"      {eps:8.0e} {err:20.3e} {perr:14.3e} {perr / eps:7.2f} {nrm:13.6f} {1 / a:9.6f}")
-    print("      -> converges to Schrodinger linearly in eps. Switched-on norm tends to")
-    print("         1/alpha (stationary amplitude), i.e. 1 + eps: a switch-on effect,")
-    print("         absent for eternal solutions (section A).")
-
-    # B4: above the cap: decay from below, runaway from above
-    print("   B4 single mode above the cap (Lambda = -1, |E| = 1):")
-    print(f"      {'alpha':>7} {'pole Re s':>11} {'pi*|eps|*|E|':>13} {'|J(10)|':>9}"
-          f" {'|J(40)|':>9} {'|J(80)|':>9}")
-    lam = -1.0
-    for a in (0.99, 0.999, 1.0, 1.001, 1.01):
-        eps = 1 - a
-        z = lam / (a * (sigma * 1j) ** a)
-        poles = [abs(z) ** (1 / a) * np.exp(1j * (np.angle(z) + 2 * PI * j) / a)
-                 for j in range(-3, 4) if -PI < (np.angle(z) + 2 * PI * j) / a < PI]
-        rs = max(p.real for p in poles)
-        tt = np.array([10.0, 40.0, 80.0])
-        if a == 1.0:
-            J = np.exp(z * tt)
-        elif a < 1:
-            J = ml_response(a, 1, z, tt)
-        else:                                   # Caputo order in (1,2): J(0)=1, J'(0)=i Lambda
-            J = ml_response(a, 1, z, tt) + 1j * lam * ml_response(a, 2, z, tt)
-        print(f"      {a:7.3f} {rs:11.2e} {PI * abs(eps):13.2e} {abs(J[0]):9.4f}"
-              f" {abs(J[1]):9.4f} {abs(J[2]):9.4f}")
-    print("      -> from below the mode decays at pi*eps*|E|; at alpha = 1 it is unitary;")
-    print("         from above it grows at the same rate (runaway).")
+    # B3: from above, the bounded alternative is acausal (preacceleration)
+    print("   B3 real-axis (bounded) response: amplitude BEFORE the pulse arrives")
+    print(f"      {'alpha':>6} {'|J(t0-10)|':>12} {'|J(t0-20)|':>12} {'|J(t0+40)|':>12}")
+    E = np.linspace(-40, 40, 160001)
+    dE = E[1] - E[0]
+    for a in (0.99, 1.01):
+        lam = -1.0
+        Ep = green_pole(lam, a, sigma, -sigma * 1.0)
+        G = (sigma * 1j) ** a * (-1j * E) ** a / (symbol(E, a, sigma) - lam)
+        Jhat = G * source_hat(E, Ep.real)
+        vals = []
+        for tt in (0.0, -10.0, 50.0):                     # t0 - 10, t0 - 20, t0 + 40
+            vals.append(abs(np.sum(Jhat * np.exp(-1j * E * tt)) * dE / (2 * PI)))
+        print(f"      {a:6.3f} {vals[0]:12.3e} {vals[1]:12.3e} {vals[2]:12.3e}")
+    print("      -> from below the bounded solution is causal (nothing before the pulse, only")
+    print("         the Gaussian's own tail). From above, staying bounded forces a response")
+    print("         that precedes its source: runaway or preacceleration, the ALD dichotomy.")
 
 
 # --------------------------------------------------------------------------- section C
