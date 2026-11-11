@@ -24,7 +24,8 @@ Sections
      disconnects even from below) versus a shrinking one (flat accumulator), and a
      normalizable (narrow, delta-like) kernel, which has no stationary band.  (Sec. 6)
   D  Readout: a single carrier as two tensor factors (JJ^dag is the reduced state,
-     concurrence = 1/gamma), the trace readout at any N, and tensor composition.
+     concurrence = 1/gamma), the trace readout at any N, tensor composition, and the
+     Lorentz action on the closure (boosts change the entanglement, rotations do not).
   Appendix C  Light cone imposed by hand. The framework assigns the Lorentz signature
      to the alpha = 2 closure, so this is NOT the alpha -> 1^- edge; kept for record.
 """
@@ -312,6 +313,32 @@ def section_D():
         ok = np.allclose(2 * J, J @ J.conj().T)
         print(f"   D5 {name:14s} 2J=JJ^dag: {ok}, det = {abs(np.linalg.det(J)):.0f},"
               f" max 2x2 minor = {max_minor(J):.0f}, tr P = {np.trace(J / 2).real:.0f}")
+    # D6 Lorentz action on the closure: boosts change the carrier's entanglement, rotations do not
+    def conc(J):
+        return 2 * abs(np.linalg.det(J)) / np.trace(J @ J.conj().T).real
+    def schmidt(J):
+        w = np.sort(np.linalg.eigvalsh(J @ J.conj().T))[::-1]
+        return w / w.sum()
+    U, _ = np.linalg.qr(rnd(2))
+    U = U / np.sqrt(np.linalg.det(U))                       # SU(2)
+    J0 = math.sqrt(2.0) * U                                  # carrier at rest: JJ^dag = 2 I
+    n = rng.normal(size=3)
+    n /= np.linalg.norm(n)
+    sn = n[0] * sig[0] + n[1] * sig[1] + n[2] * sig[2]
+    boost = lambda eta: math.cosh(eta / 2) * np.eye(2) + math.sinh(eta / 2) * sn
+    print(f"   D6 carrier at rest boosted by rapidity eta (det J = {abs(np.linalg.det(J0)):.4f} at rest):")
+    print(f"      {'eta':>5} {'C':>10} {'sech eta':>10} {'p+/p-':>11} {'e^(2 eta)':>11} {'|det J|':>8}")
+    for eta in (0.0, 0.5, 1.0, 2.0):
+        J = boost(eta) @ J0
+        p = schmidt(J)
+        print(f"      {eta:5.1f} {conc(J):10.6f} {1 / math.cosh(eta):10.6f} {p[0] / p[1]:11.6f}"
+              f" {math.exp(2 * eta):11.6f} {abs(np.linalg.det(J)):8.4f}")
+    Jb = boost(1.3) @ J0
+    V, _ = np.linalg.qr(rnd(2))
+    V = V / np.sqrt(np.linalg.det(V))
+    print(f"      rotation (SU(2) on the left): |C(VJ) - C(J)| = {abs(conc(V @ Jb) - conc(Jb)):.1e}")
+    J12 = boost(0.7) @ boost(0.9) @ J0
+    print(f"      collinear boosts 0.7 then 0.9: C = {conc(J12):.6f}, sech(1.6) = {1 / math.cosh(1.6):.6f}")
 
 
 # --------------------------------------------------------------------------- appendix C

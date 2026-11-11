@@ -26,7 +26,7 @@
 
 \begin{document}
 
-\title[Schr\"odinger as the $\alpha\to1^-$ collapse of the CAL]{Schr\"odinger evolution as the $\alpha\to1^-$ collapse of the Causal Accumulation Law: derived unitarity at the free Galilean edge}
+\title[Schr\"odinger at the $\alpha\to1^-$ edge of the CAL]{Schr\"odinger evolution at the $\alpha\to1^-$ edge of the Causal Accumulation Law: derived unitarity, the free Galilean limit, and carrier entanglement as time dilation}
 
 \author{Sam Leizerman}
 \address{LIOR Research Initiative}
@@ -56,7 +56,12 @@ The edge is Galilean and non-interacting.
 \item The field equation is linear in the carrier, so it describes free quanta and cannot create entanglement between carriers. Creating it needs the $\alpha=2$ closure, in which the carrier enters quadratically.
 \end{itemize}
 
-A single carrier $J\in M_2(\mathbb C)\cong\mathbb C^2\otimes\mathbb C^2$ is itself a two-factor object. $JJ^\dagger$ is the reduced state of its left factor, and the concurrence between the factors is exactly $1/\gamma$ of the carrier's current, so a massless carrier is a product state. The trace readout ${\rm tr}(P_mJJ^\dagger)/{\rm tr}(JJ^\dagger)$ is unchanged under tensor composition, at any rank.
+A single carrier $J\in M_2(\mathbb C)\cong\mathbb C^2\otimes\mathbb C^2$ is itself a two-factor object, and $JJ^\dagger$ is the reduced state of its left factor. Left $SL(2,\mathbb C)$ acts on that closure as the Lorentz group: rotations leave the entanglement between the two factors unchanged, and boosts change it.
+\begin{itemize}
+\item For a current of rapidity $\eta$, the concurrence is $1/\gamma=\operatorname{sech}\eta$, and the Schmidt weights are proportional to the Doppler factors $e^{\pm\eta}$.
+\item So a carrier's internal entanglement is the time dilation of its current: maximal at rest, and zero for a massless carrier.
+\item The trace readout ${\rm tr}(P_mJJ^\dagger)/{\rm tr}(JJ^\dagger)$ is unchanged under tensor composition, at any rank.
+\end{itemize}
 
 Numerical runs of the field equation, using Weyl integration only, confirm each statement.
 \end{abstract}
@@ -70,7 +75,7 @@ Numerical runs of the field equation, using Weyl integration only, confirm each 
 The companion paper~\cite{Skeleton} obtains the Schr\"odinger form at the edge of the $(\alpha,\text{kernel})$ table adjoining $\alpha=1$ from below, but it consumes an input: Posit~1 assumes a unitary flow $U(t)=e^{i\theta(t)G}$ and then defines $\hat H\equiv i\hbar\dot U U^{-1}$. That step establishes the form of the equation only after unitarity and a generator have been assumed. The present paper removes the posit. The accumulation law itself, read as a field equation, collapses to the Schr\"odinger equation, and unitarity, the one-sidedness of the limit, and the mass formula follow.
 
 \begin{quote}\itshape
-Impose $T=0$ with a power-law memory under causal Weyl integration, and let the memory channel carry the orientation $e^{-i\sigma\alpha\pi/2}$ of Axiom~3. For every $\alpha<1$, the bounded solutions on the whole time line evolve by a unitary group (Theorem~\ref{thm:eternal}). As $\alpha\to1^-$ with the memory rate held fixed, they converge to Schr\"odinger evolution (Theorem~\ref{thm:collapse}). From above, the response to a source runs away or precedes the source (Theorem~\ref{thm:onesided}). A Dirac, or any normalizable, memory kernel on the carrier cannot do this, because it has no stationary band (Theorem~\ref{thm:normalizable}). The edge is Markov through the fundamental theorem of calculus instead, without enlarging the state space (Proposition~\ref{prop:embedding}). The edge is Galilean and carries no interaction (\S\ref{sec:galilean}--\ref{sec:nointeraction}), and its trace readout survives tensor composition (\S\ref{sec:composition}).
+Impose $T=0$ with a power-law memory under causal Weyl integration, and let the memory channel carry the orientation $e^{-i\sigma\alpha\pi/2}$ of Axiom~3. For every $\alpha<1$, the bounded solutions on the whole time line evolve by a unitary group (Theorem~\ref{thm:eternal}). As $\alpha\to1^-$ with the memory rate held fixed, they converge to Schr\"odinger evolution (Theorem~\ref{thm:collapse}). From above, the response to a source runs away or precedes the source (Theorem~\ref{thm:onesided}). A Dirac, or any normalizable, memory kernel on the carrier cannot do this, because it has no stationary band (Theorem~\ref{thm:normalizable}). The edge is Markov through the fundamental theorem of calculus instead, without enlarging the state space (Proposition~\ref{prop:embedding}). The edge is Galilean and carries no interaction (\S\ref{sec:galilean}--\ref{sec:nointeraction}), and its trace readout survives tensor composition (\S\ref{sec:composition}). The carrier's internal entanglement is the time dilation of its current (Proposition~\ref{prop:lorentz}).
 \end{quote}
 
 All dynamics in this paper use Weyl integration over the whole past, which is the integral the accumulation law writes. Initial-value (Caputo) problems are not used. A Caputo problem is the Weyl derivative of a history frozen at its initial value for all earlier times. Such a frozen past has zero-frequency content, on which the Weyl integral of the field equation diverges, so a Caputo problem is not a solution of Axiom~\ref{ax:FE}. Starting a solution is instead modelled by a source acting on a zero past (Proposition~\ref{prop:switch}).
@@ -86,13 +91,14 @@ Given these inputs, the following are derived:
 \begin{itemize}
 \item Lemmas~\ref{lem:weyl}--\ref{lem:ops};
 \item Theorems~\ref{thm:eternal}, \ref{thm:collapse}, \ref{thm:onesided} and~\ref{thm:normalizable};
-\item Propositions~\ref{prop:switch}, \ref{prop:rate}, \ref{prop:embedding}, \ref{prop:carrier} and~\ref{prop:composition}, Lemma~\ref{lem:minors}, and Corollary~\ref{cor:scalings}.
+\item Propositions~\ref{prop:switch}, \ref{prop:rate}, \ref{prop:embedding}, \ref{prop:carrier}, \ref{prop:lorentz} and~\ref{prop:composition}, Lemma~\ref{lem:minors}, and Corollary~\ref{cor:scalings}.
 \end{itemize}
 The following are not claimed:
 \begin{itemize}
 \item a value for the mass scale;
 \item interaction in the reciprocal sense: back-reaction, two-body coupling, entangling dynamics, or a gauge field strength generated by the carrier. These belong to the $\alpha=2$ closure (Remark~\ref{rem:nointeraction});
 \item Lorentz structure, which also belongs to $\alpha=2$;
+\item the Lorentz action on qubit states itself, which is known~\cite{VDD,SSS}. The new part is the reading of a carrier's internal entanglement as the time dilation of its current;
 \item anything about measurement~\cite{CAL,Born}.
 \end{itemize}
 
@@ -448,7 +454,36 @@ where $v/c=\lvert\vec x\rvert/x^0$ is the speed of the closure $JJ^\dagger=x^0I_
 \begin{proof}
 For~(1): $\big({\rm Tr}_{\rm right}\lvert J\rangle\!\rangle\langle\!\langle J\rvert\big)_{ik}=\sum_jJ_{ij}\bar J_{kj}$. For~(2): a $2\times2$ matrix has rank one iff its determinant vanishes, and a rank-one matrix is a product $\psi\eta^\dagger$. Part~(3) is the singular-value decomposition of $J$. For~(4): the eigenvalues of $x^0I_2+\vec x\cdot\vec\sigma$ are $x^0\pm\lvert\vec x\rvert$, and for a pure bipartite state $C=2\sqrt{p_+p_-}$ with $p_\pm=(x^0\pm\lvert\vec x\rvert)/(2x^0)$. \end{proof}
 
-So "Born by trace" and "Lorentz by determinant" are the sum and the product of the Schmidt weights of a single carrier. A carrier at rest is maximally entangled between its factors; a massless carrier is a product. For a massive carrier the left closure $JJ^\dagger$ is therefore mixed. The pure state read on the left is $(J\eta)(J\eta)^\dagger$ for a reference leg $\eta$, as in~\cite[Eq.~(45)]{Info}.
+So ``Born by trace'' and ``Lorentz by determinant'' are the sum and the product of the Schmidt weights of a single carrier. A carrier at rest is maximally entangled between its factors; a massless carrier is a product. For a massive carrier the left closure $JJ^\dagger$ is therefore mixed. The pure state read on the left is $(J\eta)(J\eta)^\dagger$ for a reference leg $\eta$, as in~\cite[Eq.~(45)]{Info}.
+
+\begin{proposition}[Lorentz action on the carrier's entanglement]\label{prop:lorentz}
+Let $G\in SL(2,\mathbb C)$ act on the left factor, $J\to GJ$. Then $Q\to GQG^\dagger$. This is the proper orthochronous Lorentz action on the Hermitian slice~\cite[Eqs.~(35)--(36)]{Info}, and:
+\begin{enumerate}
+\item $\lvert\det J\rvert$, the invariant density, is unchanged, while $x^0=\tfrac12{\rm tr}\,Q$, the density in the frame, is not;
+\item rotations, $G\in SU(2)$, are local unitaries and leave the concurrence unchanged; boosts, with $G$ Hermitian and positive, are invertible local filtering operations and change it~\cite{VDD};
+\item writing the speed of the closure as $\beta=\tanh\eta$, with $\eta$ its rapidity,
+\[
+C=\operatorname{sech}\eta,\qquad p_\pm=\frac{e^{\pm\eta}}{2\cosh\eta},\qquad \frac{p_+}{p_-}=e^{2\eta},
+\]
+so the Schmidt weights are proportional to the relativistic Doppler factors $e^{\pm\eta}$. Collinear boosts add rapidities: boosting a carrier at rest by $\eta_1$ and then by $\eta_2$ along one axis gives $C=\operatorname{sech}(\eta_1+\eta_2)$;
+\item the pure states of the left factor, which are the null closures, form $\mathbb{CP}^1$, the celestial sphere. On it $SL(2,\mathbb C)$ acts by M\"obius transformations~\cite{PR}; see also~\cite[App.~A.2]{Info}.
+\end{enumerate}
+\end{proposition}
+
+\begin{proof}
+$\det(GJ)=\det J$ when $\det G=1$, and the congruence $Q\to GQG^\dagger$ preserves $\det Q=x_\mu x^\mu$. For $G\in SU(2)$ the trace is also preserved, so $C=2\lvert\det J\rvert/{\rm tr}\,Q$ is unchanged.
+
+For~(3), use Proposition~\ref{prop:carrier}(4) with $\beta=\tanh\eta$: then $\sqrt{1-\beta^2}=\operatorname{sech}\eta$ and $p_\pm=(1\pm\beta)/2$. A boost of rapidity $\eta$ along a unit vector $n$ is $e^{\eta\,n\cdot\sigma/2}$. Acting on a carrier at rest, where $Q=\rho I$, it gives $Q=\rho\,e^{\eta\,n\cdot\sigma}$, with $x^0=\rho\cosh\eta$ and $\lvert\vec x\rvert=\rho\sinh\eta$. Collinear exponents add.
+
+Part~(4) is the standard spinor description of null directions. \end{proof}
+
+\begin{remark}[What is known, and what is read]
+The Lorentz structure of the qubit state space is known. The Bloch ball is the trace-one section of the future light cone of positive $2\times2$ matrices~\cite{SSS}, and local filtering on a qubit acts as a Lorentz transformation~\cite{VDD}.
+
+What the carrier adds is a reading: the entanglement between a carrier's two factors is the time dilation of its current. A carrier at rest is maximally entangled, a massless carrier is a product state, and boosts move between the two as $\operatorname{sech}\eta$.
+
+This is a statement about the closure $JJ^\dagger$, which is an $\alpha=2$ object. It does not conflict with \S\ref{sec:galilean}: the dynamics of the edge is Galilean, and the Lorentz group here acts on the carrier's closure, where~\cite{Info} places the Lorentzian structure, not on the spacetime of the edge.
+\end{remark}
 
 \begin{proposition}[Readout under composition]\label{prop:composition}
 Let $J\in M_N(\mathbb C)$ have any rank, let $Q=JJ^\dagger$, and let $P_m$ be projectors with $\sum_mP_m=I_N$. Then $p_m={\rm Tr}(P_mQ)/{\rm Tr}\,Q$ is a probability distribution. For composite carriers $J_{AB}\in M_2(\mathbb C)\otimes M_2(\mathbb C)\cong M_4(\mathbb C)$, and likewise $M_{16}(\mathbb C)$ for four carriers:
@@ -603,6 +638,21 @@ ${\rm diag}(2,2,0,0)$: $\det J$, largest $2\times2$ minor, ${\rm tr}\,P$ & $0$, 
 \caption{Propositions~\ref{prop:carrier}--\ref{prop:composition} and Lemma~\ref{lem:minors}.}
 \end{table}
 
+\begin{table}[h]
+\centering\small
+\begin{tabular}{cccccc}
+\toprule
+$\eta$ & $C$ & $\operatorname{sech}\eta$ & $p_+/p_-$ & $e^{2\eta}$ & $\lvert\det J\rvert$\\
+\midrule
+$0$ & $1.000000$ & $1.000000$ & $1.000000$ & $1.000000$ & $2.0000$\\
+$0.5$ & $0.886819$ & $0.886819$ & $2.718282$ & $2.718282$ & $2.0000$\\
+$1$ & $0.648054$ & $0.648054$ & $7.389056$ & $7.389056$ & $2.0000$\\
+$2$ & $0.265802$ & $0.265802$ & $54.59815$ & $54.59815$ & $2.0000$\\
+\bottomrule
+\end{tabular}
+\caption{Proposition~\ref{prop:lorentz}: a carrier at rest, $J=\sqrt2\,U$ with $U\in SU(2)$, boosted by rapidity $\eta$ along a random axis. A rotation changes $C$ by $1.1\times10^{-16}$. Boosts of $0.7$ and then $0.9$ along one axis give $C=0.387978=\operatorname{sech}1.6$.}
+\end{table}
+
 \clearpage
 %======================================================================
 \section{Remarks on scope}
@@ -668,6 +718,7 @@ $w$, $\hat w$, $\tau_w$ & normalizable lag weight, its symbol, its width\\
 $\lvert J\rangle\!\rangle$ & the carrier read as a vector in $\mathbb C^2\otimes\mathbb C^2$\\
 $Q=JJ^\dagger$, $P_m$ & positive closure; outcome projectors\\
 $C$, $\gamma$ & concurrence; Lorentz factor of the closure\\
+$\beta=\tanh\eta$ & speed and rapidity of the closure\\
 \end{tabular}
 
 \section{Numerical methods}\label{app:num}
@@ -684,7 +735,7 @@ This is the integral field equation itself. No derivative and no initial-value d
 
 \emph{Markov limits.} The memory rate is evaluated in closed form. The exponential-kernel roots are the closed form of Example~\ref{ex:exp}.
 
-\emph{Readout.} Partial traces are taken by index contraction. Outcome bases are random unitaries from QR factorization, and the minors are enumerated directly.
+\emph{Readout.} Partial traces are taken by index contraction. Outcome bases are random unitaries from QR factorization, and the minors are enumerated directly. Boosts are $e^{\eta\,n\cdot\sigma/2}$ along a random axis, applied to a carrier at rest $\sqrt2\,U$ with $U\in SU(2)$ random.
 
 %======================================================================
 \section{For reference: a light cone imposed by hand}\label{app:cone}
@@ -731,6 +782,9 @@ $3.00$ & $3.014909$ & $3.014909$ & $4.000000$ & $-0.33$ & $0.975$\\
 \bibitem{Skeleton} S.~Leizerman, \emph{The $\alpha=1$ Unitary Skeleton and the Emergence of Schr\"odinger Evolution in the $\delta$-Kernel Limit of the Causal Accumulation Law}, LIOR Research Initiative (2026).
 \bibitem{Info} S.~Leizerman, \emph{On Information Physics: From State Distinguishability to Causal Accumulation}, LIOR Research Initiative (2026).
 \bibitem{Born} S.~Leizerman, \emph{An Axiomatic Derivation of the Born Rule at the $\delta$-Kernel Limit and Closure Order $\alpha=2$ of the Causal Accumulation Law}, LIOR Research Initiative (2026).
+\bibitem{VDD} F.~Verstraete, J.~Dehaene, B.~De~Moor, Local filtering operations on two qubits, Phys.\ Rev.\ A \textbf{64}, 010101(R) (2001); Lorentz singular-value decomposition and its applications to pure states of three qubits, Phys.\ Rev.\ A \textbf{65}, 032308 (2002).
+\bibitem{SSS} J.~Samuel, K.~Shivam, S.~Sinha, Lorentzian geometry for detecting qubit entanglement, Ann.\ Phys.\ \textbf{396}, 159--172 (2018).
+\bibitem{PR} R.~Penrose, W.~Rindler, \emph{Spinors and Space-Time, Vol.~1}, Cambridge University Press (1984).
 \bibitem{SKM} S.~G.~Samko, A.~A.~Kilbas, O.~I.~Marichev, \emph{Fractional Integrals and Derivatives: Theory and Applications}, Gordon and Breach (1993).
 \bibitem{Podlubny} I.~Podlubny, \emph{Fractional Differential Equations}, Academic Press (1999).
 \bibitem{GKMR} R.~Gorenflo, A.~A.~Kilbas, F.~Mainardi, S.~V.~Rogosin, \emph{Mittag-Leffler Functions, Related Topics and Applications}, Springer (2014).

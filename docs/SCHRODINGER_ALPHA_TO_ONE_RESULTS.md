@@ -1,6 +1,6 @@
 # Results: the CAL field equation collapses to Schrödinger as $\alpha\to1^-$
 
-**The paper.** `docs/paper/cal_schrodinger_collapse.pdf` (source: `docs/paper/cal_schrodinger_collapse.tex`) contains the full statements and proofs. This file summarizes them.
+**The paper** (title: *Schrödinger evolution at the α→1⁻ edge of the Causal Accumulation Law: derived unitarity, the free Galilean limit, and carrier entanglement as time dilation*). `docs/paper/cal_schrodinger_collapse.pdf` (source: `docs/paper/cal_schrodinger_collapse.tex`) contains the full statements and proofs. This file summarizes them.
 
 **Reproduce.** `python3 scripts/cal_schrodinger_collapse.py` (numpy only, about 10 seconds). Units: $\hbar=\tau_c=1$, and $c=1$ in §4.
 
@@ -11,6 +11,7 @@
 - A Dirac memory kernel on the carrier damps every mode.
 - The edge is Markov through the fundamental theorem of calculus, which is neither of the two limits. It keeps the accumulated sum, not each contribution. For $\alpha<1$ the power-law memory needs a continuum of auxiliary modes; as $\alpha\to1^-$ these collapse onto one mode, the state itself. So the edge needs no larger state space and no records.
 - A single carrier $J\in M_2(\mathbb C)\cong\mathbb C^2\otimes\mathbb C^2$ is two factors. $JJ^\dagger$ is the reduced state of the left factor, and the concurrence between the factors equals $1/\gamma$.
+- Lorentz action on the closure: left $SL(2,\mathbb C)$ acts on $JJ^\dagger$ as the Lorentz group. Rotations leave the entanglement unchanged; boosts change it, with $C=\operatorname{sech}\eta$ and Schmidt weights $\propto e^{\pm\eta}$ (Doppler factors). So a carrier's internal entanglement is the time dilation of its current. The Lorentz structure of qubits is itself known (Verstraete–Dehaene–De Moor; Samuel–Shivam–Sinha); the reading is the new part.
 - The trace readout ${\rm Tr}(P_mJJ^\dagger)/{\rm Tr}(JJ^\dagger)$ survives composition at any rank. Product carriers give product statistics, and marginals are consistent.
 - Intrinsic normalization above $M_2$ needs $\Lambda^2J=0$ (all $2\times2$ minors vanish), not just $\det J=0$.
 - The edge equation is linear in $J$, so it cannot create entanglement between carriers; that needs $\alpha=2$.
