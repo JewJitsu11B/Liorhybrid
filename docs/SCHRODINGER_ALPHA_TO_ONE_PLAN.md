@@ -74,7 +74,7 @@ i\hbar\,\partial_tJ=\sigma\,\varepsilon E_c\,\hat R_{\mathcal H}J
 \frac{\hbar^2}{2m}=\varepsilon E_c r_0,\quad V=-\varepsilon E_c r_1 .
 $$
 
-- **The orientation is fixed by physics.** Positive mass with a nonnegative kernel ($r_0>0$) forces $\sigma=-1$.
+- **The orientation is fixed by physics.** Positive mass with a nonnegative, lag-independent spread ($r_0>0$) forces $\sigma=-1$. The cone-supported kernel forces $\sigma=+1$ instead (see `SCHRODINGER_ALPHA_TO_ONE_RESULTS.md` §4); the causal kernel decides.
 - **The mass formula** is the draft's $\hbar^2/2m=(1-\alpha)r_0$, with $E_c$ restored for units.
 - **Without the double scaling** ($r_0$, $r_1$ fixed), $H\to0$: $J$ freezes, which is Thm 5.1. In this route the skeleton is a frozen $J$; it equals the draft's $E_c\,{\rm Id}$ phase up to an unobservable global phase.
 - **So Thm 5.1 and Thm 6.1 are two scalings of one limit.** At fixed $r_0$ the past drops out (kernel blindness). At fixed $\varepsilon r_0$ the memory stays live and becomes $H$.
@@ -87,7 +87,7 @@ By Fourier analysis in $t$ and the spectral theorem for $\hat R_{\mathcal H}$, u
 - **Free case** ($\sigma=-1$, kinetic energy $K=\varepsilon E_cr_0k^2$, cap $E_{\rm cap}=\varepsilon E_cr_1$): the stationary sector is exactly $K\le E_{\rm cap}$, with
   $$E=(K-E_{\rm cap})\big[1+\varepsilon\big(1+\ln\tfrac{E_{\rm cap}-K}{E_c}\big)\big]+O(\varepsilon^2)$$
   (checked against the exact form to $10^{-5}$ at $\varepsilon=10^{-2}$).
-- **Above the cap.** There is a unique admissible root, and it decays: ${\rm Im}\,E\approx-\pi\varepsilon\lvert E\rvert$ (numerically $-1.01\,\pi\varepsilon\lvert E\rvert$ at $\varepsilon=10^{-2}$).
+- **Above the cap.** *Corrected by the run:* eternal (Weyl) solutions have no component there at all, because the decaying root grows into the past and is not tempered. Switched-on solutions decay there at ${\rm Im}\,E\approx-\pi\varepsilon\lvert E\rvert$ (run B4).
 - **The limit.** As $\alpha\to1^-$ the damping goes to $0$, L2's restriction disappears, and the flow becomes the full unitary Schrödinger group of Theorem 1.
 
 **Theorem 3 (why the limit is from below).**
@@ -98,6 +98,13 @@ By Fourier analysis in $t$ and the spectral theorem for $\hat R_{\mathcal H}$, u
 ---
 
 ## 5. Causality estimate (the $J^-(x)$ support)
+
+> **Superseded by the run** (`SCHRODINGER_ALPHA_TO_ONE_RESULTS.md` §4). The estimate below assumed a spread that does not grow with the lag. With a cone-supported kernel the result is different:
+> - the exact $\alpha\to1^-$ dispersion is $E=\hbar kv\coth(\hbar kv/E_0)$;
+> - $m=3E_0/(2v_{\rm eff}^2)$, so $E_0\le\tfrac23mc^2$;
+> - there is no lower bound on $\varepsilon$.
+>
+> The original estimate is kept below for the record.
 
 The spatial reach of the memory is at most $c$ times the lag. So $r_0\lesssim(c\tau_{\rm eff})^2/6$, and with $\hbar^2/2m=\varepsilon E_cr_0$:
 
