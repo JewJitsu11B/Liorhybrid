@@ -101,7 +101,7 @@ By Fourier analysis in $t$ and the spectral theorem for $\hat R_{\mathcal H}$, u
 
 ## 5. Causality estimate (the $J^-(x)$ support)
 
-> **Superseded by the run** (`SCHRODINGER_ALPHA_TO_ONE_RESULTS.md` §4). The estimate below assumed a spread that does not grow with the lag. With a cone-supported kernel the result is different:
+> **Superseded twice.** The framework assigns the Lorentz signature to the $\alpha=2$ closure, so the edge has no light cone; the light-cone results below are $\alpha=2$ structure (paper, Appendix C). Earlier note: **superseded by the run** (`SCHRODINGER_ALPHA_TO_ONE_RESULTS.md` §4). The estimate below assumed a spread that does not grow with the lag. With a cone-supported kernel the result is different:
 > - the exact $\alpha\to1^-$ dispersion is $E=\hbar kv\coth(\hbar kv/E_0)$;
 > - $m=3E_0/(2v_{\rm eff}^2)$, so $E_0\le\tfrac23mc^2$;
 > - there is no lower bound on $\varepsilon$.

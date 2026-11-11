@@ -16,23 +16,27 @@
    - The Weyl integral converges only for $\alpha<1$.
    - The memory-generated coefficients change sign across $\alpha=1$.
    - From above, the response to a source either runs away or precedes the source. That is the Abraham–Lorentz–Dirac dichotomy, and the runs show both branches.
-4. **Markovian without a $\delta$-kernel.** At $\alpha=1$ the kernel is the flat accumulator, whose inverse is $\partial_t$. Separately, a causal $\delta$-kernel has no spatial reach, so it produces no kinetic term. That is why the light cone matters even in a Markovian limit.
-5. **The light-cone dispersion.** With memory kept inside the light cone, $E(k)=\hbar kv\coth(\hbar kv/E_0)$. This is causal for all $k$, and it reduces to Schrödinger with $m=3E_0/(2v_{\rm eff}^2)$. It follows that $E_0\le\tfrac23mc^2$.
-6. **Withdrawn.** The earlier "switched-on norm $\to\lVert J_0\rVert/\alpha$" came from the Caputo frozen past, which the field equation does not admit.
+4. **Two Markovian regimes, neither sufficient.**
+   - At $\alpha=1$ the past disconnects. With the kernel's time unit $\tau_c$ fixed, it disconnects even from below: the memory rate is about $\varepsilon$.
+   - A normalizable kernel, including any $\delta$-like one, has no stationary band, because $\lvert\hat w\rvert\le1<\alpha/(\varepsilon\lvert\lambda\rvert)$. A narrow exponential kernel gets the real part of the energy right but decays at $1/\tau_w$.
+   - The power law works because it is not normalizable, and its symbol's phase is the channel angle. The edge has a memory law with a Markovian flow, at fixed memory rate $(1-\alpha)/\tau_c$.
+5. **The edge is Galilean and free.**
+   - The Lorentz signature belongs to the $\alpha=2$ closure (via $\det JJ^\dagger$). Born uses only the trace, a frame-dependent density. So the edge has time ordering but no light cone.
+   - The generator is built from one-way transports. It gives the free Schrödinger form, at most in a fixed one-way background. Interaction and entanglement need $\alpha=2$.
+6. **Withdrawn:**
+   - The light-cone dispersion is now in Appendix C of the paper, labelled as $\alpha=2$ structure; it is not an edge result.
+   - The claim "a causal $\delta$-kernel gives no kinetic term" assumed a cone that the edge does not have.
+   - The Caputo $1/\alpha$ norm.
 
 ---
 
-## 2. Markovian evolution and the light cone
+## 2. The two Markovian regimes
 
-There are two different things one could mean by "Markovian":
-- **A Markovian flow:** the state at one time fixes all others.
-- **A $\delta$-kernel:** the memory weight tends to $\delta(\tau)$.
-
-The limit $\alpha\to1^-$ is the first, not the second. At $\alpha=1$ the Weyl kernel weights the whole past equally, and differentiating that accumulation gives back $\partial_t$, as in $X(t)-X(t_0)=\int\dot X$. The generator is local in time because accumulation and differentiation are inverse to each other. The bounded solutions form a group for every $\alpha<1$ already. Memory shows up only in the dispersion relation and in responses to sources.
-
-The light cone matters because the CAL integrates over $J^-(x)$, and the kinetic term can only come from the memory reaching out in space. Inside the cone, that reach is at most $c$ times the lag. **Paper Lemma 6.1:** the coefficient of $\nabla^2$ is at most $c^2\langle\tau^2\rangle_w/6$, so it vanishes as $w\to\delta$.
-
-A $\delta$-kernel limit with $r_0\neq0$, as in the skeleton draft, therefore assumes instantaneous spatial reach. Inertia needs memory at nonzero lags. The $\alpha\to1^-$ accumulator supplies those lags while keeping the flow Markovian.
+| Regime | What happens at the edge |
+|---|---|
+| $\alpha=1$ corner | past disconnected, no generator (skeleton) |
+| $\delta$ / narrow kernel | no stationary band; modes decay at $1/\tau_w$ |
+| power law, rate $\varepsilon/\tau_c$ fixed | flat accumulator; exact unitary band; Schrödinger |
 
 ---
 
@@ -83,33 +87,13 @@ From above, a bounded response has to come before its source.
 
 ---
 
-## 4. Light-cone kernel ($\sigma=+1$, thin shell $v=1$, $E_0=1$)
+## 4. Light cone imposed by hand ($\alpha=2$ structure, not the edge)
 
-- On $E>\hbar kv$ the symbol is real to $7\times10^{-15}$, so every stationary mode is unitary.
-- From above ($\alpha=1.001$, $1.01$) there is no stationary root.
-
-| $k$ | root | $kv\coth(kv/E_0)$ | $E_0+k^2/2m$ | relative kinetic deviation | $v_g/v$ |
-|---|---|---|---|---|---|
-| 0.01 | 1.000033 | 1.000033 | 1.000033 | −6.7e-6 | 0.007 |
-| 0.10 | 1.003331 | 1.003331 | 1.003333 | −6.7e-4 | 0.067 |
-| 0.30 | 1.029822 | 1.029822 | 1.030000 | −6.0e-3 | 0.198 |
-| 1.00 | 1.313035 | 1.313035 | 1.333333 | −6.1e-2 | 0.589 |
-| 3.00 | 3.014909 | 3.014909 | 4.000000 | −0.33 | 0.975 |
-
-The approach from below is linear in $\varepsilon$, and $m\to3E_0/(2v^2)=1.5$:
-
-| $\varepsilon$ | $E(0)$ | $m$ fit | $3E(0)/((1+\alpha)v^2)$ | $\max\lvert E_\alpha-E_1\rvert$ | cutoff $kv$ |
-|---|---|---|---|---|---|
-| 1e-1 | 1.124195 | 1.77507 | 1.77504 | 1.24e-1 | 7.3 |
-| 1e-2 | 1.010204 | 1.52296 | 1.52292 | 1.02e-2 | 53 |
-| 1e-3 | 1.001002 | 1.50229 | 1.50225 | 1.00e-3 | 504 |
-| 1e-4 | 1.000100 | 1.50026 | 1.50023 | 1.00e-4 | 5010 |
-
----
+This is recorded in Appendix C of the paper. With a cone imposed, the dispersion would be $E=\hbar kv\coth(\hbar kv/E_0)$, with $m=3E_0/(2v^2)$. The framework places the Lorentz signature at $\alpha=2$, so this is not a result about the $\alpha\to1^-$ edge.
 
 ## 5. Caveats
 
 - **Proof rigor.** The proofs are at the rigor level of the companion papers; the measurability details of the main unitarity proof are not written out.
-- **Not Lorentz invariant.** The light-cone dispersion is defined in the frame of the foliation. No relativistic claim is made.
+- **Interaction and Lorentz structure** are assigned to $\alpha=2$ and are not treated here.
 - **Not yet done:** gauge coupling (Hermitian $\hat R$ with $U(1)$ holonomy) and position-dependent potentials beyond a bounded offset.
-- **No mass value.** The value of $E_0$, and so the mass scale, is not derived. Only the ratio $E_0/(m v_{\rm eff}^2)=2/3$ is.
+- **No mass value.** The mass scale is not derived.

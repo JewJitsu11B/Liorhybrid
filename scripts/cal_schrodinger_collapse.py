@@ -20,8 +20,11 @@ Sections
   B  Factorized kernel, source-driven solutions: the integral field equation T = S is
      time-stepped with Weyl integration and a zero past (no Caputo data); persistent
      response, decay above the cap, runaway or preacceleration from above. (Thm 2, 3)
-  C  Cone-supported kernel (memory inside the past light cone): exact dispersion,
-     effective mass, and the stationary sector.                       (plan section 5)
+  C  The two Markovian regimes: memory rate with a fixed time unit (the past
+     disconnects even from below) versus a shrinking one (flat accumulator), and a
+     normalizable (narrow, delta-like) kernel, which has no stationary band.  (Sec. 6)
+  Appendix C  Light cone imposed by hand. The framework assigns the Lorentz signature
+     to the alpha = 2 closure, so this is NOT the alpha -> 1^- edge; kept for record.
 """
 import math
 import numpy as np
@@ -196,6 +199,38 @@ def section_B():
 
 
 # --------------------------------------------------------------------------- section C
+def section_C():
+    print("=" * 78)
+    print("C. The two Markovian regimes (Sec. 6)")
+    print("   C1 memory rate (1-alpha) tau_c^(-alpha) tau^(alpha-1)/Gamma(alpha) at lag tau")
+    print(f"      {'eps':>8} {'fixed tau_c=1: tau=1':>21} {'tau=100':>9}   "
+          f"{'tau_c=eps: tau=0.01':>20} {'tau=1':>7} {'tau=100':>8}")
+    def rate(eps, tc, tau):
+        a = 1 - eps
+        return eps * tc ** (-a) * tau ** (a - 1) / math.gamma(a)
+    for eps in (1e-1, 1e-2, 1e-3, 1e-4):
+        print(f"      {eps:8.0e} {rate(eps, 1.0, 1.0):21.3e} {rate(eps, 1.0, 100.0):9.3e}   "
+              f"{rate(eps, eps, 0.01):20.4f} {rate(eps, eps, 1.0):7.4f} {rate(eps, eps, 100.0):8.4f}")
+    print("      -> with tau_c fixed the past disconnects from below (rate ~ eps); with")
+    print("         tau_c ~ eps the rate stays ~1 at every lag: a flat accumulator, not a delta.")
+    print("   C2 normalizable narrow kernel w = e^{-tau/tau_w}/tau_w, generator kappa = 1 fixed")
+    print("      exact root E = -(i/tau_w) + (kappa/alpha)(sigma sin th + i cos th), th = alpha pi/2")
+    print(f"      {'eps':>8} {'tau_w':>8} {'Re E':>9} {'Im E':>12} {'-1/tau_w':>10}")
+    sigma, kappa = +1, 1.0
+    for eps in (1e-2, 1e-3):
+        a = 1 - eps
+        th = a * PI / 2
+        for tw in (1.0, 0.1, 0.01, 0.001):
+            lam = kappa * tw / eps                      # eps*lam/tau_w = kappa
+            E = -1j / tw * (1 - (eps * lam / a) * np.exp(-1j * sigma * th))
+            print(f"      {eps:8.0e} {tw:8.3f} {E.real:+9.4f} {E.imag:+12.4e} {-1 / tw:+10.1e}")
+    print("      -> the real part is the Schrodinger generator, but every mode decays at")
+    print("         ~1/tau_w; a delta (tau_w -> 0) kills it instantly. Power law: real roots.")
+    a = 1 - 1e-3
+    print(f"      power law, eps=1e-3: E = {(1 / a) ** (1 / a):.4f} + 0i")
+
+
+# --------------------------------------------------------------------------- appendix C
 def cone_symbol(alpha, sigma, E, kv):
     """(sigma i)^(-alpha) * M(s = -iE, k) for a thin shell at radius v*tau (tau_c = 1)."""
     s = -1j * E
@@ -223,9 +258,9 @@ def cone_energy(alpha, sigma, E0, kv):
     return 0.5 * (lo + hi)
 
 
-def section_C():
+def section_cone():
     print("=" * 78)
-    print("C. Cone-supported kernel: spatial reach v*tau at lag tau (v <= c), sigma = +1")
+    print("Appendix C (alpha = 2 structure, NOT the edge): light cone imposed by hand, sigma = +1")
     print("   Double scaling holds E0 = eps E_c r1 fixed.  At alpha = 1 the exact dispersion is")
     print("   E(k) = hbar k v coth(hbar k v / E0); small k: E0 + hbar^2 k^2 / 2m, m = 3 E0/(2 v^2).")
     E0, v = 1.0, 1.0
@@ -278,3 +313,4 @@ if __name__ == "__main__":
     section_A()
     section_B()
     section_C()
+    section_cone()
