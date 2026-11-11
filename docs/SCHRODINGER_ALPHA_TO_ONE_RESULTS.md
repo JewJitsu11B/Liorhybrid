@@ -6,6 +6,13 @@
 
 **Integration.** Weyl integration over the whole past is used throughout, because that is the integral the CAL writes. No Caputo (initial-value) problems are used. A Caputo problem is the Weyl derivative of a past frozen at $J_0$. A frozen past has zero-frequency content, on which the field equation's Weyl integral diverges, so a Caputo problem never solved the field equation. Starting a solution is instead modelled by a source pulse acting on a zero past.
 
+**Update (readout and Markov limits; paper Sec. 6).**
+- The two Markov limits are the forgetful (Dirac) and the faithful one. The forgetful limit damps every mode; the edge at fixed memory rate is the faithful limit, and it is unitary.
+- A single carrier $J\in M_2(\mathbb C)\cong\mathbb C^2\otimes\mathbb C^2$ is two factors. $JJ^\dagger$ is the reduced state of the left factor, and the concurrence between the factors equals $1/\gamma$.
+- The trace readout ${\rm Tr}(P_mJJ^\dagger)/{\rm Tr}(JJ^\dagger)$ survives composition at any rank. Product carriers give product statistics, and marginals are consistent.
+- Intrinsic normalization above $M_2$ needs $\Lambda^2J=0$ (all $2\times2$ minors vanish), not just $\det J=0$.
+- The edge equation is linear in $J$, so it cannot create entanglement between carriers; that needs $\alpha=2$.
+
 ---
 
 ## 1. Summary

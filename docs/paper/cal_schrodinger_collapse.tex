@@ -42,19 +42,20 @@ The limit is one-sided for three reasons. The Weyl integral converges on oscilla
 
 The kernel-blind skeleton at $\alpha=1$ and the Schr\"odinger edge are two scalings of one limit. With the kernel's time unit held fixed, the memory rate vanishes and the past disconnects even from below. The edge exists only if the memory rate $(1-\alpha)/\tau_c$ is held fixed. In that limit the kernel becomes a flat accumulator, not a $\delta$.
 
-Neither of the framework's two Markovian regimes yields unitary Schr\"odinger evolution by itself.
+The framework has two Markov limits, the forgetful (Dirac) limit and the faithful one~\cite{Info}. Only the faithful limit gives unitary evolution.
 \begin{itemize}
-\item At $\alpha=1$ the past is gone, so there is no generator.
-\item A normalizable kernel, including every $\delta$-like family, has no stationary band at all. The plane-wave equation needs $\lvert\hat w\rvert=\alpha/(\eps\lvert\lambda\rvert)$, while $\lvert\hat w\rvert\le1$.
+\item In the forgetful limit, and for any normalizable kernel, there is no stationary band at all. The plane-wave equation needs $\lvert\hat w\rvert=\alpha/(\eps\lvert\lambda\rvert)$, while $\lvert\hat w\rvert\le1$, so every mode decays.
+\item As $\alpha\to1^-$ at fixed memory rate, the Weyl kernel becomes the flat accumulator, which retains the whole past. This is the faithful limit, and it is the Schr\"odinger edge. The power law reaches it because it is not normalizable, and because the phase of its symbol is the channel angle.
 \end{itemize}
-The power law succeeds because it is not normalizable, and because the phase of its symbol is the channel angle. The edge therefore has a memory law with a Markovian flow.
 
 The edge is Galilean and non-interacting.
 \begin{itemize}
 \item The Lorentz signature belongs to the $\alpha=2$ closure, so the edge has no light cone. This is consistent with the instantaneous spatial reach of the Schr\"odinger propagator.
 \item Its generator is built from one-way transports. It therefore gives the free Schr\"odinger form, at most in a fixed one-way background.
-\item Interaction and entanglement need the $\alpha=2$ closure of a composite carrier.
+\item The field equation is linear in the carrier, so it describes free quanta and cannot create entanglement between carriers. Creating it needs the $\alpha=2$ closure, in which the carrier enters quadratically.
 \end{itemize}
+
+A single carrier $J\in M_2(\mathbb C)\cong\mathbb C^2\otimes\mathbb C^2$ is itself a two-factor object. $JJ^\dagger$ is the reduced state of its left factor, and the concurrence between the factors is exactly $1/\gamma$ of the carrier's current, so a massless carrier is a product state. The trace readout ${\rm tr}(P_mJJ^\dagger)/{\rm tr}(JJ^\dagger)$ is unchanged under tensor composition, at any rank.
 
 Numerical runs of the field equation, using Weyl integration only, confirm each statement.
 \end{abstract}
@@ -68,7 +69,7 @@ Numerical runs of the field equation, using Weyl integration only, confirm each 
 The companion paper~\cite{Skeleton} obtains the Schr\"odinger form at the edge of the $(\alpha,\text{kernel})$ table adjoining $\alpha=1$ from below, but it consumes an input: Posit~1 assumes a unitary flow $U(t)=e^{i\theta(t)G}$ and then defines $\hat H\equiv i\hbar\dot U U^{-1}$. That step establishes the form of the equation only after unitarity and a generator have been assumed. The present paper removes the posit. The accumulation law itself, read as a field equation, collapses to the Schr\"odinger equation, and unitarity, the one-sidedness of the limit, and the mass formula follow.
 
 \begin{quote}\itshape
-Impose $T=0$ with a power-law memory under causal Weyl integration, and let the memory channel carry the orientation $e^{-i\sigma\alpha\pi/2}$ of Axiom~3. For every $\alpha<1$, the bounded solutions on the whole time line evolve by a unitary group (Theorem~\ref{thm:eternal}). As $\alpha\to1^-$ with the memory rate held fixed, they converge to Schr\"odinger evolution (Theorem~\ref{thm:collapse}). From above, the response to a source runs away or precedes the source (Theorem~\ref{thm:onesided}). Neither Markovian regime of the framework does this on its own: normalizable kernels, $\delta$-like ones included, have no stationary band (Theorem~\ref{thm:normalizable}). The edge is Galilean and carries no interaction (\S\ref{sec:galilean}--\ref{sec:nointeraction}).
+Impose $T=0$ with a power-law memory under causal Weyl integration, and let the memory channel carry the orientation $e^{-i\sigma\alpha\pi/2}$ of Axiom~3. For every $\alpha<1$, the bounded solutions on the whole time line evolve by a unitary group (Theorem~\ref{thm:eternal}). As $\alpha\to1^-$ with the memory rate held fixed, they converge to Schr\"odinger evolution (Theorem~\ref{thm:collapse}). From above, the response to a source runs away or precedes the source (Theorem~\ref{thm:onesided}). Of the framework's two Markov limits, only the faithful one does this. The forgetful (Dirac) limit, like every normalizable kernel, has no stationary band (Theorem~\ref{thm:normalizable}). The edge is Galilean and carries no interaction (\S\ref{sec:galilean}--\ref{sec:nointeraction}), and its trace readout survives tensor composition (\S\ref{sec:composition}).
 \end{quote}
 
 All dynamics in this paper use Weyl integration over the whole past, which is the integral the accumulation law writes. Initial-value (Caputo) problems are not used. A Caputo problem is the Weyl derivative of a history frozen at its initial value for all earlier times. Such a frozen past has zero-frequency content, on which the Weyl integral of the field equation diverges, so a Caputo problem is not a solution of Axiom~\ref{ax:FE}. Starting a solution is instead modelled by a source acting on a zero past (Proposition~\ref{prop:switch}).
@@ -84,7 +85,7 @@ Given these inputs, the following are derived:
 \begin{itemize}
 \item Lemmas~\ref{lem:weyl}--\ref{lem:ops};
 \item Theorems~\ref{thm:eternal}, \ref{thm:collapse}, \ref{thm:onesided} and~\ref{thm:normalizable};
-\item Propositions~\ref{prop:switch} and~\ref{prop:rate}, and Corollary~\ref{cor:scalings}.
+\item Propositions~\ref{prop:switch}, \ref{prop:rate}, \ref{prop:carrier} and~\ref{prop:composition}, Lemma~\ref{lem:minors}, and Corollary~\ref{cor:scalings}.
 \end{itemize}
 The following are not claimed:
 \begin{itemize}
@@ -329,24 +330,29 @@ This is the Abraham--Lorentz--Dirac dichotomy of the third-derivative panel of~\
 Part~(1) is Lemma~\ref{lem:weyl}. Part~(2) is immediate from Theorem~\ref{thm:collapse}. For part~(3), the argument in the proof of Proposition~\ref{prop:switch} gives ${\rm Re}\,w=\lvert w\rvert\sin(\pi/\alpha)$, which is positive for $\alpha\in(1,2)$. A zero of the response function in the upper half-plane rules out a response that is both causal and bounded. \end{proof}
 
 %======================================================================
-\section{The two Markovian regimes, causal structure, and interaction}\label{sec:regimes}
+\section{The two Markov limits, causal structure, interaction, and readout}\label{sec:regimes}
 
-The framework has two Markovian regimes. One is the corner $\alpha=1$, where the past is disconnected. The other is the $\delta$ (Dirac) limit of the kernel, where only the immediate past survives. This section shows that neither yields unitary Schr\"odinger evolution on its own, and identifies what the edge requires instead. It then records two structural limits of the edge: it is Galilean, and it carries no interaction.
+The framework has two Markov limits~\cite[Sec.~1]{Info}.
+\begin{itemize}
+\item In the \emph{forgetful} (Dirac) limit the kernel concentrates at zero lag, and nothing of the past enters.
+\item In the \emph{faithful} limit the kernel retains every contribution of the past without loss, so the present state carries the whole history.
+\end{itemize}
+This section shows three things. The forgetful limit cannot give unitary evolution. The $\alpha\to1^-$ edge at fixed memory rate is the faithful limit. The corner $\alpha=1$ at fixed time unit is neither: there the past simply disconnects. It then records the structure of the edge: it is Galilean, it carries no interaction, and its readout survives tensor composition.
 
-\subsection{The corner: the past disconnects}
+\subsection{The corner and the faithful limit}
 
 \begin{proposition}[Memory rate]\label{prop:rate}
 $\rho_\eps(\tau)=\eps\,\tau_c^{-1+\eps}\tau^{-\eps}/\Gamma(1-\eps)$.
 \begin{enumerate}
 \item With $\tau_c$ fixed, $\rho_\eps\to0$ uniformly on compact lag intervals. The past disconnects even from below, and the edge degenerates to the skeleton (Corollary~\ref{cor:scalings}(1)).
-\item With $\tau_c=\eps/\kappa$, $\rho_\eps(\tau)\to\kappa$ for every fixed $\tau>0$. The kernel becomes the flat accumulator of rate $\kappa$, not a $\delta$.
+\item With $\tau_c=\eps/\kappa$, $\rho_\eps(\tau)\to\kappa$ for every fixed $\tau>0$. The kernel becomes the flat accumulator of rate $\kappa$, which retains every contribution of the past. This is the faithful limit, not a $\delta$.
 \end{enumerate}
 \end{proposition}
 
 \begin{proof}
 For~(1), $\rho_\eps\le C\eps\,\tau^{-\eps}$ on compacts. For~(2), $\rho_\eps=\kappa^{1-\eps}\eps^{\eps}\tau^{-\eps}/\Gamma(1-\eps)$, and $\eps^\eps\to1$, $\tau^{-\eps}\to1$, $\Gamma(1-\eps)\to1$. \end{proof}
 
-\subsection{The $\delta$ limit: no stationary band}
+\subsection{The forgetful (Dirac) limit: no stationary band}
 
 \begin{theorem}[Normalizable kernels have no stationary band]\label{thm:normalizable}
 Replace the power law in~\eqref{eq:FE} by a lag weight $w\ge0$ with $\int_0^\infty w=1$, of any width. This includes every family $w\to\delta$.
@@ -374,8 +380,9 @@ The real part is the Schr\"odinger frequency. But every mode decays at the inver
 \begin{remark}[Why the power law]\label{rem:powerlaw}
 The power-law kernel is not normalizable, since $\int_0^\infty\tau^{\alpha-1}d\tau=\infty$. Its symbol $(-iE\tau_c/\hbar)^{-\alpha}$ is unbounded as $E\to0$. So $\lvert\text{symbol}\rvert=\alpha/(\eps\lambda)$ is met at a finite real energy $E=E_c(\eps\lambda/\alpha)^{1/\alpha}$, which is the stationary band of Theorem~\ref{thm:eternal}. The symbol's phase is exactly the channel angle $\alpha\pi/2$, which is how~\cite[Def.~2.2]{Skeleton} defines the channel angle.
 
-Infinite total memory weight, multiplied by a vanishing $\eps$, gives the finite rate of Proposition~\ref{prop:rate}(2). The edge is therefore a third regime, distinct from both Markovian ones: a law with memory (power law, full width) whose flow is Markovian (Theorem~\ref{thm:eternal}). In the table of~\cite{Skeleton}, the Schr\"odinger form belongs in the full-width (power-law) column at $1^-$, not in the $\delta$ column. Posit~1 was covering the $\delta$ column's lack of a stationary band.
+Infinite total memory weight, multiplied by a vanishing $\eps$, gives the finite rate of Proposition~\ref{prop:rate}(2). The edge is therefore the faithful Markov limit, reached from a law with memory (power law, full width). The forgetful limit damps; the faithful limit is unitary (Theorem~\ref{thm:eternal}). In the table of~\cite{Skeleton}, the Schr\"odinger form belongs in the full-width (power-law) column at $1^-$, not in the $\delta$ column. Posit~1 was covering the $\delta$ column's lack of a stationary band.
 \end{remark}
+
 
 \subsection{Causal structure: the edge is Galilean}\label{sec:galilean}
 
@@ -391,14 +398,60 @@ At the $\alpha\to1^-$ edge the causal structure is therefore time ordering alone
 \subsection{The edge carries no interaction}\label{sec:nointeraction}
 
 \begin{remark}[Single legs]\label{rem:nointeraction}
-In~\eqref{eq:FE} the past enters only through transports $\mathcal P(x,x')$ from a point of the past to the present. The generator $H=\sigma E_c\Lambda$ of Theorem~\ref{thm:collapse} is assembled from these open legs, and no term transports the present back. Hence:
+In~\eqref{eq:FE} the past enters only through transports $\mathcal P(x,x')$ from a point of the past to the present, and the equation is linear in $J$. Hence:
 \begin{enumerate}
-\item there is no reciprocal, two-leg closure, so there is no interaction in the sense of~\cite{CAL}: no back-reaction and no two-body coupling;
-\item the carrier generates no holonomy, since holonomy needs a closed path~\cite{CAL};
-\item what the edge can carry is a fixed background acting one way, through a bounded $r_1(x)$ (Lemma~\ref{lem:ops}) or a prescribed transport. That is a test particle that does not act back.
+\item \emph{No interaction.} A linear field equation describes free quanta. For two carriers its evolution is $U_A\otimes U_B$, which preserves the Schmidt coefficients between them. It can carry entanglement that already exists, but it cannot create any.
+\item \emph{Creating entanglement needs $\alpha=2$.} It needs a non-product coupling, hence an equation that is not linear in the carrier. The $\alpha=2$ closure $JJ^\dagger$ is the first place the carrier enters quadratically. A unitary coupling also needs its adjoint term: a one-way transfer from $A$ to $B$ alone is not Hermitian, and its adjoint is the return leg from $B$ to $A$. For a unitary transport $P_\gamma^\dagger=P_{\gamma^{-1}}$, so the dagger in $JJ^\dagger$ is that return leg.
+\item \emph{No holonomy from the carrier.} Holonomy needs a closed path~\cite{CAL}. What the edge can carry is a fixed background acting one way, through a bounded $r_1(x)$ (Lemma~\ref{lem:ops}) or a prescribed transport. That is a test particle that does not act back.
 \end{enumerate}
-Two-body interaction and entangling dynamics require the composite carrier $J_{AB}\in M_2(\mathbb C)\otimes M_2(\mathbb C)\cong M_4(\mathbb C)$ and its closure $J_{AB}J_{AB}^\dagger$ at $\alpha=2$. This agrees with the restriction of~\cite[Thm.~6.1]{Skeleton} to the free form: that restriction is structural, not a matter of convenience.
+This agrees with the restriction of~\cite[Thm.~6.1]{Skeleton} to the free form: that restriction is structural, not a matter of convenience.
 \end{remark}
+
+\subsection{Readout: one carrier, and composites}\label{sec:composition}
+
+\begin{proposition}[One carrier is two factors]\label{prop:carrier}
+Read $J\in M_2(\mathbb C)$ as a vector $\lvert J\rangle\!\rangle=\sum_{ij}J_{ij}\lvert i\rangle\lvert j\rangle\in\mathbb C^2\otimes\mathbb C^2$. The row index is the left factor, on which Lorentz transformations act ($J\to LJ$). The column index is the right factor, on which the internal phase acts ($J\to JU$). Then:
+\begin{enumerate}
+\item $JJ^\dagger={\rm Tr}_{\rm right}\lvert J\rangle\!\rangle\langle\!\langle J\rvert$, the reduced state of the left factor;
+\item $J$ is a product state $\iff$ ${\rm rank}\,J=1$ $\iff$ $\det J=0$, which is a null closure~\cite[Eq.~(40)]{Info};
+\item the eigenvalues of $JJ^\dagger$ are the Schmidt weights: their sum ${\rm tr}\,JJ^\dagger$ is the Born normalization, and their product $\det JJ^\dagger=\lvert\det J\rvert^2$ is the Lorentzian norm;
+\item the concurrence of the normalized state is
+\[
+C=\frac{2\lvert\det J\rvert}{{\rm tr}(JJ^\dagger)}=\sqrt{1-v^2/c^2}=\frac1\gamma,
+\]
+where $v/c=\lvert\vec x\rvert/x^0$ is the speed of the closure $JJ^\dagger=x^0I_2+\vec x\cdot\vec\sigma$.
+\end{enumerate}
+\end{proposition}
+
+\begin{proof}
+For~(1): $\big({\rm Tr}_{\rm right}\lvert J\rangle\!\rangle\langle\!\langle J\rvert\big)_{ik}=\sum_jJ_{ij}\bar J_{kj}$. For~(2): a $2\times2$ matrix has rank one iff its determinant vanishes, and a rank-one matrix is a product $\psi\eta^\dagger$. Part~(3) is the singular-value decomposition of $J$. For~(4): the eigenvalues of $x^0I_2+\vec x\cdot\vec\sigma$ are $x^0\pm\lvert\vec x\rvert$, and for a pure bipartite state $C=2\sqrt{p_+p_-}$ with $p_\pm=(x^0\pm\lvert\vec x\rvert)/(2x^0)$. \end{proof}
+
+So "Born by trace" and "Lorentz by determinant" are the sum and the product of the Schmidt weights of a single carrier. A carrier at rest is maximally entangled between its factors; a massless carrier is a product. For a massive carrier the left closure $JJ^\dagger$ is therefore mixed. The pure state read on the left is $(J\eta)(J\eta)^\dagger$ for a reference leg $\eta$, as in~\cite[Eq.~(45)]{Info}.
+
+\begin{proposition}[Readout under composition]\label{prop:composition}
+Let $J\in M_N(\mathbb C)$ have any rank, let $Q=JJ^\dagger$, and let $P_m$ be projectors with $\sum_mP_m=I_N$. Then $p_m={\rm Tr}(P_mQ)/{\rm Tr}\,Q$ is a probability distribution. For composite carriers $J_{AB}\in M_2(\mathbb C)\otimes M_2(\mathbb C)\cong M_4(\mathbb C)$, and likewise $M_{16}(\mathbb C)$ for four carriers:
+\begin{enumerate}
+\item product carriers give product statistics: if $J_{AB}=J_A\otimes J_B$ then $Q_{AB}=J_AJ_A^\dagger\otimes J_BJ_B^\dagger$ and $p(m,n)=p_A(m)\,p_B(n)$;
+\item marginals are consistent for every $J_{AB}$: ${\rm Tr}\big((P_m\otimes I)Q_{AB}\big)={\rm Tr}\big(P_m\,{\rm Tr}_BQ_{AB}\big)$;
+\item the rank of $J_{AB}$ and the entanglement between $A$ and $B$ are different things. The rank measures entanglement between the left and right halves of $J_{AB}$, and decides whether $Q_{AB}$ is pure. Entanglement between $A$ and $B$ is a property of $Q_{AB}$. For example, $J_{AB}=\Phi^+\eta^\dagger$ has rank one and gives a pure $Q_{AB}$ with ${\rm Tr}_BQ_{AB}=I_2/2$: maximally entangled between $A$ and $B$.
+\end{enumerate}
+\end{proposition}
+
+\begin{proof}
+Positivity and $\sum_mP_m=I$ give a distribution. For~(1), $(J_A\otimes J_B)(J_A\otimes J_B)^\dagger=J_AJ_A^\dagger\otimes J_BJ_B^\dagger$, and the trace of a tensor product is the product of the traces. Part~(2) is the definition of the partial trace, and~(3) is direct computation. \end{proof}
+
+Tensor composition therefore changes the available states and interactions, not the probability rule.
+
+\begin{lemma}[Intrinsic normalization above $M_2$]\label{lem:minors}
+Dividing by ${\rm Tr}\,Q$ needs no rank condition. The stronger claim is that the closure normalizes itself: $2J=JJ^\dagger$ gives a projector $P=J/2$ with ${\rm tr}\,P=1$~\cite{CAL}. That needs $J$ of rank one.
+\begin{itemize}
+\item In $M_2(\mathbb C)$, rank one is the condition $\det J=0$.
+\item In $M_N(\mathbb C)$ with $N\ge3$, rank one is $\Lambda^2J=0$, the vanishing of all $2\times2$ minors. This is still quadratic in $J$. The condition $\det J=0$ alone is not enough.
+\end{itemize}
+\end{lemma}
+
+\begin{proof}
+$2J=JJ^\dagger$ forces $J=J^\dagger$ and $J^2=2J$, so $P=J/2$ is a projector with ${\rm tr}\,P={\rm rank}\,J$. Rank at most one is equivalent to $\Lambda^2J=0$. For $N\ge3$, $J={\rm diag}(2,2,0,\dots,0)$ satisfies $2J=JJ^\dagger$ and $\det J=0$, but has ${\rm tr}\,P=2$. \end{proof}
 
 %======================================================================
 \section{Numerical verification}
@@ -508,6 +561,26 @@ $10^{-3}$ & $0.001$ & $+1.0010$ & $-1000.0$ & $-1000$\\
 \label{tab:exp}
 \end{table}
 
+\emph{Readout.}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{lc}
+\toprule
+Check & Result\\
+\midrule
+$\lVert{\rm Tr}_{\rm right}\lvert J\rangle\!\rangle\langle\!\langle J\rvert-JJ^\dagger\rVert$, 200 random $J$ & $1.8\times10^{-15}$\\
+$\lvert C-1/\gamma\rvert$, same $J$ & $1.2\times10^{-15}$\\
+trace readout against $\lvert\Phi_m^\dagger\Psi\rvert^2/\Psi^\dagger\Psi$, $N\in\{2,4,16,1024\}$ & $3.7\times10^{-16}$\\
+product carriers: $\lvert p(m,n)-p_A(m)p_B(n)\rvert$ & $1.1\times10^{-16}$\\
+rank-4 $J_{AB}$: marginal mismatch & $0$\\
+$J_{AB}=\Phi^+\eta^\dagger$: rank, ${\rm Tr}_BQ$ & $1$, $I_2/2$\\
+${\rm diag}(2,2,0,0)$: $\det J$, largest $2\times2$ minor, ${\rm tr}\,P$ & $0$, $4$, $2$\\
+\bottomrule
+\end{tabular}
+\caption{Propositions~\ref{prop:carrier}--\ref{prop:composition} and Lemma~\ref{lem:minors}.}
+\end{table}
+
 \clearpage
 %======================================================================
 \section{Remarks on scope}
@@ -549,7 +622,7 @@ $10^{-3}$ & $0.001$ & $+1.0010$ & $-1000.0$ & $-1000$\\
 Corollary~\ref{cor:scalings} and Theorem~\ref{thm:normalizable} make~\cite[Rem.~7.3]{Skeleton} precise.
 \begin{itemize}
 \item If the memory weight vanishes at fixed time unit, the past disconnects and the carrier freezes.
-\item If it vanishes at fixed memory rate, the memory becomes the Hamiltonian, but only if the memory has infinite total weight. A normalizable memory, however narrow, cannot supply a unitary generator.
+\item If it vanishes at fixed memory rate, the memory becomes the Hamiltonian. That is the faithful limit, and it needs a memory of infinite total weight. A normalizable memory, however narrow, is forgetful and cannot supply a unitary generator.
 \end{itemize}
 The Schr\"odinger generator is the image of an infinite accumulated past under the double scaling, transported one way, with no return leg.
 \end{remark}
@@ -570,6 +643,9 @@ $\Lambda=\eps\hat R_\Hil$ & double-scaled memory operator\\
 $g_\alpha$, $f_\alpha$ & symbol of the left side of~\eqref{eq:FEinv}, and stationary energy\\
 $\Hil_+$ & $\Ran\one_{(0,\infty)}(\Lambda)$, the stationary sector\\
 $w$, $\hat w$, $\tau_w$ & normalizable lag weight, its symbol, its width\\
+$\lvert J\rangle\!\rangle$ & the carrier read as a vector in $\mathbb C^2\otimes\mathbb C^2$\\
+$Q=JJ^\dagger$, $P_m$ & positive closure; outcome projectors\\
+$C$, $\gamma$ & concurrence; Lorentz factor of the closure\\
 \end{tabular}
 
 \section{Numerical methods}\label{app:num}
@@ -584,7 +660,9 @@ This is the integral field equation itself. No derivative and no initial-value d
 
 \emph{Packets.} Packets use a periodic grid of $2048$ points on a box of length $400$, with a unitary FFT. Modes with amplitude below $10^{-10}$ of the maximum are dropped.
 
-\emph{Markovian regimes.} The memory rate is evaluated in closed form. The exponential-kernel roots are the closed form of Example~\ref{ex:exp}.
+\emph{Markov limits.} The memory rate is evaluated in closed form. The exponential-kernel roots are the closed form of Example~\ref{ex:exp}.
+
+\emph{Readout.} Partial traces are taken by index contraction. Outcome bases are random unitaries from QR factorization, and the minors are enumerated directly.
 
 %======================================================================
 \section{For reference: a light cone imposed by hand}\label{app:cone}
@@ -629,6 +707,7 @@ $3.00$ & $3.014909$ & $3.014909$ & $4.000000$ & $-0.33$ & $0.975$\\
 \begin{thebibliography}{99}
 \bibitem{CAL} S.~Leizerman, \emph{The Causal Accumulation Law: The Four Corners of $\alpha$, Algebraic Closure, and the Standard Model}, LIOR Research Initiative (2026).
 \bibitem{Skeleton} S.~Leizerman, \emph{The $\alpha=1$ Unitary Skeleton and the Emergence of Schr\"odinger Evolution in the $\delta$-Kernel Limit of the Causal Accumulation Law}, LIOR Research Initiative (2026).
+\bibitem{Info} S.~Leizerman, \emph{On Information Physics: From State Distinguishability to Causal Accumulation}, LIOR Research Initiative (2026).
 \bibitem{Born} S.~Leizerman, \emph{An Axiomatic Derivation of the Born Rule at the $\delta$-Kernel Limit and Closure Order $\alpha=2$ of the Causal Accumulation Law}, LIOR Research Initiative (2026).
 \bibitem{SKM} S.~G.~Samko, A.~A.~Kilbas, O.~I.~Marichev, \emph{Fractional Integrals and Derivatives: Theory and Applications}, Gordon and Breach (1993).
 \bibitem{Podlubny} I.~Podlubny, \emph{Fractional Differential Equations}, Academic Press (1999).

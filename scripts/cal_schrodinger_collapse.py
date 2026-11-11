@@ -23,6 +23,8 @@ Sections
   C  The two Markovian regimes: memory rate with a fixed time unit (the past
      disconnects even from below) versus a shrinking one (flat accumulator), and a
      normalizable (narrow, delta-like) kernel, which has no stationary band.  (Sec. 6)
+  D  Readout: a single carrier as two tensor factors (JJ^dag is the reduced state,
+     concurrence = 1/gamma), the trace readout at any N, and tensor composition.
   Appendix C  Light cone imposed by hand. The framework assigns the Lorentz signature
      to the alpha = 2 closure, so this is NOT the alpha -> 1^- edge; kept for record.
 """
@@ -230,6 +232,75 @@ def section_C():
     print(f"      power law, eps=1e-3: E = {(1 / a) ** (1 / a):.4f} + 0i")
 
 
+# --------------------------------------------------------------------------- section D
+def section_D():
+    print("=" * 78)
+    print("D. Readout: one carrier as two factors, and composition (Sec. 6.5)")
+    rng = np.random.default_rng(3)
+    rnd = lambda n: rng.normal(size=(n, n)) + 1j * rng.normal(size=(n, n))
+    def basis(n):
+        U, _ = np.linalg.qr(rnd(n))
+        return [np.outer(U[:, k], U[:, k].conj()) for k in range(n)]
+    prob = lambda Q, P: np.trace(P @ Q).real / np.trace(Q).real
+    sig = [np.array([[0, 1], [1, 0]]), np.array([[0, -1j], [1j, 0]]), np.array([[1, 0], [0, -1]])]
+    # D1 one carrier: JJ^dag = Tr_right |J>><<J|, concurrence = 1/gamma
+    e1 = e2 = 0.0
+    for _ in range(200):
+        J = rnd(2)
+        rho = np.outer(J.reshape(4), J.reshape(4).conj()).reshape(2, 2, 2, 2)
+        e1 = max(e1, np.max(np.abs(np.einsum("ijkj->ik", rho) - J @ J.conj().T)))
+        Q = J @ J.conj().T
+        x0 = np.trace(Q).real / 2
+        xv = np.array([np.trace(Q @ s_).real / 2 for s_ in sig])
+        C = 2 * abs(np.linalg.det(J)) / np.trace(Q).real
+        e2 = max(e2, abs(C - math.sqrt(1 - (np.linalg.norm(xv) / x0) ** 2)))
+    print(f"   D1 one carrier (200 random J): max|Tr_right|J>><<J| - JJ^dag| = {e1:.1e},"
+          f"  max|C - 1/gamma| = {e2:.1e}")
+    # D2 trace readout = Born for rank-one carriers, any N
+    worst = 0.0
+    for N in (2, 4, 16, 1024):
+        Psi = rng.normal(size=N) + 1j * rng.normal(size=N)
+        eta = rng.normal(size=N) + 1j * rng.normal(size=N)
+        eta /= np.linalg.norm(eta)
+        J = np.outer(Psi, eta.conj())
+        Q = J @ J.conj().T
+        U, _ = np.linalg.qr(rnd(N))
+        pm = np.real(np.einsum("im,ij,jm->m", U.conj(), Q, U)) / np.trace(Q).real
+        born = np.abs(U.conj().T @ Psi) ** 2 / np.vdot(Psi, Psi).real
+        worst = max(worst, np.max(np.abs(pm - born)))
+    print(f"   D2 Tr(P_m JJ^dag)/Tr(JJ^dag) vs |<Phi_m|Psi>|^2/|Psi|^2, N in {{2,4,16,1024}}: max diff = {worst:.1e}")
+    # D3 composition: product statistics and marginal consistency
+    JA, JB = rnd(2), rnd(2)
+    Q = np.kron(JA, JB) @ np.kron(JA, JB).conj().T
+    PA, PB = basis(2), basis(2)
+    e3 = max(abs(prob(Q, np.kron(a, b)) - prob(JA @ JA.conj().T, a) * prob(JB @ JB.conj().T, b))
+             for a in PA for b in PB)
+    J = rnd(4)
+    Q = J @ J.conj().T
+    QA = np.einsum("ijkj->ik", Q.reshape(2, 2, 2, 2))
+    e4 = max(abs(prob(Q, np.kron(a, np.eye(2))) - prob(QA, a)) for a in PA)
+    print(f"   D3 product J_A(x)J_B: max|p(m,n) - pA pB| = {e3:.1e};  rank-{np.linalg.matrix_rank(J)} J_AB:"
+          f" marginal mismatch = {e4:.1e}")
+    # D4 rank of J_AB versus A-B entanglement
+    phi = np.array([1, 0, 0, 1]) / math.sqrt(2)
+    J = np.outer(phi, np.array([1, 0, 0, 0]))
+    Q = J @ J.conj().T
+    QA = np.einsum("ijkj->ik", Q.reshape(2, 2, 2, 2))
+    print(f"   D4 J_AB = Phi+ eta^dag: rank {np.linalg.matrix_rank(J)}, Tr_B Q = diag"
+          f"({QA[0, 0].real:.2f}, {QA[1, 1].real:.2f})  (pure, maximally A-B entangled)")
+    # D5 intrinsic normalization: det = 0 is not enough above M_2
+    import itertools
+    def max_minor(J):
+        n = J.shape[0]
+        return max(abs(np.linalg.det(J[np.ix_(r, c)])) for r in itertools.combinations(range(n), 2)
+                   for c in itertools.combinations(range(n), 2))
+    for name, J in (("2|Phi+><Phi+|", 2 * np.outer(phi, phi)), ("diag(2,2,0,0)", np.diag([2.0, 2, 0, 0])),
+                    ("diag(2,2,2,0)", np.diag([2.0, 2, 2, 0]))):
+        ok = np.allclose(2 * J, J @ J.conj().T)
+        print(f"   D5 {name:14s} 2J=JJ^dag: {ok}, det = {abs(np.linalg.det(J)):.0f},"
+              f" max 2x2 minor = {max_minor(J):.0f}, tr P = {np.trace(J / 2).real:.0f}")
+
+
 # --------------------------------------------------------------------------- appendix C
 def cone_symbol(alpha, sigma, E, kv):
     """(sigma i)^(-alpha) * M(s = -iE, k) for a thin shell at radius v*tau (tau_c = 1)."""
@@ -313,4 +384,5 @@ if __name__ == "__main__":
     section_A()
     section_B()
     section_C()
+    section_D()
     section_cone()
