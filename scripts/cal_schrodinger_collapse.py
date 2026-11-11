@@ -230,6 +230,19 @@ def section_C():
     print("         ~1/tau_w; a delta (tau_w -> 0) kills it instantly. Power law: real roots.")
     a = 1 - 1e-3
     print(f"      power law, eps=1e-3: E = {(1 / a) ** (1 / a):.4f} + 0i")
+    print("   C3 Markov embedding: tau^(a-1)/Gamma(a) = int e^{-s tau} (sin(pi a)/pi) s^(-a) ds")
+    for a in (0.5, 0.9, 0.99):
+        for tau in (0.5, 2.0):
+            u0 = -30.0
+            u = np.linspace(u0, 12, 400001)
+            sv = np.exp(u)
+            c = math.sin(math.pi * a) / math.pi
+            val = np.trapezoid(np.exp(-sv * tau) * c * sv ** (1 - a), u) + c * math.exp((1 - a) * u0) / (1 - a)
+            print(f"      a={a:4.2f} tau={tau:3.1f}: superposition {val:.8f}  exact {tau ** (a - 1) / math.gamma(a):.8f}")
+    for eps in (1e-1, 1e-2, 1e-3, 1e-4):
+        print(f"      eps={eps:7.0e}: embedding weight in s <= 1e-3 (of s <= 1) = {(1e-3) ** eps:.4f}")
+    print("      -> for alpha < 1 a continuum of auxiliary modes; as alpha -> 1^- it collapses")
+    print("         onto the single s = 0 mode, the accumulated state itself.")
 
 
 # --------------------------------------------------------------------------- section D

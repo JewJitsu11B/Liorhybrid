@@ -42,10 +42,11 @@ The limit is one-sided for three reasons. The Weyl integral converges on oscilla
 
 The kernel-blind skeleton at $\alpha=1$ and the Schr\"odinger edge are two scalings of one limit. With the kernel's time unit held fixed, the memory rate vanishes and the past disconnects even from below. The edge exists only if the memory rate $(1-\alpha)/\tau_c$ is held fixed. In that limit the kernel becomes a flat accumulator, not a $\delta$.
 
-The framework has two Markov limits, the forgetful (Dirac) limit and the faithful one~\cite{Info}. Only the faithful limit gives unitary evolution.
+The framework's two Markov limits are the forgetful (Dirac) limit and the faithful (full light-cone) limit~\cite{Info}. A closed system cannot reach the faithful one. The edge reaches neither: it is Markov through the fundamental theorem of calculus.
 \begin{itemize}
-\item In the forgetful limit, and for any normalizable kernel, there is no stationary band at all. The plane-wave equation needs $\lvert\hat w\rvert=\alpha/(\eps\lvert\lambda\rvert)$, while $\lvert\hat w\rvert\le1$, so every mode decays.
-\item As $\alpha\to1^-$ at fixed memory rate, the Weyl kernel becomes the flat accumulator, which retains the whole past. This is the faithful limit, and it is the Schr\"odinger edge. The power law reaches it because it is not normalizable, and because the phase of its symbol is the channel angle.
+\item A Dirac, or any normalizable, memory kernel on the carrier has no stationary band at all. The plane-wave equation needs $\lvert\hat w\rvert=\alpha/(\eps\lvert\lambda\rvert)$, while $\lvert\hat w\rvert\le1$, so every mode decays.
+\item As $\alpha\to1^-$ at fixed memory rate, the Weyl kernel becomes the flat accumulator, whose inverse is $\partial_t$. It keeps the accumulated sum, not the individual contributions, so it is not the faithful limit. For $\alpha<1$ a Markov description of the power-law memory needs a continuum of auxiliary modes. As $\alpha\to1^-$ that continuum collapses onto a single mode, the state itself. The edge is therefore Markov without enlarging the state space and without keeping records.
+\item The power law reaches this limit because it is not normalizable, and because the phase of its symbol is the channel angle.
 \end{itemize}
 
 The edge is Galilean and non-interacting.
@@ -69,7 +70,7 @@ Numerical runs of the field equation, using Weyl integration only, confirm each 
 The companion paper~\cite{Skeleton} obtains the Schr\"odinger form at the edge of the $(\alpha,\text{kernel})$ table adjoining $\alpha=1$ from below, but it consumes an input: Posit~1 assumes a unitary flow $U(t)=e^{i\theta(t)G}$ and then defines $\hat H\equiv i\hbar\dot U U^{-1}$. That step establishes the form of the equation only after unitarity and a generator have been assumed. The present paper removes the posit. The accumulation law itself, read as a field equation, collapses to the Schr\"odinger equation, and unitarity, the one-sidedness of the limit, and the mass formula follow.
 
 \begin{quote}\itshape
-Impose $T=0$ with a power-law memory under causal Weyl integration, and let the memory channel carry the orientation $e^{-i\sigma\alpha\pi/2}$ of Axiom~3. For every $\alpha<1$, the bounded solutions on the whole time line evolve by a unitary group (Theorem~\ref{thm:eternal}). As $\alpha\to1^-$ with the memory rate held fixed, they converge to Schr\"odinger evolution (Theorem~\ref{thm:collapse}). From above, the response to a source runs away or precedes the source (Theorem~\ref{thm:onesided}). Of the framework's two Markov limits, only the faithful one does this. The forgetful (Dirac) limit, like every normalizable kernel, has no stationary band (Theorem~\ref{thm:normalizable}). The edge is Galilean and carries no interaction (\S\ref{sec:galilean}--\ref{sec:nointeraction}), and its trace readout survives tensor composition (\S\ref{sec:composition}).
+Impose $T=0$ with a power-law memory under causal Weyl integration, and let the memory channel carry the orientation $e^{-i\sigma\alpha\pi/2}$ of Axiom~3. For every $\alpha<1$, the bounded solutions on the whole time line evolve by a unitary group (Theorem~\ref{thm:eternal}). As $\alpha\to1^-$ with the memory rate held fixed, they converge to Schr\"odinger evolution (Theorem~\ref{thm:collapse}). From above, the response to a source runs away or precedes the source (Theorem~\ref{thm:onesided}). A Dirac, or any normalizable, memory kernel on the carrier cannot do this, because it has no stationary band (Theorem~\ref{thm:normalizable}). The edge is Markov through the fundamental theorem of calculus instead, without enlarging the state space (Proposition~\ref{prop:embedding}). The edge is Galilean and carries no interaction (\S\ref{sec:galilean}--\ref{sec:nointeraction}), and its trace readout survives tensor composition (\S\ref{sec:composition}).
 \end{quote}
 
 All dynamics in this paper use Weyl integration over the whole past, which is the integral the accumulation law writes. Initial-value (Caputo) problems are not used. A Caputo problem is the Weyl derivative of a history frozen at its initial value for all earlier times. Such a frozen past has zero-frequency content, on which the Weyl integral of the field equation diverges, so a Caputo problem is not a solution of Axiom~\ref{ax:FE}. Starting a solution is instead modelled by a source acting on a zero past (Proposition~\ref{prop:switch}).
@@ -85,7 +86,7 @@ Given these inputs, the following are derived:
 \begin{itemize}
 \item Lemmas~\ref{lem:weyl}--\ref{lem:ops};
 \item Theorems~\ref{thm:eternal}, \ref{thm:collapse}, \ref{thm:onesided} and~\ref{thm:normalizable};
-\item Propositions~\ref{prop:switch}, \ref{prop:rate}, \ref{prop:carrier} and~\ref{prop:composition}, Lemma~\ref{lem:minors}, and Corollary~\ref{cor:scalings}.
+\item Propositions~\ref{prop:switch}, \ref{prop:rate}, \ref{prop:embedding}, \ref{prop:carrier} and~\ref{prop:composition}, Lemma~\ref{lem:minors}, and Corollary~\ref{cor:scalings}.
 \end{itemize}
 The following are not claimed:
 \begin{itemize}
@@ -335,24 +336,30 @@ Part~(1) is Lemma~\ref{lem:weyl}. Part~(2) is immediate from Theorem~\ref{thm:co
 The framework has two Markov limits~\cite[Sec.~1]{Info}.
 \begin{itemize}
 \item In the \emph{forgetful} (Dirac) limit the kernel concentrates at zero lag, and nothing of the past enters.
-\item In the \emph{faithful} limit the kernel retains every contribution of the past without loss, so the present state carries the whole history.
+\item In the \emph{faithful} (light-cone) limit the kernel retains every contribution of the past distinctly, so the present state carries the whole history. A closed system, with conserved mass and energy, cannot reach it~\cite[Sec.~2]{Info}.
 \end{itemize}
-This section shows three things. The forgetful limit cannot give unitary evolution. The $\alpha\to1^-$ edge at fixed memory rate is the faithful limit. The corner $\alpha=1$ at fixed time unit is neither: there the past simply disconnects. It then records the structure of the edge: it is Galilean, it carries no interaction, and its readout survives tensor composition.
+This section shows three things.
+\begin{itemize}
+\item A Dirac memory kernel on the carrier cannot give unitary evolution.
+\item The edge is Markov through the fundamental theorem of calculus instead. The carrier is the flat accumulation of the past, and the law for its rate is local. That keeps the accumulated sum, not each contribution, so it is not the faithful limit, and it needs neither records nor a larger state space.
+\item The corner $\alpha=1$ at fixed time unit is different again: there the past simply disconnects.
+\end{itemize}
+The section then records the structure of the edge: it is Galilean, it carries no interaction, and its readout survives tensor composition.
 
-\subsection{The corner and the faithful limit}
+\subsection{The corner and the accumulator}
 
 \begin{proposition}[Memory rate]\label{prop:rate}
 $\rho_\eps(\tau)=\eps\,\tau_c^{-1+\eps}\tau^{-\eps}/\Gamma(1-\eps)$.
 \begin{enumerate}
 \item With $\tau_c$ fixed, $\rho_\eps\to0$ uniformly on compact lag intervals. The past disconnects even from below, and the edge degenerates to the skeleton (Corollary~\ref{cor:scalings}(1)).
-\item With $\tau_c=\eps/\kappa$, $\rho_\eps(\tau)\to\kappa$ for every fixed $\tau>0$. The kernel becomes the flat accumulator of rate $\kappa$, which retains every contribution of the past. This is the faithful limit, not a $\delta$.
+\item With $\tau_c=\eps/\kappa$, $\rho_\eps(\tau)\to\kappa$ for every fixed $\tau>0$. The kernel becomes the flat accumulator of rate $\kappa$, the accumulator of the fundamental theorem of calculus. It weights every contribution equally but keeps only their sum, so it is neither a $\delta$ nor the faithful limit.
 \end{enumerate}
 \end{proposition}
 
 \begin{proof}
 For~(1), $\rho_\eps\le C\eps\,\tau^{-\eps}$ on compacts. For~(2), $\rho_\eps=\kappa^{1-\eps}\eps^{\eps}\tau^{-\eps}/\Gamma(1-\eps)$, and $\eps^\eps\to1$, $\tau^{-\eps}\to1$, $\Gamma(1-\eps)\to1$. \end{proof}
 
-\subsection{The forgetful (Dirac) limit: no stationary band}
+\subsection{A Dirac memory kernel: no stationary band}
 
 \begin{theorem}[Normalizable kernels have no stationary band]\label{thm:normalizable}
 Replace the power law in~\eqref{eq:FE} by a lag weight $w\ge0$ with $\int_0^\infty w=1$, of any width. This includes every family $w\to\delta$.
@@ -380,8 +387,23 @@ The real part is the Schr\"odinger frequency. But every mode decays at the inver
 \begin{remark}[Why the power law]\label{rem:powerlaw}
 The power-law kernel is not normalizable, since $\int_0^\infty\tau^{\alpha-1}d\tau=\infty$. Its symbol $(-iE\tau_c/\hbar)^{-\alpha}$ is unbounded as $E\to0$. So $\lvert\text{symbol}\rvert=\alpha/(\eps\lambda)$ is met at a finite real energy $E=E_c(\eps\lambda/\alpha)^{1/\alpha}$, which is the stationary band of Theorem~\ref{thm:eternal}. The symbol's phase is exactly the channel angle $\alpha\pi/2$, which is how~\cite[Def.~2.2]{Skeleton} defines the channel angle.
 
-Infinite total memory weight, multiplied by a vanishing $\eps$, gives the finite rate of Proposition~\ref{prop:rate}(2). The edge is therefore the faithful Markov limit, reached from a law with memory (power law, full width). The forgetful limit damps; the faithful limit is unitary (Theorem~\ref{thm:eternal}). In the table of~\cite{Skeleton}, the Schr\"odinger form belongs in the full-width (power-law) column at $1^-$, not in the $\delta$ column. Posit~1 was covering the $\delta$ column's lack of a stationary band.
+Infinite total memory weight, multiplied by a vanishing $\eps$, gives the finite rate of Proposition~\ref{prop:rate}(2). The edge is therefore Markov through the fundamental theorem of calculus, reached from a law with memory (power law, full width). A Dirac memory kernel damps; the accumulator is unitary (Theorem~\ref{thm:eternal}). In the table of~\cite{Skeleton}, the Schr\"odinger form belongs in the full-width (power-law) column at $1^-$, not in the $\delta$ column. Posit~1 was covering the $\delta$ column's lack of a stationary band.
 \end{remark}
+
+\begin{proposition}[Markov without enlarging the state space]\label{prop:embedding}
+For $0<\alpha<1$ the power-law kernel is a superposition of exponentials,
+\[
+\frac{\tau^{\alpha-1}}{\Gamma(\alpha)}=\int_0^\infty e^{-s\tau}\mu_\alpha(s)\,ds,\qquad \mu_\alpha(s)=\frac{\sin\pi\alpha}{\pi}\,s^{-\alpha},
+\]
+so $W^\alpha J=\int_0^\infty\mu_\alpha(s)\,y_s\,ds$, with auxiliary modes obeying $\dot y_s=-s\,y_s+J$. A Markov description of the memory at $\alpha<1$ therefore needs a continuum of auxiliary modes, which is an enlarged state space.
+
+As $\alpha\to1^-$ the weight $\mu_\alpha$ concentrates at $s=0$: on any interval $[0,S]$, the fraction of its mass in $[0,\delta]$ is $(\delta/S)^{1-\alpha}\to1$. The continuum collapses onto the single mode $y_0=\int^tJ$, which is the accumulated state itself, and the enlargement disappears.
+\end{proposition}
+
+\begin{proof}
+Use $\int_0^\infty s^{-\alpha}e^{-s\tau}ds=\Gamma(1-\alpha)\tau^{\alpha-1}$ and $\Gamma(\alpha)\Gamma(1-\alpha)=\pi/\sin\pi\alpha$. Each $y_s(t)=\int_{-\infty}^te^{-s(t-t')}J(t')\,dt'$ satisfies $\dot y_s=-sy_s+J$. The mass fraction is $\int_0^\delta s^{-\alpha}ds\big/\int_0^Ss^{-\alpha}ds=(\delta/S)^{1-\alpha}$. \end{proof}
+
+So the edge needs neither records nor extra state. The faithful limit, which would keep every contribution distinct, is not what it uses.
 
 
 \subsection{Causal structure: the edge is Galilean}\label{sec:galilean}
@@ -622,7 +644,7 @@ ${\rm diag}(2,2,0,0)$: $\det J$, largest $2\times2$ minor, ${\rm tr}\,P$ & $0$, 
 Corollary~\ref{cor:scalings} and Theorem~\ref{thm:normalizable} make~\cite[Rem.~7.3]{Skeleton} precise.
 \begin{itemize}
 \item If the memory weight vanishes at fixed time unit, the past disconnects and the carrier freezes.
-\item If it vanishes at fixed memory rate, the memory becomes the Hamiltonian. That is the faithful limit, and it needs a memory of infinite total weight. A normalizable memory, however narrow, is forgetful and cannot supply a unitary generator.
+\item If it vanishes at fixed memory rate, the memory becomes the Hamiltonian. That needs a memory of infinite total weight, which accumulates the past as a sum rather than keeping each contribution. A normalizable memory, however narrow, cannot supply a unitary generator.
 \end{itemize}
 The Schr\"odinger generator is the image of an infinite accumulated past under the double scaling, transported one way, with no return leg.
 \end{remark}
