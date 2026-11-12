@@ -19,7 +19,13 @@ Sections
   5  Positive frequency: composition on the pair (J, dJ/dt), unitary evolution, the
      nonrelativistic limit to Feynman's free kernel, and why the positive-frequency
      restriction is needed for the trace readout.
+  6  Test of the channel phase as alpha -> 2-: with the phase e^{-i sigma alpha pi/2} on the
+     memory, the field equation is time-stepped directly (per k-mode, zero past, real source).
+     With (1 - alpha) r1 > 0 the phase selects one sign of frequency (sgn E = sigma) as exactly
+     stationary for every alpha < 2, and the other sign decays at (pi/2)(2 - alpha) mu / gamma.
+     At alpha = 2 it coincides with the additive law.  With r1 > 0 every k has a growing mode.
 """
+import cmath
 import math
 import numpy as np
 
@@ -280,6 +286,134 @@ def section_5():
           f"  (value {kg.mean():.3f}; the (-) part counts negatively)")
 
 
+# --------------------------------------------------------------------------- section 6
+def m_complex(a, E, b):
+    """Light-cone symbol at s = -iE (tau_c = 1); principal branch, continued below the real axis."""
+    s = -1j * E
+    if abs(a - 2) < 1e-14:
+        return 1 / (s * s + b * b)
+    return ((s - 1j * b) ** (1 - a) - (s + 1j * b) ** (1 - a)) / (2j * b * (a - 1))
+
+
+def F_disp(a, E, b, r1, ph):
+    """Symbol of T = alpha J - (1 - alpha) r1 ph K_alpha J on e^{-iEt + ikx}."""
+    return a + (a - 1) * r1 * ph * m_complex(a, E, b)
+
+
+def newton_c(f, z):
+    for _ in range(100):
+        d = (f(z + 1e-7) - f(z - 1e-7)) / 2e-7
+        if d == 0:
+            break
+        dz = f(z) / d
+        z -= dz
+        if abs(dz) < 1e-15:
+            break
+    return z
+
+
+def uhp_zero_count(a, b, r1, ph, X=12.0, Y=12.0, eta=1e-7, n=20000):
+    """Winding number of the symbol on [-X, X] x [eta, Y]: zeros with Im E > 0 are growing modes."""
+    z = np.concatenate([np.linspace(-X, X, n) + 1j * eta, X + 1j * np.linspace(eta, Y, n),
+                        np.linspace(X, -X, n) + 1j * Y, -X + 1j * np.linspace(Y, eta, n)])
+    ang = np.unwrap(np.angle([F_disp(a, zz, b, r1, ph) for zz in z]))
+    return (ang[-1] - ang[0]) / (2 * PI)
+
+
+def time_step(a, b, r1, ph, T=200.0, h=0.02, t0=10.0, w=1.0):
+    """alpha J + (alpha - 1) r1 ph (K * J) = S for one k-mode, trapezoid product rule, zero past.
+
+    K(tau) = tau^(alpha-1) sinc(b tau) / Gamma(alpha), so K(0) = 0 and the step is explicit.
+    """
+    N = int(T / h) + 1
+    t = np.arange(N) * h
+    K = np.zeros(N)
+    K[1:] = t[1:] ** (a - 1) * np.sinc(b * t[1:] / PI) / math.gamma(a)
+    S = np.exp(-(t - t0) ** 2 / (2 * w * w))
+    J = np.zeros(N, complex)
+    J[0] = S[0] / a
+    coef = (a - 1) * r1 * ph * h
+    for n in range(1, N):
+        conv = np.dot(K[1:n + 1], J[n - 1::-1]) - 0.5 * K[n] * J[0]
+        J[n] = (S[n] - coef * conv) / a
+        if abs(J[n]) > 1e12:
+            return t[:n + 1], J[:n + 1]
+    return t, J
+
+
+def frequency_split(t, J):
+    """Parts with E > 0 and E < 0 in the e^{-iEt} convention."""
+    Jh = np.fft.fft(J)
+    E = -2 * PI * np.fft.fftfreq(len(J), d=t[1] - t[0])
+    return np.fft.ifft(np.where(E > 0, Jh, 0)), np.fft.ifft(np.where(E < 0, Jh, 0))
+
+
+def section_6():
+    print("=" * 78)
+    print("6. Test: the channel phase e^{-i sigma alpha pi/2} on the memory, as alpha -> 2-")
+    print("   T = alpha J - (1 - alpha) r1 ph K_alpha J;  |r1| = 2 so mu^2 = 1 at alpha = 2;  units hbar = c = tau_c = 1")
+    configs = (("additive, r1 = +2", 2.0, None), ("phase s=-1, r1 = -2", -2.0, -1),
+               ("phase s=+1, r1 = -2", -2.0, +1), ("phase s=-1, r1 = +2", 2.0, -1))
+
+    def phase(a, sig):
+        return 1.0 if sig is None else cmath.exp(-1j * sig * a * PI / 2)
+
+    print("   6a growing modes (zeros with Im E > 0), k = 0.1, 0.5, 1, 2, 5:")
+    for label, r1, sig in configs:
+        row = [f"a={a}: " + ",".join(f"{uhp_zero_count(a, b, r1, phase(a, sig)):.0f}" for b in (0.1, 0.5, 1, 2, 5))
+               for a in (1.9, 1.99)]
+        print(f"      {label:21s} " + "   ".join(row))
+    print("   6b time-stepped field equation, k = 1, real Gaussian source (both signs of E driven equally):")
+    print(f"      {'config':21s} {'alpha':>5} {'|J(E>0)| t=60':>14} {'t=180':>9} {'|J(E<0)| t=60':>14} {'t=180':>9}"
+          f"   root decay rates (E>0, E<0)")
+    for label, r1, sig in configs[:3]:
+        for a in (1.95, 1.99, 2.0):
+            ph = phase(a, sig)
+            t, J = time_step(a, 1.0, r1, ph)
+            Jp, Jm = frequency_split(t, J)
+            i60, i180 = int(round(60 / 0.02)), int(round(180 / 0.02))
+            rp = -newton_c(lambda E: F_disp(a, E, 1.0, r1, ph), 1.4 + 0.01j).imag
+            rm = -newton_c(lambda E: F_disp(a, E, 1.0, r1, ph), -1.4 + 0.01j).imag
+            print(f"      {label:21s} {a:5.2f} {abs(Jp[i60]):14.3e} {abs(Jp[i180]):9.3e} {abs(Jm[i60]):14.3e}"
+                  f" {abs(Jm[i180]):9.3e}   ({rp:+.2e}, {rm:+.2e})")
+    for a, b in ((1.9, 1.0), (2.0, 0.5)):
+        t, J = time_step(a, b, 2.0, phase(a, -1))
+        print(f"      phase s=-1, r1 = +2   alpha = {a}, k = {b}: |J| reaches {np.max(np.abs(J)):.1e} by t = {t[-1]:.0f}")
+    print("   6c phase s=-1, r1 = -2: real zeros (the only modes bounded on the whole time line), E in [-20, 20]:")
+    for a in (1.9, 1.99):
+        ph = phase(a, -1)
+        out = []
+        for b in (0.1, 1.0, 5.0):
+            E = np.linspace(-20, 20, 40001)
+            E = E[np.abs(np.abs(E) - b) > 1e-6]
+            v = np.abs([F_disp(a, e, b, -2.0, ph) for e in E])
+            idx = [i for i in range(1, len(v) - 1) if v[i] < v[i - 1] and v[i] < v[i + 1] and v[i] < 5e-2]
+            roots = sorted({round(newton_c(lambda z: F_disp(a, z, b, -2.0, ph), complex(E[i])).real, 6)
+                            for i in idx})
+            out.append(f"k={b}: {roots}")
+        print(f"      a={a}: " + "   ".join(out))
+    print("   6d decay of the other sign:  rate x |E| / (E^2 - k^2)  vs  (pi/2)(2 - alpha)")
+    for a in (1.99, 1.999):
+        ph = phase(a, -1)
+        row = []
+        for b in (1e-4, 1.0, 4.0, 8.0):
+            z = newton_c(lambda E: F_disp(a, E, b, -2.0, ph), complex(math.sqrt(b * b + 1), 0.01))
+            row.append(f"k={b:g}: {-z.imag * abs(z.real) / (z.real ** 2 - b * b):.5f}")
+        print(f"      a={a}: (pi/2)(2-a) = {PI / 2 * (2 - a):.5f};  " + "  ".join(row))
+    print("   6e stationary branch vs Klein-Gordon, max_k |E^2 - k^2 - E(0)^2| / E(0)^2 over k in [0, 8]:")
+    row = []
+    for a in (1.9, 1.99, 1.999, 2.0):
+        ph = phase(a, -1)
+        Es = [(b, newton_c(lambda E: F_disp(a, E, b, -2.0, ph), complex(-math.sqrt(b * b + 1))).real)
+              for b in np.linspace(1e-4, 8, 41)]
+        E0 = Es[0][1] ** 2
+        row.append(f"a={a}: {max(abs(e * e - b * b - E0) for b, e in Es) / E0:.1e}")
+    print("      " + "   ".join(row))
+    print("   -> with (1 - alpha) r1 > 0 the phase keeps sgn E = sigma exactly stationary for every alpha < 2;")
+    print("      the other sign decays at (pi/2)(2 - alpha) mu / gamma (proper-time rate); at alpha = 2 the law")
+    print("      is the additive law.  With r1 > 0 (the edge's sign) every k has a growing mode.")
+
+
 if __name__ == "__main__":
     section_1()
     section_2()
@@ -287,3 +421,4 @@ if __name__ == "__main__":
     section_3b()
     section_4()
     section_5()
+    section_6()
