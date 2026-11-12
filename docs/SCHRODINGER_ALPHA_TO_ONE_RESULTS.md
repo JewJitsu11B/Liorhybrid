@@ -14,7 +14,8 @@
 - Lorentz action on the closure: left $SL(2,\mathbb C)$ acts on $JJ^\dagger$ as the Lorentz group. Rotations leave the entanglement unchanged; boosts change it, with $C=\operatorname{sech}\eta$ and Schmidt weights $\propto e^{\pm\eta}$ (Doppler factors). So a carrier's internal entanglement is the time dilation of its current. The Lorentz structure of qubits is itself known (Verstraete–Dehaene–De Moor; Samuel–Shivam–Sinha); the reading is the new part.
 - The trace readout ${\rm Tr}(P_mJJ^\dagger)/{\rm Tr}(JJ^\dagger)$ survives composition at any rank. Product carriers give product statistics, and marginals are consistent.
 - Intrinsic normalization above $M_2$ needs $\Lambda^2J=0$ (all $2\times2$ minors vanish), not just $\det J=0$.
-- The edge equation is linear in $J$, so it cannot create entanglement between carriers; that needs $\alpha=2$.
+- The edge operator contains only single-carrier, one-way transport, so it cannot create entanglement between carriers. The reason is the transport structure, not linearity: a coupling would need its adjoint, the return leg, to stay unitary, and reciprocal structure belongs to $\alpha=2$.
+- The kinetic term is a scaling limit, not a truncation. With the full spatial symbol $r_1\hat g(-i\nabla)$, shrinking the width at fixed $\hbar^2/2m$ gives $\hbar^2k^2/2m$ exactly; with a Gaussian profile no energy cap remains.
 
 ---
 
@@ -25,7 +26,7 @@
 3. **The limit is one-sided.**
    - The Weyl integral converges only for $\alpha<1$.
    - The memory-generated coefficients change sign across $\alpha=1$.
-   - From above, the response to a source either runs away or precedes the source. That is the Abraham–Lorentz–Dirac dichotomy, and the runs show both branches.
+   - Above $\alpha=1$ the one-way edge equation has no causal, bounded continuation: its response to a source grows or precedes the source. This is a property of that equation, not of the framework on $(1,2]$, and no third derivative is involved. The runs show both branches.
 4. **Two Markovian regimes, neither sufficient.**
    - At $\alpha=1$ the past disconnects. With the kernel's time unit $\tau_c$ fixed, it disconnects even from below: the memory rate is about $\varepsilon$.
    - A normalizable kernel, including any $\delta$-like one, has no stationary band, because $\lvert\hat w\rvert\le1<\alpha/(\varepsilon\lvert\lambda\rvert)$. A narrow exponential kernel gets the real part of the energy right but decays at $1/\tau_w$.
@@ -50,20 +51,29 @@
 
 ---
 
-## 3. Factorized kernel ($\sigma=-1$, $m=1$, $E_{\rm cap}=4$)
+## 3. Lag-independent kernel ($\sigma=-1$, Gaussian profile, $\langle r^2\rangle=0.75$, $A=4$, $\hbar^2/2m=1/2$)
 
-**A. Bounded solutions on the whole time line.** Packet: $k_0=1$, width 2.
+**A. Bounded solutions on the whole time line**, with the full symbol. Every mode is stationary, so there is no cap. Packet: $k_0=1$, width 2.
 
 | $\varepsilon$ | $\max\lvert E_\alpha-E_1\rvert$ | $\varepsilon\max\Lambda\lvert1+\ln\Lambda\rvert$ | ratio | phase-aligned packet error, $t\le40$ | norm drift |
 |---|---|---|---|---|---|
-| 1e-1 | 1.246 | 0.954 | 1.305 | 1.41 | 3e-16 |
-| 1e-2 | 9.78e-2 | 9.55e-2 | 1.025 | 3.30e-1 | 3e-16 |
-| 1e-3 | 9.57e-3 | 9.55e-3 | 1.002 | 3.27e-2 | 3e-16 |
-| 3e-4 | 2.87e-3 | 2.86e-3 | 1.001 | 9.80e-3 | 3e-16 |
+| 1e-1 | 1.246 | 0.954 | 1.305 | 1.41 | 6e-16 |
+| 1e-2 | 9.78e-2 | 9.55e-2 | 1.025 | 2.87e-1 | 4e-16 |
+| 1e-3 | 9.57e-3 | 9.55e-3 | 1.002 | 2.83e-2 | 6e-16 |
+| 3e-4 | 2.87e-3 | 2.86e-3 | 1.001 | 8.47e-3 | 6e-16 |
+
+**A2. Width scaling** (Gaussian, $A\langle r^2\rangle/6=\hbar^2/2m=1/2$ fixed). The table gives the relative error of the kinetic term; the bound is $\langle r^2\rangle k^2/12$.
+
+| $\langle r^2\rangle$ | offset $-A$ | $k=0.5$ | $k=1$ | $k=2$ | $k=4$ | bound at $k=4$ |
+|---|---|---|---|---|---|---|
+| 1 | −3 | 2.05e-2 | 7.89e-2 | 0.270 | 0.651 | 1.33 |
+| 0.1 | −30 | 2.08e-3 | 8.29e-3 | 3.26e-2 | 0.122 | 0.133 |
+| 0.01 | −300 | 2.08e-4 | 8.33e-4 | 3.33e-3 | 1.32e-2 | 1.33e-2 |
+| 0.001 | −3000 | 2.08e-5 | 8.33e-5 | 3.33e-4 | 1.33e-3 | 1.33e-3 |
 
 **B. Source-driven runs.** The integral equation $T=S$ is time-stepped directly: Weyl integration over a zero past, full history kept, a Gaussian pulse at $t_0=10$ of width 2.
 
-*B1. Below the cap ($\Lambda=+1$).* After the pulse, the mode oscillates forever at the residue amplitude.
+*B1. Modes with $\Lambda=+1$.* After the pulse, the mode oscillates forever at the residue amplitude.
 
 | $\alpha$ | $h$ | mean $\lvert J\rvert$, $t\in[80,120]$ | prediction | ratio |
 |---|---|---|---|---|
@@ -74,7 +84,7 @@
 | 1.000 | 0.01 | 5.01264 | 5.01326 | 0.99988 |
 | 1.010 | 0.01 | 4.86571 | 4.86630 | 0.99988 |
 
-*B2. Above the cap ($\Lambda=-1$).* The zero of the response function, compared with the measured late-time rate.
+*B2. Modes with $\Lambda=-1$.* Below $\alpha=1$ these exist only if $\hat g$ changes sign; above $\alpha=1$ they are the whole sector. The zero of the response function, compared with the measured late-time rate.
 
 | $\alpha$ | zero | $-{\rm Im}\,E$ | measured rate |
 |---|---|---|---|

@@ -15,11 +15,13 @@ The limit alpha -> 1^- is taken with Lambda held fixed (the double scaling).
 Units: hbar = tau_c = 1, so E_c = 1.  Requires numpy only.
 
 Sections
-  A  Factorized kernel, eternal (Weyl) solutions: exact dispersion and wave-packet
-     error against Schrodinger as eps -> 0.                          (Theorems 1, 2)
+  A  Bounded (Weyl) solutions with the full spatial symbol r1 g^(-i nabla): dispersion
+     and wave-packet error against Schrodinger as eps -> 0; then the width scaling
+     <r^2> -> 0 at fixed hbar^2/2m, which makes the kinetic term exact.  (Thm 5.1-5.2, Prop 5.4)
   B  Factorized kernel, source-driven solutions: the integral field equation T = S is
      time-stepped with Weyl integration and a zero past (no Caputo data); persistent
-     response, decay above the cap, runaway or preacceleration from above. (Thm 2, 3)
+     response for Lambda > 0; for Lambda < 0, decay below alpha = 1 and no causal,
+     bounded continuation above it.                                     (Prop 5.6, Thm 5.8)
   C  The two Markovian regimes: memory rate with a fixed time unit (the past
      disconnects even from below) versus a shrinking one (flat accumulator), and a
      normalizable (narrow, delta-like) kernel, which has no stationary band.  (Sec. 6)
@@ -105,25 +107,21 @@ def gauss_packet(N=2048, L=400.0, x_width=2.0, k0=1.0):
 # --------------------------------------------------------------------------- section A
 def section_A():
     print("=" * 78)
-    print("A. Factorized kernel, eternal (Weyl) solutions  [sigma = -1, m = 1, E_cap = 4]")
-    print("   Lambda(k) = (E_cap - K)/E_c, K = k^2/2m.  Stationary energy on Lambda >= 0:")
-    print("   E_alpha = -E_c (Lambda/alpha)^(1/alpha);  Schrodinger: E_1 = K - E_cap.")
-    m, Ecap = 1.0, 4.0
+    print("A. Bounded (Weyl) solutions, full spatial symbol  [sigma = -1, Gaussian profile]")
+    print("   Lambda(k) = (A/E_c) g^(k), g^(k) = exp(-<r^2> k^2/6), A = eps E_c r1. Stationary energy:")
+    print("   E_alpha = -E_c (Lambda/alpha)^(1/alpha);  alpha -> 1: E_1 = -A g^(k).")
+    print("   <r^2> = 0.75, A = 4, so hbar^2/2m = A <r^2>/6 = 1/2 (m = 1). g^ > 0: no cap.")
+    r2, A = 0.75, 4.0
     x, k, phik = gauss_packet()
-    K = k ** 2 / (2 * m)
-    lam = Ecap - K
-    above = np.sum(np.abs(phik[lam < 0]) ** 2)
-    print(f"   packet: k0 = 1, width 2; probability above the cap = {above:.1e} (dropped)")
-    phik = np.where(lam >= 0, phik, 0)
+    lam = A * np.exp(-r2 * k ** 2 / 6)                 # every mode stationary (Lambda > 0)
     times = np.linspace(0, 40, 81)
     E1 = -lam
     print(f"   {'eps':>8} {'max|E_a-E_1|':>13} {'eps*max L|1+lnL|':>17} {'ratio':>6}"
           f" {'sup_t err':>10} {'phase-aligned':>14} {'/eps':>7} {'norm drift':>11}")
     for eps in (1e-1, 3e-2, 1e-2, 3e-3, 1e-3, 3e-4):
         a = 1 - eps
-        L = np.clip(lam, 0, None)
-        Ea = -(L / a) ** (1 / a)
-        Lin = np.linspace(1e-9, Ecap, 4000)
+        Ea = -(lam / a) ** (1 / a)
+        Lin = np.linspace(1e-9, A, 4000)
         dmax = np.max(np.abs(-(Lin / a) ** (1 / a) + Lin))
         bound = eps * np.max(Lin * np.abs(1 + np.log(Lin)))
         errs, perrs, drift = [], [], 0.0
@@ -140,6 +138,17 @@ def section_A():
     print("   -> energy error -> eps * max L|1+ln L| (the first-order term; ratio -> 1).")
     print("      The raw packet error is mostly a global phase drift (the constant term);")
     print("      with that removed, the observable error is linear in eps. Norm is exact.")
+    print("   A2 width scaling: K(k) = A (1 - g^(k)) vs hbar^2 k^2/2m, A <r^2>/6 = 1/2 held fixed")
+    ks = np.array([0.5, 1.0, 2.0, 4.0])
+    print(f"      {'<r^2>':>7} {'offset -A':>10}   relative error at k = 0.5, 1, 2, 4"
+          f"          bound <r^2>k^2/12 at k = 4")
+    for r2 in (1.0, 0.1, 0.01, 0.001):
+        A = 3.0 / r2
+        K = A * (1 - np.exp(-r2 * ks ** 2 / 6))
+        rel = np.abs(K - ks ** 2 / 2) / (ks ** 2 / 2)
+        print(f"      {r2:7.3f} {-A:10.1f}   " + "  ".join(f"{v:.2e}" for v in rel) + f"   {r2 * 16 / 12:.2e}")
+    print("   -> the kinetic term is exactly hbar^2 k^2/2m in the limit; the offset is a global")
+    print("      phase. The truncation r0 nabla^2 + r1 is not assumed.")
 
 
 # --------------------------------------------------------------------------- section B
@@ -150,8 +159,8 @@ def section_B():
     print("   Response function G(E) = (sigma i)^a (-iE)^a / (g_a(E) - lam) is analytic in Im E > 0")
     print("   except at roots of g_a(E) = lam.")
     sigma = -1
-    # B1: persistent response below the cap = residue at the real pole
-    print("   B1 below the cap (lam = +1): late amplitude vs residue at the real pole E_lam")
+    # B1: Lambda > 0: persistent response = residue at the real pole
+    print("   B1 Lambda = +1: late amplitude vs residue at the real pole E_lam")
     print(f"      {'alpha':>6} {'h':>6} {'mean|J|, t in [80,120]':>23} {'residue prediction':>19}"
           f" {'ratio':>8}")
     for a in (0.9, 0.99, 0.999, 1.0, 1.01):
@@ -166,8 +175,9 @@ def section_B():
     print("      -> after the pulse the mode oscillates forever at constant amplitude: the")
     print("         stationary (unitary) solution of Theorem 2, excited causally.")
 
-    # B2: above the cap: pole off the real axis
-    print("   B2 above the cap (lam = -1): pole of G and measured late-time rate")
+    # B2: Lambda < 0: pole off the real axis
+    print("   B2 Lambda = -1 (below alpha = 1 only if g^ changes sign; above alpha = 1 the whole")
+    print("      sector, since eps < 0): pole of G and measured late-time rate")
     print(f"      {'alpha':>6} {'pole E':>22} {'-Im E (decay)':>14} {'pi*eps*|E|':>11}"
           f" {'measured rate':>14}")
     for a in (0.97, 0.99, 0.999, 1.0, 1.001, 1.01, 1.03):
@@ -179,8 +189,8 @@ def section_B():
         print(f"      {a:6.3f} {Ep.real:+11.6f}{Ep.imag:+10.6f}i {-Ep.imag:+14.4e}"
               f" {PI * (1 - a) * abs(Ep):+11.4e} {rate:+14.4e}")
     print("      -> from below the pole is in Im E < 0: causal decay at pi*eps*|E|.")
-    print("         At alpha = 1 it sits on the real axis. From above it moves to Im E > 0:")
-    print("         the causal response runs away.")
+    print("         At alpha = 1 it sits on the real axis. Above it, Im E > 0: the one-way")
+    print("         edge equation has no causal, bounded continuation past alpha = 1.")
 
     # B3: from above, the bounded alternative is acausal (preacceleration)
     print("   B3 real-axis (bounded) response: amplitude BEFORE the pulse arrives")
@@ -197,8 +207,9 @@ def section_B():
             vals.append(abs(np.sum(Jhat * np.exp(-1j * E * tt)) * dE / (2 * PI)))
         print(f"      {a:6.3f} {vals[0]:12.3e} {vals[1]:12.3e} {vals[2]:12.3e}")
     print("      -> from below the bounded solution is causal (nothing before the pulse, only")
-    print("         the Gaussian's own tail). From above, staying bounded forces a response")
-    print("         that precedes its source: runaway or preacceleration, the ALD dichotomy.")
+    print("         the Gaussian's own tail). Above alpha = 1, staying bounded forces a response")
+    print("         that precedes its source. (Same pole structure as Abraham-Lorentz-Dirac, but")
+    print("         no third derivative: a property of this equation, not of alpha in (1, 2].)")
 
 
 # --------------------------------------------------------------------------- section C

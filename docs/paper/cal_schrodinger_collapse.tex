@@ -34,11 +34,11 @@
 \thanks{ORCID: 0009-0000-0133-2291. Companion to \emph{The Causal Accumulation Law: The Four Corners of $\alpha$, Algebraic Closure, and the Standard Model}~\cite{CAL} and to \emph{The $\alpha=1$ Unitary Skeleton and the Emergence of Schr\"odinger Evolution in the $\delta$-Kernel Limit of the CAL}~\cite{Skeleton}, whose unitarity posit it replaces. Dated November 11, 2026.}
 
 \begin{abstract}
-We impose the Causal Accumulation Law (CAL) as a field equation, $T=0$, with a power-law memory under causal Weyl integration and the channel orientation of the parent framework carried by the memory channel. As the fractional order approaches $\alpha=1$ from below, the field equation collapses to the Schr\"odinger equation.
+We impose the Causal Accumulation Law (CAL) as a field equation, $T=0$, with a power-law memory under causal Weyl integration and the channel orientation of the parent framework carried by the memory channel. As the fractional order approaches $\alpha=1$ from below, the field equation collapses to the Schr\"odinger equation. The kinetic term is not assumed. Keeping the full spatial memory kernel, it is the long-wavelength scaling limit in which the kernel's spatial width shrinks at fixed $\hbar^2/2m$, and no energy cap remains.
 
 Unitarity is derived, not posited. For every $\alpha<1$, the bounded solutions on the whole time line form a strongly continuous unitary group, because the channel phase cancels the phase of the Weyl symbol on one sign of frequency. This replaces the unitarity posit of the companion paper.
 
-The limit is one-sided for three reasons. The Weyl integral converges on oscillating carriers only for $\alpha<1$. The memory-generated coefficients change sign across $\alpha=1$. And from above, the response to a source either runs away at rate $\pi\lvert1-\alpha\rvert\,\lvert E\rvert/\hbar$ or precedes its source, which is the Abraham--Lorentz--Dirac dichotomy.
+The limit is one-sided. The Weyl integral converges on oscillating carriers only for $\alpha<1$, and the memory-generated coefficients change sign across $\alpha=1$. Above $\alpha=1$ the one-way edge equation has no causal, bounded continuation: its response to a source either grows at rate $\pi\lvert1-\alpha\rvert\,\lvert E\rvert/\hbar$ or precedes the source. This is a property of that equation, not of the framework's dynamics on $(1,2]$, which the $\alpha=2$ closure governs.
 
 The kernel-blind skeleton at $\alpha=1$ and the Schr\"odinger edge are two scalings of one limit. With the kernel's time unit held fixed, the memory rate vanishes and the past disconnects even from below. The edge exists only if the memory rate $(1-\alpha)/\tau_c$ is held fixed. In that limit the kernel becomes a flat accumulator, not a $\delta$.
 
@@ -53,7 +53,7 @@ The edge is Galilean and non-interacting.
 \begin{itemize}
 \item The Lorentz signature belongs to the $\alpha=2$ closure, so the edge has no light cone. This is consistent with the instantaneous spatial reach of the Schr\"odinger propagator.
 \item Its generator is built from one-way transports. It therefore gives the free Schr\"odinger form, at most in a fixed one-way background.
-\item The field equation is linear in the carrier, so it describes free quanta and cannot create entanglement between carriers. Creating it needs the $\alpha=2$ closure, in which the carrier enters quadratically.
+\item The edge operator contains only single-carrier, one-way transport. A coupling between carriers would need its adjoint, the return leg, to keep the evolution unitary, and that reciprocal structure belongs to the $\alpha=2$ closure. So the edge cannot create entanglement between carriers.
 \end{itemize}
 
 A single carrier $J\in M_2(\mathbb C)\cong\mathbb C^2\otimes\mathbb C^2$ is itself a two-factor object, and $JJ^\dagger$ is the reduced state of its left factor. Left $SL(2,\mathbb C)$ acts on that closure as the Lorentz group: rotations leave the entanglement between the two factors unchanged, and boosts change it.
@@ -75,7 +75,7 @@ Numerical runs of the field equation, using Weyl integration only, confirm each 
 The companion paper~\cite{Skeleton} obtains the Schr\"odinger form at the edge of the $(\alpha,\text{kernel})$ table adjoining $\alpha=1$ from below, but it consumes an input: Posit~1 assumes a unitary flow $U(t)=e^{i\theta(t)G}$ and then defines $\hat H\equiv i\hbar\dot U U^{-1}$. That step establishes the form of the equation only after unitarity and a generator have been assumed. The present paper removes the posit. The accumulation law itself, read as a field equation, collapses to the Schr\"odinger equation, and unitarity, the one-sidedness of the limit, and the mass formula follow.
 
 \begin{quote}\itshape
-Impose $T=0$ with a power-law memory under causal Weyl integration, and let the memory channel carry the orientation $e^{-i\sigma\alpha\pi/2}$ of Axiom~3. For every $\alpha<1$, the bounded solutions on the whole time line evolve by a unitary group (Theorem~\ref{thm:eternal}). As $\alpha\to1^-$ with the memory rate held fixed, they converge to Schr\"odinger evolution (Theorem~\ref{thm:collapse}). From above, the response to a source runs away or precedes the source (Theorem~\ref{thm:onesided}). A Dirac, or any normalizable, memory kernel on the carrier cannot do this, because it has no stationary band (Theorem~\ref{thm:normalizable}). The edge is Markov through the fundamental theorem of calculus instead, without enlarging the state space (Proposition~\ref{prop:embedding}). The edge is Galilean and carries no interaction (\S\ref{sec:galilean}--\ref{sec:nointeraction}), and its trace readout survives tensor composition (\S\ref{sec:composition}). The carrier's internal entanglement is the time dilation of its current (Proposition~\ref{prop:lorentz}).
+Impose $T=0$ with a power-law memory under causal Weyl integration, and let the memory channel carry the orientation $e^{-i\sigma\alpha\pi/2}$ of Axiom~3. For every $\alpha<1$, the bounded solutions on the whole time line evolve by a unitary group (Theorem~\ref{thm:eternal}). As $\alpha\to1^-$ with the memory rate held fixed, they converge to Schr\"odinger evolution (Theorem~\ref{thm:collapse}). Above $\alpha=1$ the same equation has no causal, bounded continuation (Theorem~\ref{thm:onesided}). The kinetic term is a scaling limit of the full spatial kernel (Proposition~\ref{prop:width}). A Dirac, or any normalizable, memory kernel on the carrier cannot do this, because it has no stationary band (Theorem~\ref{thm:normalizable}). The edge is Markov through the fundamental theorem of calculus instead, without enlarging the state space (Proposition~\ref{prop:embedding}). The edge is Galilean and carries no interaction (\S\ref{sec:galilean}--\ref{sec:nointeraction}), and its trace readout survives tensor composition (\S\ref{sec:composition}). The carrier's internal entanglement is the time dilation of its current (Proposition~\ref{prop:lorentz}).
 \end{quote}
 
 All dynamics in this paper use Weyl integration over the whole past, which is the integral the accumulation law writes. Initial-value (Caputo) problems are not used. A Caputo problem is the Weyl derivative of a history frozen at its initial value for all earlier times. Such a frozen past has zero-frequency content, on which the Weyl integral of the field equation diverges, so a Caputo problem is not a solution of Axiom~\ref{ax:FE}. Starting a solution is instead modelled by a source acting on a zero past (Proposition~\ref{prop:switch}).
@@ -85,13 +85,14 @@ All dynamics in this paper use Weyl integration over the whole past, which is th
 \item the field equation (Axiom~\ref{ax:FE}), which replaces Posit~1 of~\cite{Skeleton};
 \item the kernel class (Definition~\ref{def:kernel}): a power law in the lag with a lag-independent spatial profile;
 \item the framework's assignment of the Lorentz signature to the $\alpha=2$ closure~\cite{CAL}, which makes the causal structure at the edge time ordering only;
-\item the double scaling (Definition~\ref{def:double}), in which the memory rate is held fixed.
+\item the double scaling (Definition~\ref{def:double}), in which the memory rate is held fixed;
+\item the long-wavelength scaling of the spatial kernel (Proposition~\ref{prop:width}), which replaces the second-order truncation used in~\cite[Thm.~6.1(ii)]{Skeleton}.
 \end{itemize}
 Given these inputs, the following are derived:
 \begin{itemize}
 \item Lemmas~\ref{lem:weyl}--\ref{lem:ops};
 \item Theorems~\ref{thm:eternal}, \ref{thm:collapse}, \ref{thm:onesided} and~\ref{thm:normalizable};
-\item Propositions~\ref{prop:switch}, \ref{prop:rate}, \ref{prop:embedding}, \ref{prop:carrier}, \ref{prop:lorentz} and~\ref{prop:composition}, Lemma~\ref{lem:minors}, and Corollary~\ref{cor:scalings}.
+\item Propositions~\ref{prop:width}, \ref{prop:switch}, \ref{prop:rate}, \ref{prop:embedding}, \ref{prop:carrier}, \ref{prop:lorentz} and~\ref{prop:composition}, Lemma~\ref{lem:minors}, and Corollary~\ref{cor:scalings}.
 \end{itemize}
 The following are not claimed:
 \begin{itemize}
@@ -136,13 +137,21 @@ The orientation is $\sigma\in\{+1,-1\}$. By Axiom~3 of~\cite{Skeleton}, the memo
 \begin{definition}[Hilbert sector]\label{def:sector}
 The spaces $\mathcal V$ and $\Hil$, the projection $\Pi_\Hil$ and the map $f_{\rm map}$ are those of~\cite[Defs.~2.3--2.5]{Skeleton}.
 
-On the spinless, gauge-neutral sector $\Hil=L^2(\mathbb R^3)$, translation and rotation invariance give the projected memory the spatial form $\hat R_\Hil=r_0\nabla^2+r_1$~\cite[Thm.~6.1(ii)]{Skeleton}. Here $r_1$ is the coincidence weight of the fiber factors and $r_0=r_1\sigma_g^2/6$, with $\sigma_g^2$ the second moment of $g$. For $r_1>0$ this gives $r_0>0$.
+On the spinless, gauge-neutral sector $\Hil=L^2(\mathbb R^3)$, translation and rotation invariance make the projected memory a function of the Laplacian, $\hat R_\Hil=r_1\,\hat g(-i\nabla)$.
+\begin{itemize}
+\item $r_1$ is the coincidence weight of the fiber factors.
+\item $\hat g$ is the Fourier transform of the spatial profile, with $\hat g(0)=1$ and $\hat g(k)=1-\langle r^2\rangle k^2/6+O(k^4)$.
+\item Its second-order truncation is $r_0\nabla^2+r_1$, with $r_0=r_1\langle r^2\rangle/6$. That is the form used in~\cite[Thm.~6.1(ii)]{Skeleton}.
+\end{itemize}
+No truncation is assumed here: the kinetic term arises as a scaling limit (Proposition~\ref{prop:width}).
 \end{definition}
 
 \begin{definition}[Double scaling]\label{def:double}
 Take $\eps\to0^+$ with $\Lambda\equiv\eps\hat R_\Hil$ held fixed.
 
 The limiting generator $H=\sigma E_c\Lambda=\sigma\hbar\,(\eps/\tau_c)\,\hat R_\Hil$ depends on $\eps$, $\tau_c$ and $\hat R_\Hil$ only through $(\eps/\tau_c)\hat R_\Hil$. So for bounded fiber factors this is the same limit as holding the memory rate $\eps/\tau_c$ fixed with $\hat R_\Hil$ fixed (Proposition~\ref{prop:rate}(2)). The two choices differ only in the approach, $O(\eps)$ against $O(\eps\ln\eps)$. If $\tau_c$ and $\hat R_\Hil$ are both held fixed instead, the past disconnects (Proposition~\ref{prop:rate}(1)).
+
+The exact kinetic term needs a second scaling, of the spatial width: $\langle r^2\rangle\to0$ with $\hbar^2/2m\equiv\eps E_cr_1\langle r^2\rangle/6$ held fixed (Proposition~\ref{prop:width}).
 \end{definition}
 
 %======================================================================
@@ -213,8 +222,8 @@ The principal arguments are $\arg(\sigma i)=\sigma\pi/2$ and $\arg(-iE)=-\sgn(E)
 
 \begin{lemma}[Operator facts]\label{lem:ops}
 \begin{enumerate}
-\item $\hat R_\Hil=r_0\nabla^2+r_1$ is self-adjoint on $H^2(\mathbb R^3)$: it is unitarily equivalent to multiplication by $r_1-r_0\lvert k\rvert^2$. A bounded $x$-dependent $r_1$ preserves self-adjointness, by Kato--Rellich~\cite{Kato}.
-\item $\lVert\hat R_\Hil\rVert=\infty$, so the spectral inclusion in~\cite[Lemma~4.4]{Skeleton} is vacuous.
+\item $\hat R_\Hil=r_1\hat g(-i\nabla)$ is bounded and self-adjoint: it is multiplication by the real function $r_1\hat g(k)$, and $\lvert\hat g\rvert\le1$. Its truncation $r_0\nabla^2+r_1$ is self-adjoint on $H^2(\mathbb R^3)$ and unbounded. A bounded $x$-dependent $r_1$ is a bounded perturbation, and preserves self-adjointness~\cite{Kato}.
+\item For the truncation used in~\cite{Skeleton}, $\lVert\hat R_\Hil\rVert=\infty$, so the spectral inclusion of~\cite[Lemma~4.4]{Skeleton} is vacuous. For the full symbol, $\lVert\hat R_\Hil\rVert=\lvert r_1\rvert$ and the inclusion holds.
 \item Exchanging the kernel limit with $\Pi_\Hil$ requires strong-resolvent convergence of the projected operators~\cite{RS1}. The bound $\lVert\Pi_\Hil\rVert=1$ alone does not suffice.
 \end{enumerate}
 \end{lemma}
@@ -267,9 +276,11 @@ If $\psi$ has compact spectral support in $(0,\infty)$, then
 \end{equation}
 The limiting equation is $i\hbar\,\partial_tJ=HJ$. On the spinless, gauge-neutral sector,
 \[
-H=-\frac{\hbar^2}{2m}\nabla^2+V_0,\qquad \frac{\hbar^2}{2m}=-\sigma\eps E_cr_0,\qquad V_0=\sigma\eps E_cr_1 .
+H=\sigma A\,\hat g(-i\nabla),\qquad A\equiv\eps E_cr_1,\qquad \sigma A\,\hat g(k)=\sigma A-\sigma\,\frac{A\langle r^2\rangle}{6}\,k^2+O(k^4).
 \]
-Positive mass with $r_0>0$ forces $\sigma=-1$. Then $\hbar^2/2m=\eps E_cr_0$, which is the mass formula of~\cite[Thm.~6.1(iii)]{Skeleton} with its units restored, and $\Hil_+=\Ran\one_{(-\infty,0)}(H)$.
+Positive mass with $r_1>0$ forces $\sigma=-1$. Then $H=-A+\frac{\hbar^2}{2m}(-\nabla^2)+O(k^4)$ with $\hbar^2/2m=A\langle r^2\rangle/6=\eps E_cr_0$. That is the mass formula of~\cite[Thm.~6.1(iii)]{Skeleton} with its units restored. The remainder vanishes in the width scaling (Proposition~\ref{prop:width}).
+
+The stationary sector is $\Hil_+=\{\hat g(k)>0\}$. For a profile with $\hat g>0$, such as a Gaussian, this is the whole sector.
 \end{theorem}
 
 \begin{proof}
@@ -277,11 +288,34 @@ Positive mass with $r_0>0$ forces $\sigma=-1$. Then $\hbar^2/2m=\eps E_cr_0$, wh
 
 \emph{Rate.} The same inequality gives the bound in~\eqref{eq:rate}. Expanding $\ln\!\big((\lambda/\alpha)^{1/\alpha}\big)=(1+\eps+\dots)(\ln\lambda+\eps+\dots)$ gives the stated difference.
 
-\emph{Identification.} $f_1(\Lambda)=\sigma E_c\Lambda$, and on the sector $\Lambda$ acts as multiplication by $\eps(r_1-r_0\lvert k\rvert^2)$. \end{proof}
+\emph{Identification.} $f_1(\Lambda)=\sigma E_c\Lambda$, and on the sector $\Lambda$ acts as multiplication by $\eps r_1\hat g(k)$, with $\hat g(k)=1-\langle r^2\rangle k^2/6+O(k^4)$ for a normalized isotropic profile. \end{proof}
+
+\begin{proposition}[The kinetic term is a scaling limit]\label{prop:width}
+Let $g$ be normalized and isotropic with finite fourth moment, and take $\sigma=-1$. Rescale the profile as $g_w(y)=w^{-3}g(y/w)$, and let $H_w=-A\,\hat g_w(-i\nabla)$ with $A\langle r^2\rangle_w/6=\hbar^2/2m$ held fixed as $w\to0$. Then:
+\begin{enumerate}
+\item $H_w+A\to-\frac{\hbar^2}{2m}\nabla^2$ in the strong resolvent sense, and $e^{-it(H_w+A)/\hbar}\to e^{it\hbar\nabla^2/2m}$ strongly, uniformly for $t$ in compact sets;
+\item at each momentum,
+\[
+0\le1-\frac{A\,(1-\hat g_w(k))}{\hbar^2k^2/2m}\le\frac{\langle r^4\rangle_w}{20\,\langle r^2\rangle_w}\,k^2\xrightarrow[w\to0]{}0,
+\]
+and for a Gaussian profile the bound is $\langle r^2\rangle_wk^2/12$;
+\item the offset $-A$, which diverges, is a constant and is removed by a global phase;
+\item if $\hat g>0$ everywhere, as for a Gaussian, every momentum is stationary for every $\alpha<1$, so there is no energy cap. Otherwise the cap sits at the first zero of $\hat g_w$, which moves to infinity as $w\to0$.
+\end{enumerate}
+\end{proposition}
+
+\begin{proof}
+For an isotropic profile, $\hat g(k)=\langle\sin(kr)/(kr)\rangle$. For real $x$, $x^2/6-x^4/120\le1-\sin x/x\le x^2/6$; averaging gives
+\[
+0\le\frac{\langle r^2\rangle k^2}6-\big(1-\hat g(k)\big)\le\frac{\langle r^4\rangle k^4}{120}.
+\]
+Multiplying by $A$ and dividing by $\hbar^2k^2/2m=A\langle r^2\rangle k^2/6$ gives~(2). Along the scaling family, $\langle r^4\rangle_w/\langle r^2\rangle_w=w^2\langle r^4\rangle/\langle r^2\rangle\to0$.
+
+The symbol therefore converges pointwise in $k$. Dominated convergence then gives the strong convergence of the resolvents and of the groups, which is~(1). Part~(3) is immediate. For~(4), $\Lambda=\eps r_1\hat g_w(k)$ and $\hat g_w(k)=\hat g(wk)$. \end{proof}
 
 \begin{corollary}[The skeleton and the edge are two scalings of one limit]\label{cor:scalings}
 \begin{enumerate}
-\item Hold $\hat R_\Hil$ and $\tau_c$ fixed, as in~\cite[Lemma~4.1]{Skeleton}. The memory rate vanishes (Proposition~\ref{prop:rate}(1)) and $f_\alpha(\eps\hat R_\Hil)\to0$. Then $U_\alpha(t)\to\one$ strongly, and $m=\hbar^2/(2\eps E_cr_0)\to\infty$. The carrier freezes. This is the kernel-blind skeleton of~\cite[Thm.~5.1]{Skeleton}, up to its unobservable global phase.
+\item Hold $\hat R_\Hil$ and $\tau_c$ fixed, as in~\cite[Lemma~4.1]{Skeleton}. The memory rate vanishes (Proposition~\ref{prop:rate}(1)) and $f_\alpha(\eps\hat R_\Hil)\to0$. Then $U_\alpha(t)\to\one$ strongly, and $\hbar^2/2m=\eps E_cr_1\langle r^2\rangle/6\to0$, so $m\to\infty$. The carrier freezes. This is the kernel-blind skeleton of~\cite[Thm.~5.1]{Skeleton}, up to its unobservable global phase.
 \item Hold the memory rate fixed, equivalently $\Lambda$. Then Theorem~\ref{thm:collapse} applies: the memory stays live and becomes $H$.
 \end{enumerate}
 The ``corner'' and the ``edge'' of~\cite[Rem.~5.2, Table~7.4]{Skeleton} are therefore one limit taken in two ways.
@@ -323,18 +357,24 @@ A Caputo initial-value problem with $J(0)=J_0$ corresponds to the frozen past $J
 \begin{theorem}[The limit is one-sided]\label{thm:onesided}
 \begin{enumerate}
 \item \emph{Convergence.} $W^\alpha$ converges on oscillating carriers only for $\alpha<1$ (Lemma~\ref{lem:weyl}). The memory term of~\eqref{eq:FE} at $\alpha=1$ exists only as the limit from below.
-\item \emph{Sign.} With $\sigma$ fixed, the memory-generated coefficient $\hbar^2/2m=-\sigma\eps E_cr_0$ is odd in the memory rate $\eps E_c/\hbar$. Positive mass can hold on one side of $\alpha=1$ only.
-\item \emph{Runaway or preacceleration.} For $\alpha\in(1,2)$, take the source problem with zero past. There the Riemann--Liouville integral is finite, and $\hat G$ is defined by the continued symbol. On $\Ran\one_{(-\infty,0)}(\Lambda)$, $g_\alpha-\lambda$ has a zero with ${\rm Im}\,E\approx+\pi\lvert\eps\rvert\lvert E\rvert>0$, in the upper half-plane. Then:
+\item \emph{Sign.} With $\sigma$ fixed, the memory-generated coefficient $\hbar^2/2m=-\sigma\eps E_cr_1\langle r^2\rangle/6$ is odd in the memory rate $\eps E_c/\hbar$. Positive mass can hold on one side of $\alpha=1$ only.
+\item \emph{No continuation above $\alpha=1$.} For $\alpha\in(1,2)$, take the source problem with zero past. There the Riemann--Liouville integral is finite, and $\hat G$ is defined by the continued symbol. With $r_1>0$ and $\eps<0$, every mode with $\hat g(k)>0$ has $\lambda<0$; for a Gaussian profile that is every mode. For such a mode, $g_\alpha-\lambda$ has a zero with ${\rm Im}\,E\approx+\pi\lvert\eps\rvert\lvert E\rvert>0$, in the upper half-plane. Then:
 \begin{itemize}
 \item the causal response, obtained by inverting above every singularity, grows at that rate;
 \item the bounded response, obtained by inverting on the real axis, is nonzero before the source acts.
 \end{itemize}
-This is the Abraham--Lorentz--Dirac dichotomy of the third-derivative panel of~\cite{CAL}, runaway or preacceleration, appearing on the wrong side of $\alpha=1$.
+So the one-way edge equation has no causal, bounded continuation past $\alpha=1$.
 \end{enumerate}
 \end{theorem}
 
 \begin{proof}
 Part~(1) is Lemma~\ref{lem:weyl}. Part~(2) is immediate from Theorem~\ref{thm:collapse}. For part~(3), the argument in the proof of Proposition~\ref{prop:switch} gives ${\rm Re}\,w=\lvert w\rvert\sin(\pi/\alpha)$, which is positive for $\alpha\in(1,2)$. A zero of the response function in the upper half-plane rules out a response that is both causal and bounded. \end{proof}
+
+\begin{remark}[What part~(3) does and does not say]
+Part~(3) concerns the equation of Axiom~\ref{ax:FE} continued above $\alpha=1$ with its orientation fixed. It is not a statement about the framework's dynamics on $(1,2]$, which are set by the reciprocal $\alpha=2$ closure. In the convention of~\cite[Eq.~(60)]{Info}, $\alpha\ge1$ is where the history enters with nonnegative weight.
+
+The upper-half-plane zero has the same mathematical form as in the Abraham--Lorentz--Dirac equation, but no third derivative is involved. One reading consistent with the framework: one-way transport is consistent only up to $\alpha=1$, and beyond it the return leg must be present.
+\end{remark}
 
 %======================================================================
 \section{The two Markov limits, causal structure, interaction, and readout}\label{sec:regimes}
@@ -418,7 +458,7 @@ In the framework the Lorentz signature appears with the quadratic closure $JJ^\d
 
 At the $\alpha\to1^-$ edge the causal structure is therefore time ordering alone: $J^-(x)$ reduces to the time-ordered past $\{t'<t\}$, with no bound on spatial reach. This is the Galilean structure of the Schr\"odinger equation, whose free propagator is nonzero at every distance for every $t>0$. Three things follow.
 \begin{enumerate}
-\item The lag-independent spatial profile of Definition~\ref{def:kernel} is admissible.
+\item The lag-independent spatial profile of Definition~\ref{def:kernel} is admissible, and so is shrinking its width (Proposition~\ref{prop:width}).
 \item Instantaneous spatial reach in a $\delta$ route is admissible as well. That route fails on unitarity (Theorem~\ref{thm:normalizable}), not on causality.
 \item A light cone imposed at the edge imports $\alpha=2$ structure. For reference only, Appendix~\ref{app:cone} records what imposing one would give.
 \end{enumerate}
@@ -426,10 +466,10 @@ At the $\alpha\to1^-$ edge the causal structure is therefore time ordering alone
 \subsection{The edge carries no interaction}\label{sec:nointeraction}
 
 \begin{remark}[Single legs]\label{rem:nointeraction}
-In~\eqref{eq:FE} the past enters only through transports $\mathcal P(x,x')$ from a point of the past to the present, and the equation is linear in $J$. Hence:
+In~\eqref{eq:FE} the past enters only through transports $\mathcal P(x,x')$ from a point of the past to the present, each acting within one carrier. Hence:
 \begin{enumerate}
-\item \emph{No interaction.} A linear field equation describes free quanta. For two carriers its evolution is $U_A\otimes U_B$, which preserves the Schmidt coefficients between them. It can carry entanglement that already exists, but it cannot create any.
-\item \emph{Creating entanglement needs $\alpha=2$.} It needs a non-product coupling, hence an equation that is not linear in the carrier. The $\alpha=2$ closure $JJ^\dagger$ is the first place the carrier enters quadratically. A unitary coupling also needs its adjoint term: a one-way transfer from $A$ to $B$ alone is not Hermitian, and its adjoint is the return leg from $B$ to $A$. For a unitary transport $P_\gamma^\dagger=P_{\gamma^{-1}}$, so the dagger in $JJ^\dagger$ is that return leg.
+\item \emph{No coupling between carriers.} For two carriers the edge operator is a sum of single-carrier terms, so the evolution is $U_A\otimes U_B$. That preserves the Schmidt coefficients between the carriers: it can carry entanglement that already exists, but it cannot create any. The reason is the transport structure, not linearity. A linear equation with a two-carrier coupling would entangle.
+\item \emph{A coupling would need the return leg.} A term transferring from $A$ to $B$ alone is not Hermitian. Keeping $\hat R_\Hil$ self-adjoint, and with it the unitarity of Theorem~\ref{thm:eternal}, requires its adjoint: the return leg from $B$ to $A$. For a unitary transport $P_\gamma^\dagger=P_{\gamma^{-1}}$, so that adjoint is the dagger of the closure $JJ^\dagger$. Reciprocal structure of this kind belongs to the $\alpha=2$ closure.
 \item \emph{No holonomy from the carrier.} Holonomy needs a closed path~\cite{CAL}. What the edge can carry is a fixed background acting one way, through a bounded $r_1(x)$ (Lemma~\ref{lem:ops}) or a prescribed transport. That is a test particle that does not act back.
 \end{enumerate}
 This agrees with the restriction of~\cite[Thm.~6.1]{Skeleton} to the free form: that restriction is structural, not a matter of convenience.
@@ -515,7 +555,7 @@ $2J=JJ^\dagger$ forces $J=J^\dagger$ and $J^2=2J$, so $P=J/2$ is a projector wit
 
 All statements above were run with the script \texttt{scripts/cal\_schrodinger\_collapse.py} in the repository \url{https://github.com/JewJitsu11B/Liorhybrid}. It uses NumPy only and runs in about ten seconds. Units are $\hbar=\tau_c=1$, so $E_c=1$. Methods are described in Appendix~\ref{app:num}.
 
-\emph{Bounded solutions}, with $\sigma=-1$, $m=1$, and cap $E_{\rm cap}=4$. The test state is a Gaussian packet with $k_0=1$ and width $2$; its weight above the cap is $10^{-13}$.
+\emph{Bounded solutions}, with $\sigma=-1$ and the full Gaussian symbol $\hat g(k)=e^{-\langle r^2\rangle k^2/6}$. Take $\langle r^2\rangle=0.75$ and $A=4$, so that $\hbar^2/2m=1/2$. Every mode is stationary. The test state is a Gaussian packet with $k_0=1$ and width $2$.
 
 \begin{table}[h]
 \centering\small
@@ -523,13 +563,28 @@ All statements above were run with the script \texttt{scripts/cal\_schrodinger\_
 \toprule
 $\eps$ & $\max\lvert E_\alpha-E_1\rvert$ & $\eps\max\lambda\lvert1+\ln\lambda\rvert$ & ratio & phase-aligned error, $t\le40$ & norm drift\\
 \midrule
-$10^{-1}$ & $1.246$ & $0.954$ & $1.305$ & $1.41$ & $3\times10^{-16}$\\
-$10^{-2}$ & $9.78\times10^{-2}$ & $9.55\times10^{-2}$ & $1.025$ & $3.30\times10^{-1}$ & $3\times10^{-16}$\\
-$10^{-3}$ & $9.57\times10^{-3}$ & $9.55\times10^{-3}$ & $1.002$ & $3.27\times10^{-2}$ & $3\times10^{-16}$\\
-$3\times10^{-4}$ & $2.87\times10^{-3}$ & $2.86\times10^{-3}$ & $1.001$ & $9.80\times10^{-3}$ & $3\times10^{-16}$\\
+$10^{-1}$ & $1.246$ & $0.954$ & $1.305$ & $1.41$ & $6\times10^{-16}$\\
+$10^{-2}$ & $9.78\times10^{-2}$ & $9.55\times10^{-2}$ & $1.025$ & $2.87\times10^{-1}$ & $4\times10^{-16}$\\
+$10^{-3}$ & $9.57\times10^{-3}$ & $9.55\times10^{-3}$ & $1.002$ & $2.83\times10^{-2}$ & $6\times10^{-16}$\\
+$3\times10^{-4}$ & $2.87\times10^{-3}$ & $2.86\times10^{-3}$ & $1.001$ & $8.47\times10^{-3}$ & $6\times10^{-16}$\\
 \bottomrule
 \end{tabular}
-\caption{Theorems~\ref{thm:eternal}--\ref{thm:collapse}. The energy error matches the first-order term of~\eqref{eq:rate}, and the norm is conserved to machine precision. The raw packet error is dominated by a global phase drift from the constant term. With that phase removed, the error is linear in $\eps$, at about $33\,\eps$ over $t\le40$.}
+\caption{Theorems~\ref{thm:eternal}--\ref{thm:collapse}. The energy error matches the first-order term of~\eqref{eq:rate}, and the norm is conserved to machine precision. The raw packet error is dominated by a global phase drift from the constant term. With that phase removed, the error is linear in $\eps$, at about $28\,\eps$ over $t\le40$.}
+\end{table}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{ccccccc}
+\toprule
+$\langle r^2\rangle$ & offset $-A$ & $k=0.5$ & $k=1$ & $k=2$ & $k=4$ & bound at $k=4$\\
+\midrule
+$1$ & $-3$ & $2.05\times10^{-2}$ & $7.89\times10^{-2}$ & $0.270$ & $0.651$ & $1.33$\\
+$0.1$ & $-30$ & $2.08\times10^{-3}$ & $8.29\times10^{-3}$ & $3.26\times10^{-2}$ & $0.122$ & $0.133$\\
+$0.01$ & $-300$ & $2.08\times10^{-4}$ & $8.33\times10^{-4}$ & $3.33\times10^{-3}$ & $1.32\times10^{-2}$ & $1.33\times10^{-2}$\\
+$0.001$ & $-3000$ & $2.08\times10^{-5}$ & $8.33\times10^{-5}$ & $3.33\times10^{-4}$ & $1.33\times10^{-3}$ & $1.33\times10^{-3}$\\
+\bottomrule
+\end{tabular}
+\caption{Proposition~\ref{prop:width}: relative error of the kinetic term, $\lvert A(1-\hat g(k))/(\hbar^2k^2/2m)-1\rvert$, for a Gaussian profile with $A\langle r^2\rangle/6=\hbar^2/2m=1/2$ held fixed. It stays within the bound $\langle r^2\rangle k^2/12$ and vanishes as the width shrinks. The offset $-A$ diverges, but only as a global phase.}
 \end{table}
 
 \emph{Source-driven runs.} The integral equation $T=S$ is time-stepped directly, with Weyl integration over a zero past and the full history kept. The source is a Gaussian pulse at $t_0=10$ of width $2$, tuned to the mode. No initial-value data enter.
@@ -548,7 +603,7 @@ $1.000$ & $0.01$ & $5.01264$ & $5.01326$ & $0.99988$\\
 $1.010$ & $0.01$ & $4.86571$ & $4.86630$ & $0.99988$\\
 \bottomrule
 \end{tabular}
-\caption{Below the cap ($\Lambda=+1$), Proposition~\ref{prop:switch}(1). After the pulse the mode oscillates forever at the amplitude of the residue at the real zero. This is the stationary solution of Theorem~\ref{thm:eternal}, excited causally. The ratio converges as $h$ is halved.}
+\caption{Modes with $\Lambda=+1$, Proposition~\ref{prop:switch}(1). After the pulse the mode oscillates forever at the amplitude of the residue at the real zero. This is the stationary solution of Theorem~\ref{thm:eternal}, excited causally. The ratio converges as $h$ is halved.}
 \end{table}
 
 \begin{table}[h]
@@ -566,7 +621,7 @@ $1.010$ & $0.989718+0.030795\,i$ & $-3.0795\times10^{-2}$ & $-3.11\times10^{-2}$
 $1.030$ & $0.967645+0.088790\,i$ & $-8.8790\times10^{-2}$ & $-9.16\times10^{-2}$ & $-8.8782\times10^{-2}$\\
 \bottomrule
 \end{tabular}
-\caption{Above the cap ($\Lambda=-1$), Proposition~\ref{prop:switch}(2) and Theorem~\ref{thm:onesided}(3). From below the zero lies in ${\rm Im}\,E<0$, giving causal decay. At $\alpha=1$ it lies on the real axis. From above it lies in ${\rm Im}\,E>0$, and the causal response grows. The measured rate is $(\ln\lvert J(40)\rvert-\ln\lvert J(80)\rvert)/40$.}
+\caption{Modes with $\Lambda=-1$, Proposition~\ref{prop:switch}(2) and Theorem~\ref{thm:onesided}(3). Below $\alpha=1$ such modes exist only where $\hat g$ changes sign; above $\alpha=1$, where $\eps<0$, they are the whole sector. Below $\alpha=1$ the zero lies in ${\rm Im}\,E<0$, giving causal decay. At $\alpha=1$ it lies on the real axis. Above, it lies in ${\rm Im}\,E>0$, and the causal response grows. The measured rate is $(\ln\lvert J(40)\rvert-\ln\lvert J(80)\rvert)/40$.}
 \end{table}
 
 \begin{table}[h]
@@ -579,7 +634,7 @@ $0.99$ & $4.0\times10^{-6}$ & $7.5\times10^{-11}$ & $1.44$\\
 $1.01$ & $3.58$ & $2.63$ & $4.2\times10^{-6}$\\
 \bottomrule
 \end{tabular}
-\caption{Bounded responses, from inversion on the real axis, for $\Lambda=-1$. From below the bounded response is causal: what appears before the pulse is only the Gaussian's own tail. From above, keeping the response bounded makes it precede its source. That is preacceleration, Theorem~\ref{thm:onesided}(3).}
+\caption{Bounded responses, from inversion on the real axis, for $\Lambda=-1$. From below the bounded response is causal: what appears before the pulse is only the Gaussian's own tail. Above $\alpha=1$, keeping the response bounded makes it precede its source (Theorem~\ref{thm:onesided}(3)).}
 \end{table}
 
 \emph{The two Markovian regimes.}
@@ -663,7 +718,8 @@ $2$ & $0.265802$ & $0.265802$ & $54.59815$ & $54.59815$ & $2.0000$\\
 \item the field equation (Axiom~\ref{ax:FE});
 \item the power-law kernel class (Definition~\ref{def:kernel});
 \item time ordering as the causal structure below the $\alpha=2$ closure;
-\item the double scaling at fixed memory rate (Definition~\ref{def:double}).
+\item the double scaling at fixed memory rate (Definition~\ref{def:double});
+\item the long-wavelength scaling of the spatial kernel (Proposition~\ref{prop:width}).
 \end{itemize}
 \emph{Derived from these:} every lemma, theorem, proposition and corollary of \S\S4--6.
 
@@ -681,6 +737,7 @@ $2$ & $0.265802$ & $0.265802$ & $54.59815$ & $54.59815$ & $2.0000$\\
 \item The $\delta$ column at the $1^-$ edge has no stationary band once the channel phase is used (Theorem~\ref{thm:normalizable}). That is the gap Posit~1 was covering. The Schr\"odinger form belongs in the power-law (full-width) column.
 \item Below $\alpha=2$ the causal structure is Galilean, so the $\delta$ route's instantaneous spatial reach is admissible. Its obstruction is unitarity, not causality.
 \item The free form of Theorem~6.1(ii) is structural: the edge carries no interaction (Remark~\ref{rem:nointeraction}).
+\item The second-order form of Theorem~6.1(ii) is the long-wavelength truncation of $r_1\hat g(-i\nabla)$. Keeping the full symbol and shrinking the width gives the Schr\"odinger kinetic term exactly, with no energy cap (Proposition~\ref{prop:width}).
 \item Axiom~1 should require $k$ and $\mathcal P$ to be real, not $J$.
 \item In Lemma~4.3, real plus symmetric gives a symmetric operator; self-adjointness is Lemma~\ref{lem:ops}(1).
 \item In Lemma~4.4, $\lVert\hat R\rVert=\infty$, and exchanging the limit with the projection needs strong-resolvent convergence.
@@ -709,8 +766,9 @@ $\sigma$, $\theta=\alpha\pi/2$ & channel orientation and channel angle\\
 $W^\alpha$, $D^\alpha$ & causal Weyl integral and its inverse (Definition~\ref{def:weyl})\\
 $\tau_c$, $E_c=\hbar/\tau_c$ & memory time unit and its energy\\
 $\rho_\eps(\tau)$ & memory rate at lag $\tau$ (Definition~\ref{def:kernel})\\
-$g$, $\sigma_g^2$ & spatial profile and its second moment\\
-$\hat R_\Hil=r_0\nabla^2+r_1$ & projected memory operator\\
+$g$, $\hat g$, $\langle r^2\rangle$ & spatial profile, its Fourier transform, its second moment\\
+$\hat R_\Hil=r_1\hat g(-i\nabla)$ & projected memory operator ($r_0\nabla^2+r_1$ is its truncation)\\
+$A=\eps E_cr_1$ & energy scale of the memory; $\hbar^2/2m=A\langle r^2\rangle/6$\\
 $\Lambda=\eps\hat R_\Hil$ & double-scaled memory operator\\
 $g_\alpha$, $f_\alpha$ & symbol of the left side of~\eqref{eq:FEinv}, and stationary energy\\
 $\Hil_+$ & $\Ran\one_{(0,\infty)}(\Lambda)$, the stationary sector\\
