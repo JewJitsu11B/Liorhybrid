@@ -1,0 +1,55 @@
+\documentclass[10pt]{article}
+\usepackage[letterpaper,margin=0.6in]{geometry}
+\usepackage{amsmath,amssymb,booktabs,tabularx,array}
+\usepackage[hidelinks]{hyperref}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}\setlength{\parskip}{3pt}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\newcolumntype{P}[1]{>{\raggedright\arraybackslash}p{#1}}
+\begin{document}
+{\Large\bfseries One-sheet: Schr\"odinger from the bare CAL at $\alpha\to1^-$}\par
+\textit{Schr\"odinger evolution from the bare Causal Accumulation Law at $\alpha\to1^-$: feedback on the accumulated past, unitarity in the limit, and carrier entanglement as time dilation.} S.~Leizerman, LIOR Research Initiative, November 13, 2026. Script: \texttt{cal\_edge\_transducer.py} (numpy only, about 15\,s).
+
+\textbf{Inputs.}
+\begin{itemize}\setlength{\itemsep}{0pt}
+\item The CAL as written: $T=\alpha J-(1-\alpha)\int k\,\Pi P\Phi\,J$.
+\item The free, flat sector: $\Pi P\Phi=1$, an order-$\alpha$ power-law memory, and a spatial profile $\hat g(k)$.
+\item The phase belongs to the source: order-$\alpha$ accumulation turns $e^{iS/\hbar}$ by $\alpha$ quarter turns.
+\item The update rule $J_{n+1}=T_n$, a feedback loop on the accumulated past.
+\item The current's past rotated one way.
+\end{itemize}
+\textbf{Not used:} a phase prefactor, a coupling constant, a time unit, a double scaling, or $T=0$ as a law. Time is counted in radians of the carrier's own rotation.
+
+\medskip
+\begin{tabularx}{\textwidth}{@{}P{3.2cm}LP{4.6cm}@{}}
+\toprule
+\textbf{Result} & \textbf{Statement} & \textbf{Check}\\
+\midrule
+Rotation & Below $1$ the past pulls back, and the current turns by $\sqrt{1-\alpha}$ per update. That rotation is the $i$ of Schr\"odinger. & ratio $0.9897\to1.0000$ for $1-\alpha=10^{-2}\dots10^{-7}$\\
+Dispersion and mass & The rotation slows as $\sqrt{\hat g(k)}$, so $\hbar/2m=\langle r^2\rangle/12$ in rest-rotation units, set by the kernel width. & ratio $1.0000$ to $0.990$\\
+Unitarity in the limit & For $\alpha<1$ the evolution is a contraction, $\exp[-(i+\sqrt{1-\alpha})(\hbar/2m)k^2t-\tfrac\pi4(1-\alpha)t]$. It is unitary as $\alpha\to1^-$. & decay per radian $\div(1-\alpha)$: $0.901\to0.787$ ($\pi/4=0.785$)\\
+Wavepacket & Converges to Schr\"odinger down to the $k^4$ floor, which halves with $\langle r^2\rangle$. & $1.46\times10^{-2}$ vs floor $1.26\times10^{-2}$\\
+Orientation & A one-way past keeps one direction. The whole past is needed: a two-cycle history leaks 70--97\%. & leakage $\sim10^{-8}$\\
+Born needs one orientation & With a one-way past, the closure and readout drift $\to0$. With a zero past, the readout drift stays at $3.7\times10^{-2}$. & Table 5 of the paper\\
+Feedback across $\alpha=1$ & Frozen at $1$. Above $1$: a causal runaway at $\sqrt{\alpha-1}$, or an advanced bounded response (the two ALD horns). Braking plus fading settles it; braking alone cannot (windup). & growth $0.101$ vs $0.1$; settles for $b>0.095$ at $\lambda=0.1$\\
+Normalizable memory & Every root lies strictly inside $|z|=1$, so nothing sustains a rotation. The power law escapes because its total weight is infinite. & proof + companion-matrix roots\\
+Loss & Loss is contraction from rank $2$ to rank $1$: absent in the free edge, present in interaction and readout, where the Landauer cost is paid. & ---\\
+Kept & Galilean edge; no interaction (one order-1 leg); one carrier is two factors with $C=1/\gamma$; readout survives composition; $\Lambda^2J=0$. & readout checks $10^{-15}$--$10^{-16}$\\
+\bottomrule
+\end{tabularx}
+
+\medskip
+\textbf{Changed from the earlier version.}
+\begin{itemize}\setlength{\itemsep}{0pt}
+\item The prefactor, $r_1$, $\tau_c$, the double scaling and $T=0$ are removed.
+\item Unitarity is now exact only at the edge, not for every $\alpha<1$.
+\item The mass formula is $\hbar/2m=\langle r^2\rangle/12$ in rest radians.
+\end{itemize}
+
+\textbf{Open.}
+\begin{itemize}\setlength{\itemsep}{0pt}
+\item A rigorous remainder estimate for the asymptotics. It is formal now, and confirmed numerically to $1-\alpha=10^{-7}$.
+\item The equivalence condition, a kernel width of $\sqrt6$ Compton wavelengths. It is a forward pointer only.
+\item Interaction, which needs the return leg (order $2$).
+\end{itemize}
+\end{document}
