@@ -1,6 +1,6 @@
 # Plan (v2): Schrödinger from the bare CAL at $\alpha\to1^-$, as feedback on the accumulated past
 
-**Status:** plan and outline for rewriting `docs/paper/cal_schrodinger_collapse.tex`.
+**Status:** executed on November 13, 2026; see `docs/paper/cal_schrodinger_collapse.pdf` and `docs/SCHRODINGER_ALPHA_TO_ONE_RESULTS.md`. This file was the plan and outline for that rewrite.
 - The tests are done: `scripts/cal_edge_transducer.py` (numpy only, about 9 s).
 - v1 of this plan (prefactor, $r_1$, $\tau_c$, double scaling, $T=0$) is in git history before this commit.
 

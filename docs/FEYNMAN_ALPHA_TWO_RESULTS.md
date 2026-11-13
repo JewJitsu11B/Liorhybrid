@@ -1,5 +1,16 @@
 # Results: the Feynman path sum at closure order $\alpha=2$ with the light-cone kernel width
 
+> **Status, November 13, 2026: revision pending.** The edge paper has been rewritten on the bare CAL. The α = 2 paper still contains three things that are not in the CAL, and will be revised to match:
+> - **The coupling r₁.** The transport chain is 1 in the free, flat sector, so μ² = 1/(2τ_c²).
+> - **τ_c as a time unit.** It becomes relational: the mass is the carrier's own rate, and only mass ratios are physical.
+> - **The channel-phase remark.** The phase belongs to the source current, so no factor goes on the memory, and the "additive law" is simply the CAL.
+>
+> In addition:
+> - **T = 0 will be reframed as the balance reading:** the present equals the light-cone past.
+> - **A runaway-above-2 table will be added.** The law is conservative at exactly 2 and grows at (π/4)(α−2)μ²/ω above it.
+>
+> The kernel results (Lorentz invariance only at α = 2, the Kirchhoff shell, the null-leg split, the checkerboard, the descent tail) do not use any of these and stand as they are.
+
 **The paper** (*An Axiomatic Derivation of the Feynman Path Sum at the Light-Cone Kernel Width and Closure Order α = 2 of the Causal Accumulation Law*): `docs/paper/cal_feynman_alpha2.pdf` (source `docs/paper/cal_feynman_alpha2.tex`). It has the full statements and proofs; this file summarizes them.
 
 **Reproduce:** `python3 scripts/cal_feynman_alpha2.py` (numpy only, about 7 seconds). Units: $\hbar=c=\tau_c=1$ and $\mu=1$, unless stated.
