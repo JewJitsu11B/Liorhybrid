@@ -1,0 +1,749 @@
+\documentclass[11pt]{amsart}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{example}[theorem]{Example}
+\newtheorem{axiom}{Axiom}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+\newcommand{\Hil}{\mathcal H}
+\newcommand{\eps}{\varepsilon}
+\newcommand{\one}{\mathbf 1}
+\newcommand{\tr}{\operatorname{tr}}
+\emergencystretch=3em
+
+\begin{document}
+
+\title[Schr\"odinger from the bare CAL at $\alpha\to1^-$]{Schr\"odinger evolution from the bare Causal Accumulation Law at $\alpha\to1^-$: feedback on the accumulated past, unitarity in the limit, and carrier entanglement as time dilation}
+
+\author{Sam Leizerman}
+\address{LIOR Research Initiative}
+\email{samleizerman@outlook.com}
+\thanks{ORCID: 0009-0000-0133-2291. Companion to \emph{The Causal Accumulation Law: The Four Corners of $\alpha$, Algebraic Closure, and the Standard Model}~\cite{CAL} and to \emph{The $\alpha=1$ Unitary Skeleton and the Emergence of Schr\"odinger Evolution in the $\delta$-Kernel Limit of the CAL}~\cite{Skeleton}, whose unitarity posit it replaces. This version supersedes an earlier one whose field equation carried a phase prefactor, a coupling constant and a fixed time unit that are not in the CAL. Dated November 13, 2026.}
+
+\begin{abstract}
+We read the Causal Accumulation Law (CAL) as a transducer: each output state becomes the next current. This is a feedback loop of repeated impulses on the accumulated past. Nothing else is added. There is no phase prefactor on the memory, no coupling constant, no time unit, and no imposed field equation $T=0$. Time is counted in updates and quoted in radians of the carrier's own rotation.
+
+\begin{itemize}
+\item \emph{Rotation from negative feedback.} Below $\alpha=1$ the memory term enters with the sign $-(1-\alpha)<0$, so the accumulated past pulls the current back. The current rotates by $\sqrt{1-\alpha}$ per update. The $i$ of the Schr\"odinger equation is this rotation: the phase is a property of the source current, not a factor in the law.
+\item \emph{Schr\"odinger's dispersion and the mass.} The rotation slows with wavenumber as $\sqrt{\hat g(k)}$, where $\hat g$ is the kernel's spatial profile. Per radian of rest rotation the kinetic phase is $\langle r^2\rangle k^2/12$, so $\hbar/2m=\langle r^2\rangle/12$, set by the kernel's spatial width alone. The regime is long wavelengths, and the leading correction is of order $k^4$.
+\item \emph{Unitarity in the limit.} For $\alpha<1$ the evolution is a contraction, with two losses. There is a uniform loss of $(\pi/4)(1-\alpha)$ per radian, and a diffusive admixture of relative size $\sqrt{1-\alpha}$. Each mode evolves as $\exp[-(i+\sqrt{1-\alpha})(\hbar/2m)k^2t]$. Both losses vanish as $\alpha\to1^-$, where the evolution is unitary. Unitarity is derived, not posited, but it is exact only in the limit, and the size of the departure below it is stated.
+\item \emph{Orientation.} The direction of rotation is inherited from the source's past. A current that has always rotated one way keeps doing so, with leakage of order $10^{-8}$. A zero past excites both directions, and then the Born readout drifts. Born needs one orientation.
+\item \emph{Feedback across $\alpha=1$.}
+\begin{itemize}
+\item At $\alpha=1$ the past decouples and the carrier freezes.
+\item Above $1$ the feedback is positive. The causal response runs away at about $\sqrt{\alpha-1}$ per update, and a bounded response must precede its source. These are the two horns of the Abraham--Lorentz--Dirac problem.
+\item Braking together with a fading past can settle the growth. Braking alone cannot, which is integral windup.
+\end{itemize}
+\item \emph{Memory, loss and Markov structure.}
+\begin{itemize}
+\item A normalizable memory has no undamped mode. The power law escapes because its total weight is infinite.
+\item The edge is Markov through the fundamental theorem of calculus.
+\item Information loss is contraction from rank $2$ to rank $1$. It is absent in the free edge and present in interaction and readout.
+\end{itemize}
+\end{itemize}
+
+The structural results are kept. The edge is Galilean and carries no interaction. One carrier $J\in M_2(\mathbb C)$ is two factors, whose concurrence is $1/\gamma$ of its current. The trace readout survives tensor composition.
+
+Numerical runs of the iterated law confirm each statement.
+\end{abstract}
+
+\maketitle
+\tableofcontents
+
+%======================================================================
+\section{Scope and claim}
+
+The companion paper~\cite{Skeleton} obtains the Schr\"odinger form at the edge of the $(\alpha,\text{kernel})$ table adjoining $\alpha=1$ from below. It consumes an input: Posit~1 assumes a unitary flow and then defines the generator from it. An earlier version of the present paper replaced that posit with a field equation, $T=0$. To make $T=0$ produce the Schr\"odinger equation, it added three things that the CAL does not contain:
+\begin{itemize}
+\item a phase prefactor on the memory;
+\item a coupling constant;
+\item a fixed time unit, scaled together with $\alpha$.
+\end{itemize}
+This version removes all of them. It uses the CAL as written, read as a transducer.
+
+\begin{quote}\itshape
+Iterate the CAL: each output state becomes the next current (Axiom~\ref{ax:update}). For $\alpha<1$ the accumulated past pulls back, and the current rotates by $\sqrt{1-\alpha}$ per update (Theorem~\ref{thm:rotation}). The rotation slows with wavenumber as Schr\"odinger's dispersion does, with $\hbar/2m=\langle r^2\rangle/12$ in units of the rest rotation (Corollary~\ref{cor:dispersion}). The evolution is a contraction that becomes unitary as $\alpha\to1^-$ (Theorem~\ref{thm:unitary}). The direction of rotation is inherited from the source's past (Proposition~\ref{prop:orientation}). At $\alpha=1$ the carrier freezes, and above it the feedback runs away or must anticipate its source (Theorem~\ref{thm:feedback}). Normalizable memory cannot sustain a rotation (Theorem~\ref{thm:normalizable}). The structural results on causality, interaction and readout are kept (\S\ref{sec:structure}).
+\end{quote}
+
+\begin{remark}[Ledger]\label{rem:ledger}
+\emph{Inputs:}
+\begin{itemize}
+\item the CAL (Axiom~\ref{ax:CAL});
+\item the free, flat sector with a power-law memory (Definitions~\ref{def:memory}--\ref{def:sector});
+\item the phase as a property of the source (Axiom~\ref{ax:phase});
+\item the update rule (Axiom~\ref{ax:update});
+\item a one-way past (Axiom~\ref{ax:orientation}).
+\end{itemize}
+\emph{Derived:} \S\S4--7.
+
+\emph{Not used:} a prefactor on the memory, a coupling constant, a time unit, any double scaling, or $T=0$ as a law.
+
+\emph{Not claimed:}
+\begin{itemize}
+\item a value for the mass in external units;
+\item interaction between carriers;
+\item Lorentz structure of the edge's dynamics;
+\item a rigorous remainder estimate for the asymptotic expansion of Theorem~\ref{thm:rotation}, which is formal and confirmed numerically.
+\end{itemize}
+\end{remark}
+
+%======================================================================
+\section{Definitions}
+
+\begin{definition}[Causal Weyl integral]\label{def:weyl}
+For bounded $f$ and $\alpha\in(0,1)$, the causal (left-sided) Weyl integral is
+\[
+W^\alpha f(t)=\frac1{\Gamma(\alpha)}\int_0^\infty s^{\alpha-1}f(t-s)\,ds .
+\]
+It integrates over the past only. On an oscillation $e^{-iEt}$ its symbol is $(-iE)^{-\alpha}=\lvert E\rvert^{-\alpha}e^{i\,{\rm sgn}(E)\,\alpha\pi/2}$. An order-$\alpha$ accumulation turns an oscillation by $\alpha$ quarter turns.
+\end{definition}
+
+\begin{definition}[Memory in update units]\label{def:memory}
+Time advances in updates $n\in\mathbb Z$. The order-$\alpha$ power-law memory assigns to the lag $j\ge1$ the weight
+\[
+w_j=\frac{j^\alpha-(j-1)^\alpha}{\Gamma(\alpha+1)},
+\]
+which is the integral of $\tau^{\alpha-1}/\Gamma(\alpha)$ over $[j-1,j]$. Its generating function is
+\[
+W(z)=\sum_{j\ge1}w_jz^{-j}.
+\]
+The spatial profile is a normalized isotropic $g\ge0$ with Fourier transform $\hat g(k)=1-\langle r^2\rangle k^2/6+O(k^4)$. The numerical runs use $\hat g=e^{-\langle r^2\rangle k^2/6}$.
+\end{definition}
+
+\begin{definition}[Carrier and sector]\label{def:sector}
+The carrier is $J\in\mathbb C\otimes\mathbb H\cong M_2(\mathbb C)$. In the free, flat sector the bitensor coupling, the parallel transport and the internal fiber transport of the CAL are the identity, $\Pi P\Phi=\one$. The law then acts on each spatial Fourier mode $e^{ik\cdot x}$ separately, and on each matrix entry of $J$ in the same way.
+\end{definition}
+
+\begin{definition}[Relational time]\label{def:time}
+No time unit is used. If the carrier rotates by $\varphi_0$ per update at $k=0$ (Theorem~\ref{thm:rotation}), then times are quoted in radians of that rest rotation, $t=\varphi_0\,n$. Rates are dimensionless ratios of rates.
+\end{definition}
+
+%======================================================================
+\section{Axioms}
+
+\begin{axiom}[Causal accumulation law; C8 of~\cite{CAL}]\label{ax:CAL}
+\[
+T(x)=\alpha J(x)-(1-\alpha)\int_{J^-(x)}k(\tau;x,x')\,\Pi(x,x')P(x,x')\Phi(x,x')\,J(x')\,d^4x'.
+\]
+The kernel and the transports are real.
+\end{axiom}
+
+\begin{axiom}[The phase belongs to the source]\label{ax:phase}
+The channel angle $\theta=\alpha\pi/2$, i.e.\ $\alpha=2\theta/\pi$, is what an order-$\alpha$ accumulation does to the source's phase channel $e^{iS/\hbar}$ (Definition~\ref{def:weyl}). The real channel $e^{-H/\tau}$ is not turned. No phase factor multiplies the memory term.
+\end{axiom}
+
+\begin{axiom}[Update rule]\label{ax:update}
+Each output state becomes the next current: $J_{n+1}=T_n$.
+\end{axiom}
+
+$T$ and $J$ are both rank-1 currents, so the rule is type-consistent. It is a feedback loop: the carrier's accumulated past acts on it at every update. This is the edge's dynamics. It is not used at $\alpha=2$, where the term $2J$ alone would double the current at every update; there the balance reading of~\cite{Alpha2} applies.
+
+\begin{axiom}[Orientation]\label{ax:orientation}
+The current's past has rotated one way: $J_n=c\,e^{i\varphi_hn}$ for all $n<0$, with $\varphi_h$ real. This is the role that the orientation $\sigma$ played in~\cite{Skeleton}, now as a property of the source rather than a factor.
+\end{axiom}
+
+With Definitions~\ref{def:memory}--\ref{def:sector}, Axioms~\ref{ax:CAL} and~\ref{ax:update} give, mode by mode,
+\begin{equation}\label{eq:update}
+J_{n+1}=\alpha J_n-(1-\alpha)\,\hat g(k)\sum_{j\ge1}w_j\,J_{n-j}.
+\end{equation}
+Below $\alpha=1$ the accumulated past enters with a negative sign. Above $1$ it enters with a positive sign.
+
+%======================================================================
+\section{Lemmas}
+
+\begin{lemma}[Weyl convergence]\label{lem:weyl}
+Let $\omega\in\mathbb R\setminus\{0\}$. The improper integral $\int_0^\infty s^{\alpha-1}e^{i\omega s}ds$ converges if and only if $0<\alpha<1$. Its value is then $\Gamma(\alpha)(-i\omega)^{-\alpha}$.
+\end{lemma}
+
+\begin{proof}
+This is the standard Dirichlet test. The value follows by rotating the contour onto the imaginary axis~\cite{SKM}.
+\end{proof}
+
+\begin{lemma}[Exact memory sum]\label{lem:W}
+For $0<\alpha<1$ and $z=e^{i\varphi}$, with $\varphi$ real and nonzero modulo $2\pi$,
+\begin{equation}\label{eq:jonquiere}
+W(e^{i\varphi})=\big(1-e^{-i\varphi}\big)\sum_{k\in\mathbb Z}\big(i(\varphi+2\pi k)\big)^{-\alpha-1},
+\end{equation}
+with principal powers. The right side is analytic in $\varphi$ off the points $2\pi\mathbb Z$. It continues $W$ from $\lvert z\rvert>1$, where the series converges, across the unit circle. The terms with $k\ne0$ sum to two Hurwitz zeta functions.
+\end{lemma}
+
+\begin{proof}
+Write $x=z^{-1}$. Then
+\[
+\sum_{j\ge1}\big(j^\alpha-(j-1)^\alpha\big)x^j=(1-x)\sum_{j\ge1}j^\alpha x^j=(1-x)\,{\rm Li}_{-\alpha}(x).
+\]
+Jonqui\`ere's formula gives ${\rm Li}_s(e^\mu)=\Gamma(1-s)\sum_k(2\pi ik-\mu)^{s-1}$ for ${\rm Re}\,s<0$~\cite{Lewin,DLMF}. With $s=-\alpha$ and $\mu=-i\varphi$, the factor $\Gamma(1+\alpha)$ cancels the one in $w_j$. Numerically, \eqref{eq:jonquiere} agrees with direct summation to $10^{-14}$ wherever the series converges, and with an independent arbitrary-precision evaluation to $3\times10^{-16}$ (\S\ref{sec:num}).
+\end{proof}
+
+\begin{lemma}[Modes]\label{lem:modes}
+Let
+\[
+F(z)=z-\alpha+(1-\alpha)\,\hat g\,W(z).
+\]
+\begin{enumerate}
+\item A root $z_0$ of $F$ on $\lvert z\rvert=1$ gives an exact solution $J_n=z_0^n$ of~\eqref{eq:update} for all $n\in\mathbb Z$, with the memory over the infinite past summed as in~\eqref{eq:jonquiere}.
+\item A root with $\lvert z_0\rvert<1$, continued through~\eqref{eq:jonquiere}, governs a decaying mode $z_0^n$.
+\item For a zero past and $J_0\ne0$, the $z$-transform of the solution is $zJ_0/F(z)$. The solution is the sum of residues at the roots of $F$ and a branch-cut contribution from $z=1$.
+\item For a one-way past (Axiom~\ref{ax:orientation}), that past adds to the memory at update $n\ge0$ the known term
+\[
+c\,e^{i\varphi_hn}\Big(W(e^{i\varphi_h})-\sum_{j=1}^nw_je^{-i\varphi_hj}\Big).
+\]
+\end{enumerate}
+\end{lemma}
+
+\begin{proof}
+For~(1), insert $z_0^n$ into~\eqref{eq:update}: the memory term is $z_0^nW(z_0)$. For~(3), multiply~\eqref{eq:update} by $z^{-n-1}$ and sum over $n\ge0$. For~(4), the part of the sum with $j>n$ runs over the history. \end{proof}
+
+\begin{lemma}[Flat weights]\label{lem:flat}
+If $w_j\equiv1$, which is the limit of $w_j$ as $\alpha\to1$ at every fixed $j$, then $W(z)=1/(z-1)$ and
+\[
+(z-1)F(z)=z^2-(1+\alpha)z+\alpha+(1-\alpha)\hat g .
+\]
+At $k=0$, where $\hat g=1$:
+\begin{enumerate}
+\item for $\alpha<1$ the roots are $e^{\pm i\varphi}$ with $\cos\varphi=(1+\alpha)/2$, exactly on the unit circle;
+\item for $\alpha=1$ there is a double root $z=1$;
+\item for $\alpha>1$ the roots are $e^{\pm s}$ with $\cosh s=(1+\alpha)/2$.
+\end{enumerate}
+In each case the angle $\varphi$, or the exponent $s$, equals $\sqrt{\lvert1-\alpha\rvert}\,(1+O(\lvert1-\alpha\rvert))$.
+\end{lemma}
+
+\begin{proof}
+$\sum_{j\ge1}z^{-j}=1/(z-1)$ for $\lvert z\rvert>1$. The product of the roots is $\alpha+(1-\alpha)\hat g$, which equals $1$ at $k=0$, and their sum is $1+\alpha$. \end{proof}
+
+%======================================================================
+\section{Schr\"odinger evolution from feedback}
+
+Write $\eps=1-\alpha$, and write the co-rotating root as $z=e^{i\varphi}$, with ${\rm Re}\,\varphi>0$ the rotation per update and ${\rm Im}\,\varphi$ the decay per update.
+
+\begin{theorem}[Rotation from negative feedback]\label{thm:rotation}
+For fixed $\hat g\in(0,1]$ and $\eps\to0^+$, $F$ has a pair of complex-conjugate roots near the unit circle. The co-rotating one is
+\[
+\varphi=\sqrt{\eps\hat g}\,\big(1+O(\eps\ln\eps)\big)+i\Big[\tfrac12\eps(1-\hat g)+\tfrac\pi4\eps^{3/2}\sqrt{\hat g}\Big]+O(\eps^2\ln\eps).
+\]
+So the current rotates by $\sqrt{\eps}$ per update at $k=0$, and decays slowly.
+\end{theorem}
+
+\begin{proof}[Proof (formal asymptotics)]
+In~\eqref{eq:jonquiere} with $\alpha=1-\eps$ and $\varphi\to0$:
+\begin{itemize}
+\item the $k=0$ term gives $(1-e^{-i\varphi})(i\varphi)^{-2+\eps}=(i\varphi)^{-1+\eps}-\tfrac12(i\varphi)^\eps+O(\varphi)$;
+\item the terms with $k\ne0$ contribute $O(\varphi)$;
+\item $(i\varphi)^{\eps}=1+\eps\ln(i\varphi)+\dots$, with $\ln(i\varphi)=\ln\varphi+i\pi/2$.
+\end{itemize}
+Hence
+\[
+F=i\varphi-\tfrac{\varphi^2}2+\eps+\frac{\eps\hat g}{i\varphi}-\frac{\eps\hat g}2+\frac{\eps^2\hat g\ln(i\varphi)}{i\varphi}+O(\varphi^3,\eps\varphi).
+\]
+Order by order, with $\varphi\sim\sqrt\eps$:
+\begin{itemize}
+\item \emph{Order $\eps^{1/2}$.} $i\varphi+\eps\hat g/(i\varphi)=0$, so $\varphi_0=\sqrt{\eps\hat g}$, with $F'(\varphi_0)=2i$.
+\item \emph{Order $\eps$.} The constant is $-\varphi_0^2/2+\eps-\eps\hat g/2=\eps(1-\hat g)$, so $\varphi_1=i\eps(1-\hat g)/2$.
+\item \emph{Order $\eps^{3/2}$.} The logarithmic term gives $\varphi_2=\tfrac12\eps^{3/2}\sqrt{\hat g}\,(\ln\varphi_0+i\pi/2)$.
+\end{itemize}
+The other terms of order $\eps^{3/2}$ are imaginary in $F$, so they shift only the real part of $\varphi$. Section~\ref{sec:num} confirms the expansion down to $\eps=10^{-7}$. There the measured decay per radian, divided by $\eps$, is $0.78667$, against $\pi/4=0.78540$.
+\end{proof}
+
+The decay comes from the fractional order. With flat weights the root at $k=0$ lies exactly on the unit circle (Lemma~\ref{lem:flat}). The power law turns the past by $(1-\eps)\pi/2$ rather than by a full quarter turn, and the mismatch $\eps\pi/2$, entering through $\ln(i\varphi)$, is the term $(\pi/4)\eps^{3/2}$.
+
+\begin{corollary}[Dispersion and mass]\label{cor:dispersion}
+${\rm Re}\,\varphi(k)/{\rm Re}\,\varphi(0)=\sqrt{\hat g(k)}\,(1+O(\eps\ln\eps))$. In rest radians (Definition~\ref{def:time}), mode $k$ therefore lags the rest rotation by the phase
+\[
+\big(1-\sqrt{\hat g(k)}\big)\,t=\frac{\langle r^2\rangle}{12}\,k^2t+O(k^4t).
+\]
+This is free Schr\"odinger evolution with
+\[
+\frac{\hbar}{2m}=\frac{\langle r^2\rangle}{12}
+\]
+in units of the rest rotation. The mass is set by the kernel's spatial width alone. The Schr\"odinger form holds at long wavelengths, $\langle r^2\rangle k^2\ll1$. For a Gaussian profile the lag is exactly $1-e^{-\langle r^2\rangle k^2/12}$ at leading order in $\eps$.
+\end{corollary}
+
+\begin{proof}
+Theorem~\ref{thm:rotation} gives $\varphi_0(k)=\sqrt{\eps\hat g(k)}$. Expand $\sqrt{\hat g}=1-\langle r^2\rangle k^2/12+O(k^4)$. \end{proof}
+
+On the co-rotating branch $e^{+i\varphi n}$, the lag $e^{-i(\hbar/2m)k^2t}$ has the sign of a positive mass.
+
+\begin{theorem}[Unitarity in the limit]\label{thm:unitary}
+With the rest rotation removed and $t$ in rest radians, mode $k$ evolves as
+\[
+\exp\Big[-i\big(1-\sqrt{\hat g}\big)t-\Big(\tfrac12\sqrt\eps\,(1-\hat g)+\tfrac\pi4\eps\sqrt{\hat g}\Big)t\Big],
+\]
+which at long wavelengths is
+\[
+\exp\Big[-\big(i+\sqrt{1-\alpha}\big)\frac{\hbar}{2m}k^2t-\frac\pi4(1-\alpha)\,t\Big].
+\]
+\begin{enumerate}
+\item For $\alpha<1$ every mode decays, so the evolution is a contraction.
+\item The decay has two parts:
+\begin{itemize}
+\item a uniform loss of $(\pi/4)(1-\alpha)$ per radian;
+\item a diffusive admixture, whose ratio to the kinetic phase is $\tfrac12\sqrt\eps\,(1+\sqrt{\hat g})-\tfrac\pi4\eps\to\sqrt{1-\alpha}$.
+\end{itemize}
+\item As $\alpha\to1^-$ both vanish, and the evolution converges mode by mode to the unitary group $e^{-i(\hbar/2m)k^2t}$. The convergence is exact Schr\"odinger in the further long-wavelength limit $\langle r^2\rangle k^2\to0$ at fixed $\hbar/2m$.
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+Divide Theorem~\ref{thm:rotation} by ${\rm Re}\,\varphi(0)=\sqrt\eps\,(1+O(\eps\ln\eps))$, and use $1-\hat g=(1-\sqrt{\hat g})(1+\sqrt{\hat g})$. \end{proof}
+
+Unitarity is therefore derived, but it is exact only at the edge. Below it, the departure is a small, stated contraction.
+
+The evolution has two parts. The rotation belongs to the source's phase channel $e^{iS/\hbar}$. The diffusive part belongs to its real channel $e^{-H/\tau}$, and that admixture vanishes in the limit.
+
+\begin{proposition}[Orientation is inherited from the past]\label{prop:orientation}
+\begin{enumerate}
+\item For flat weights at $k=0$, a one-way past $c\,e^{i\varphi n}$ with $\cos\varphi=(1+\alpha)/2$ continues as $c\,e^{i\varphi n}$ for all $n$. The coefficients of~\eqref{eq:update} are real, so the counter-rotating mode $e^{-i\varphi n}$ is never excited.
+\item For power-law weights, a one-way past rotating at ${\rm Re}\,\varphi(k)$ excites the counter-rotating mode only at a level that vanishes with $\eps$. At $\eps=10^{-4}$ the counter-rotating fraction of the norm is $10^{-7}$--$10^{-8}$ (Table~\ref{tab:packet}).
+\item A zero past excites both directions with comparable weight, as a spring started from rest swings both ways.
+\item A history truncated after a few cycles fails. The memory is nearly flat, so every past update counts, and a two-cycle history sends $70$--$97\%$ of the norm into the counter-rotating mode. The whole past is required.
+\end{enumerate}
+\end{proposition}
+
+\begin{proof}
+Part~(1) is Lemma~\ref{lem:modes}(1) with Lemma~\ref{lem:flat}. Parts~(2)--(4) are numerical, \S\ref{sec:num}. \end{proof}
+
+The wave at a point is therefore the carrier's accumulated causal past evaluated there. It is not a spread in space at one instant.
+
+\begin{theorem}[Feedback across $\alpha=1$]\label{thm:feedback}
+\begin{enumerate}
+\item At $\alpha=1$ the memory term vanishes. The past decouples, and~\eqref{eq:update} gives $J_{n+1}=J_n$: the carrier is frozen.
+\item For $\alpha>1$ the feedback is positive, and $F$ has a real root $z_*>1$. The causal response therefore grows like $z_*^n$, at about $\sqrt{\alpha-1}$ per update. With flat weights the two roots are $e^{\pm s}$, with $\cosh s=(1+\alpha)/2$.
+\item The only bounded response to a source at $n_0$ decays in both directions from $n_0$. With flat weights it is proportional to $e^{-s\lvert n-n_0\rvert}$. It is nonzero before the source acts, so it is advanced. Above $1$ one must choose between a causal runaway and a bounded preacceleration: the two horns of the Abraham--Lorentz--Dirac problem~\cite{Dirac}.
+\item Add a brake, $J_{n+1}=(1-b)\,T_n$ with $0\le b<1$, and a fading past, with weights $w_je^{-\lambda j}$. Then settling requires
+\[
+(1-b)\big(\alpha+(\alpha-1)W_\lambda(1)\big)<1 .
+\]
+If the past never fades, $\lambda=0$, then $W(1)=\infty$ and no brake settles the growth. This is integral windup.
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+Part~(1) is immediate.
+
+For~(2) and~(4): for real $z>1$, $F(z)=z-(1-b)\alpha-(1-b)(\alpha-1)W_\lambda(z)$ is continuous, and $F(z)\to+\infty$ as $z\to\infty$. If $F(1)<0$, the intermediate value theorem gives a root above $1$. Since $F(1)=1-(1-b)\big(\alpha+(\alpha-1)W_\lambda(1)\big)$, $F(1)<0$ exactly when the criterion fails. For $\lambda=0$ and $\alpha>1$, $W(z)\to+\infty$ as $z\to1^+$.
+
+For~(3), with flat weights the homogeneous recurrence is $J_{n+1}-(1+\alpha)J_n+J_{n-1}=0$. Its two-sided bounded Green's function is $e^{-s\lvert n-n_0\rvert}/(2\sinh s)$.
+
+That the criterion is also sufficient is checked numerically (Table~\ref{tab:feedback}). \end{proof}
+
+%======================================================================
+\section{Markov structure and loss}\label{sec:markov}
+
+The framework has two Markov limits~\cite[Sec.~1]{Info}:
+\begin{itemize}
+\item the \emph{forgetful} (Dirac) limit, in which nothing of the past enters;
+\item the \emph{faithful} (light-cone) limit, in which every past contribution is retained distinctly. A closed system cannot reach it~\cite[Sec.~2]{Info}.
+\end{itemize}
+The edge is neither of these.
+
+\begin{proposition}[The accumulator]\label{prop:embedding}
+As $\alpha\to1^-$, $w_j\to1$ for every fixed $j$. The memory becomes the running sum $\sum_{j\ge1}J_{n-j}$, the discrete integral of the past. That is the accumulator of the fundamental theorem of calculus: it keeps the sum, not each contribution.
+
+In continuous lag, for $0<\alpha<1$,
+\[
+\frac{\tau^{\alpha-1}}{\Gamma(\alpha)}=\int_0^\infty e^{-s\tau}\mu_\alpha(s)\,ds,\qquad \mu_\alpha(s)=\frac{\sin\pi\alpha}{\pi}\,s^{-\alpha}.
+\]
+So a Markov description at $\alpha<1$ needs a continuum of auxiliary modes $\dot y_s=-sy_s+J$. As $\alpha\to1^-$ the weight $\mu_\alpha$ concentrates at $s=0$: on any interval $[0,S]$, the fraction of its mass in $[0,\delta]$ is $(\delta/S)^{1-\alpha}\to1$. The continuum collapses onto the single mode $y_0=\int^tJ$, the accumulated state itself.
+\end{proposition}
+
+\begin{proof}
+$\big(j^\alpha-(j-1)^\alpha\big)/\Gamma(\alpha+1)\to1$. For the continuous part, use $\int_0^\infty s^{-\alpha}e^{-s\tau}ds=\Gamma(1-\alpha)\tau^{\alpha-1}$ and $\Gamma(\alpha)\Gamma(1-\alpha)=\pi/\sin\pi\alpha$. \end{proof}
+
+So the edge needs neither records nor extra state.
+
+\begin{theorem}[Normalizable memory has no undamped mode]\label{thm:normalizable}
+Replace the power law by weights $w_j\ge0$ with $\sum_jw_j=1$. This includes every exponential kernel and the Dirac kernel $w_j=\delta_{j1}$. Then for every $\alpha\in(0,1)$ and every $\hat g\in[0,1]$, every root of $F$ lies strictly inside the unit circle, so every mode decays.
+\end{theorem}
+
+\begin{proof}
+For $\lvert z\rvert\ge1$:
+\[
+\lvert(1-\alpha)\hat gW(z)\rvert\le(1-\alpha)\sum_jw_j=1-\alpha\le\lvert z\rvert-\alpha\le\lvert z-\alpha\rvert .
+\]
+Equality throughout needs $z=1$ and $\hat g=1$, where $F(1)=2(1-\alpha)\neq0$. \end{proof}
+
+\begin{remark}[Why the power law]\label{rem:powerlaw}
+The power law escapes Theorem~\ref{thm:normalizable} because its total weight is infinite, so $W(z)$ is unbounded as $z\to1$. The vanishing factor $(1-\alpha)$ multiplies an unbounded memory and leaves the finite rotation $\sqrt{1-\alpha}$ per update. A normalizable memory damps every mode, at about $2(1-\alpha)$ per update when $(1-\alpha)$ times the mean lag is small (Table~\ref{tab:normalizable}).
+\end{remark}
+
+\begin{remark}[Loss is contraction]\label{rem:loss}
+In the framework, information is lost when a rank-$2$ object is contracted back to rank $1$. That map is many-to-one: $a=\Omega u$ does not determine the pair $(\Omega,u)$~\cite[Sec.~2]{Info}.
+\begin{itemize}
+\item In the free edge the rank-$2$ factors $\Pi P\Phi$ are the identity, which is one-to-one. Nothing is erased, consistent with unitarity in the limit.
+\item Contraction becomes many-to-one in interaction, a rank-$2$ action on a rank-$1$ state, and in readout, where the closure $JJ^\dagger$ sends the $8$ real components of $J$ to $4$. That is where the Landauer cost $k_BT\ln2$ per erased bit is paid~\cite{Landauer}.
+\item The decay of Theorem~\ref{thm:unitary} is a different thing. It is a phase effect of the fractional order, which vanishes at the edge.
+\end{itemize}
+\end{remark}
+
+%======================================================================
+\section{Structure of the edge}\label{sec:structure}
+
+\subsection{Causal structure: the edge is Galilean}\label{sec:galilean}
+
+In the framework the Lorentz signature appears with the quadratic closure $JJ^\dagger$ at $\alpha=2$, through the invariant $\det(JJ^\dagger)=\lvert\det J\rvert^2$~\cite{CAL}. The same closure gives the Born readout through the trace, $\tfrac12{\rm tr}(JJ^\dagger)=\sum_a\lvert Z_a\rvert^2$. That trace is a density, the time component of a current, not a Lorentz scalar. Below the closure there is no determinant, so there is no metric signature and no light cone.
+
+At the $\alpha\to1^-$ edge the causal structure is therefore time ordering alone: $J^-(x)$ reduces to the time-ordered past, with no bound on spatial reach. This is the Galilean structure of the Schr\"odinger equation, whose free propagator is nonzero at every distance for every $t>0$.
+\begin{itemize}
+\item The lag-independent spatial profile of Definition~\ref{def:memory} is admissible.
+\item A light cone imposed at the edge would import $\alpha=2$ structure; that structure is treated in~\cite{Alpha2}.
+\end{itemize}
+
+\subsection{The edge carries no interaction}\label{sec:nointeraction}
+
+\begin{remark}[Single legs]\label{rem:nointeraction}
+In~\eqref{eq:update} the past enters only through transports from a point of the past to the present, each acting within one carrier. Hence:
+\begin{enumerate}
+\item \emph{No coupling between carriers.} For two carriers the update is a sum of single-carrier terms. It preserves the Schmidt coefficients between the carriers: it can carry entanglement that already exists, but cannot create any. The reason is the transport structure, not linearity. A linear rule with a two-carrier coupling would entangle.
+\item \emph{A coupling would need the return leg.} A term transferring from $A$ to $B$ alone is one-way. Its adjoint is the return leg from $B$ to $A$; for a unitary transport, $P_\gamma^\dagger=P_{\gamma^{-1}}$. A leg together with its return is order $1+1=2$: the reciprocal closure, which belongs to $\alpha=2$~\cite{Alpha2}.
+\item \emph{No holonomy from the carrier.} Holonomy needs a closed path~\cite{CAL}. What the edge can carry is a fixed background acting one way: a test particle that does not act back.
+\end{enumerate}
+\end{remark}
+
+\subsection{Readout: one carrier, and composites}\label{sec:composition}
+
+\begin{proposition}[One carrier is two factors]\label{prop:carrier}
+Read $J\in M_2(\mathbb C)$ as a vector $\lvert J\rangle\!\rangle=\sum_{ij}J_{ij}\lvert i\rangle\lvert j\rangle\in\mathbb C^2\otimes\mathbb C^2$. The row index is the left factor, on which Lorentz transformations act ($J\to LJ$). The column index is the right factor, on which the internal phase acts ($J\to JU$). Then:
+\begin{enumerate}
+\item $JJ^\dagger={\rm Tr}_{\rm right}\lvert J\rangle\!\rangle\langle\!\langle J\rvert$, the reduced state of the left factor;
+\item $J$ is a product state $\iff$ ${\rm rank}\,J=1$ $\iff$ $\det J=0$, which is a null closure~\cite[Eq.~(40)]{Info};
+\item the eigenvalues of $JJ^\dagger$ are the Schmidt weights: their sum ${\rm tr}\,JJ^\dagger$ is the Born normalization, and their product $\det JJ^\dagger=\lvert\det J\rvert^2$ is the Lorentzian norm;
+\item the concurrence of the normalized state is
+\[
+C=\frac{2\lvert\det J\rvert}{{\rm tr}(JJ^\dagger)}=\sqrt{1-v^2/c^2}=\frac1\gamma,
+\]
+where $v/c=\lvert\vec x\rvert/x^0$ is the speed of the closure $JJ^\dagger=x^0I_2+\vec x\cdot\vec\sigma$.
+\end{enumerate}
+\end{proposition}
+
+\begin{proof}
+For~(1): $\big({\rm Tr}_{\rm right}\lvert J\rangle\!\rangle\langle\!\langle J\rvert\big)_{ik}=\sum_jJ_{ij}\bar J_{kj}$. For~(2): a $2\times2$ matrix has rank one iff its determinant vanishes, and a rank-one matrix is a product $\psi\eta^\dagger$. Part~(3) is the singular-value decomposition of $J$. For~(4): the eigenvalues of $x^0I_2+\vec x\cdot\vec\sigma$ are $x^0\pm\lvert\vec x\rvert$, and for a pure bipartite state $C=2\sqrt{p_+p_-}$ with $p_\pm=(x^0\pm\lvert\vec x\rvert)/(2x^0)$. \end{proof}
+
+So ``Born by trace'' and ``Lorentz by determinant'' are the sum and the product of the Schmidt weights of a single carrier. A carrier at rest is maximally entangled between its factors, and a massless carrier is a product.
+
+\begin{proposition}[Lorentz action on the carrier's entanglement]\label{prop:lorentz}
+Let $G\in SL(2,\mathbb C)$ act on the left factor, $J\to GJ$. Then $Q\to GQG^\dagger$. This is the proper orthochronous Lorentz action on the Hermitian slice~\cite[Eqs.~(35)--(36)]{Info}, and:
+\begin{enumerate}
+\item $\lvert\det J\rvert$, the invariant density, is unchanged, while $x^0=\tfrac12{\rm tr}\,Q$, the density in the frame, is not;
+\item rotations, $G\in SU(2)$, are local unitaries and leave the concurrence unchanged; boosts, with $G$ Hermitian and positive, are invertible local filtering operations and change it~\cite{VDD};
+\item writing the speed of the closure as $\beta=\tanh\eta$, with $\eta$ its rapidity,
+\[
+C=\operatorname{sech}\eta,\qquad p_\pm=\frac{e^{\pm\eta}}{2\cosh\eta},\qquad \frac{p_+}{p_-}=e^{2\eta},
+\]
+so the Schmidt weights are proportional to the relativistic Doppler factors $e^{\pm\eta}$, and collinear boosts add rapidities;
+\item the pure states of the left factor, which are the null closures, form $\mathbb{CP}^1$, the celestial sphere, on which $SL(2,\mathbb C)$ acts by M\"obius transformations~\cite{PR}.
+\end{enumerate}
+\end{proposition}
+
+\begin{proof}
+$\det(GJ)=\det J$ when $\det G=1$, and $Q\to GQG^\dagger$ preserves $\det Q=x_\mu x^\mu$. For $G\in SU(2)$ the trace is also preserved. For~(3), use Proposition~\ref{prop:carrier}(4) with $\beta=\tanh\eta$. A boost $e^{\eta\,n\cdot\sigma/2}$ acting on a carrier at rest, $Q=\rho I$, gives $Q=\rho\,e^{\eta\,n\cdot\sigma}$, with $x^0=\rho\cosh\eta$ and $\lvert\vec x\rvert=\rho\sinh\eta$. Part~(4) is the spinor description of null directions. \end{proof}
+
+\begin{remark}[What is known, and what is read]
+The Lorentz structure of the qubit state space is known. The Bloch ball is the trace-one section of the future light cone of positive $2\times2$ matrices~\cite{SSS}, and local filtering on a qubit acts as a Lorentz transformation~\cite{VDD}.
+
+What the carrier adds is a reading: the entanglement between a carrier's two factors is the time dilation of its current. This is a statement about the closure $JJ^\dagger$, an $\alpha=2$ object. The Lorentz group here acts on the carrier's closure, not on the spacetime of the edge.
+\end{remark}
+
+\begin{proposition}[Readout under composition]\label{prop:composition}
+Let $J\in M_N(\mathbb C)$ have any rank, let $Q=JJ^\dagger$, and let $P_m$ be projectors with $\sum_mP_m=I_N$. Then $p_m={\rm Tr}(P_mQ)/{\rm Tr}\,Q$ is a probability distribution. For composite carriers $J_{AB}\in M_2(\mathbb C)\otimes M_2(\mathbb C)\cong M_4(\mathbb C)$, and likewise for more carriers:
+\begin{enumerate}
+\item product carriers give product statistics;
+\item marginals are consistent for every $J_{AB}$;
+\item the rank of $J_{AB}$ and the entanglement between $A$ and $B$ are different things. For example, $J_{AB}=\Phi^+\eta^\dagger$ has rank one and gives a pure $Q_{AB}$ with ${\rm Tr}_BQ_{AB}=I_2/2$.
+\end{enumerate}
+\end{proposition}
+
+\begin{proof}
+Positivity and $\sum_mP_m=I$ give a distribution. $(J_A\otimes J_B)(J_A\otimes J_B)^\dagger=J_AJ_A^\dagger\otimes J_BJ_B^\dagger$. Part~(2) is the definition of the partial trace, and~(3) is direct computation. \end{proof}
+
+\begin{lemma}[Intrinsic normalization above $M_2$]\label{lem:minors}
+The closure normalizes itself, $2J=JJ^\dagger$ giving a projector $P=J/2$ with ${\rm tr}\,P=1$~\cite{CAL}, only if $J$ has rank one.
+\begin{itemize}
+\item In $M_2(\mathbb C)$, rank one is the condition $\det J=0$.
+\item In $M_N(\mathbb C)$ with $N\ge3$, rank one is $\Lambda^2J=0$, the vanishing of all $2\times2$ minors. The condition $\det J=0$ alone is not enough.
+\end{itemize}
+\end{lemma}
+
+\begin{proof}
+$2J=JJ^\dagger$ forces $J=J^\dagger$ and $J^2=2J$, so ${\rm tr}\,P={\rm rank}\,J$. For $N\ge3$, $J={\rm diag}(2,2,0,\dots,0)$ satisfies $2J=JJ^\dagger$ and $\det J=0$, but ${\rm tr}\,P=2$. \end{proof}
+
+\begin{proposition}[Born needs one orientation]\label{prop:born}
+Let $J=\psi_aU+\psi_bV$ be an $M_2(\mathbb C)$ carrier, with $Q=\sum_kJJ^\dagger$ and readout $p=\tr(PQ)/\tr Q$.
+\begin{enumerate}
+\item With a one-way past, $\tr Q$ decays at $2\big[(\pi/4)(1-\alpha)+\sqrt{1-\alpha}\,(\hbar/2m)\langle k^2\rangle\big]$ per radian. The readout drift vanishes as $\alpha\to1^-$.
+\item With a zero past, both rotation directions are present. Their cross terms oscillate at twice the rotation, $\tr Q$ swings by $O(1)$, and the readout drift does not vanish.
+\end{enumerate}
+\end{proposition}
+
+\begin{proof}
+For~(1), apply Theorem~\ref{thm:unitary} mode by mode. Part~(2) and the numbers are in Table~\ref{tab:closure}. \end{proof}
+
+This is the edge counterpart of the positive-frequency restriction at $\alpha=2$~\cite{Alpha2}.
+
+%======================================================================
+\section{Numerical verification}\label{sec:num}
+
+All numbers come from \texttt{scripts/cal\_edge\_transducer.py} in the repository \url{https://github.com/JewJitsu11B/Liorhybrid}. It uses NumPy only and runs in about fifteen seconds. Methods are described in Appendix~\ref{app:num}.
+
+\emph{Memory sum.} Equation~\eqref{eq:jonquiere}, with the Hurwitz zeta functions evaluated by Euler--Maclaurin, agrees with direct summation to $3\times10^{-14}$ at $\lvert z\rvert>1$. An independent arbitrary-precision evaluation agrees to $3\times10^{-16}$.
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{cccccc}
+\toprule
+$1-\alpha$ & rotation/update & $\div\sqrt{1-\alpha}$ & decay/update & decay per radian & $\div(1-\alpha)$\\
+\midrule
+$10^{-2}$ & $0.09897219$ & $0.989722$ & $8.922\times10^{-4}$ & $9.015\times10^{-3}$ & $0.90146$\\
+$10^{-3}$ & $0.03157031$ & $0.998341$ & $2.652\times10^{-5}$ & $8.401\times10^{-4}$ & $0.84005$\\
+$10^{-4}$ & $0.00999775$ & $0.999775$ & $8.082\times10^{-7}$ & $8.084\times10^{-5}$ & $0.80843$\\
+$10^{-5}$ & $0.00316219$ & $0.999972$ & $2.512\times10^{-8}$ & $7.945\times10^{-6}$ & $0.79450$\\
+$10^{-6}$ & $0.00100000$ & $0.999997$ & $7.888\times10^{-10}$ & $7.889\times10^{-7}$ & $0.78885$\\
+$10^{-7}$ & $0.00031623$ & $1.000000$ & $2.488\times10^{-11}$ & $7.867\times10^{-8}$ & $0.78667$\\
+\bottomrule
+\end{tabular}
+\caption{Theorem~\ref{thm:rotation} at $k=0$. The rotation tends to $\sqrt{1-\alpha}$ per update, and the decay per radian divided by $1-\alpha$ tends to $\pi/4=0.7854$. Direct iteration of~\eqref{eq:update} at $\alpha=0.999$ for $24000$ updates gives rotation $0.031570$ and decay $2.652\times10^{-5}$, the same as the root to every printed digit.}
+\label{tab:modes}
+\end{table}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{cccccc}
+\toprule
+$\langle r^2\rangle$ & $k$ & measured & $\langle r^2\rangle/12$ & ratio\\
+\midrule
+$0.06$ & $0.10$ & $0.005000$ & $0.005000$ & $1.0000$\\
+$0.60$ & $0.10$ & $0.049988$ & $0.050000$ & $0.9998$\\
+$0.60$ & $0.20$ & $0.049950$ & $0.050000$ & $0.9990$\\
+$6.00$ & $0.05$ & $0.499688$ & $0.500000$ & $0.9994$\\
+$6.00$ & $0.20$ & $0.495034$ & $0.500000$ & $0.9901$\\
+\bottomrule
+\end{tabular}
+\caption{Corollary~\ref{cor:dispersion} at $1-\alpha=10^{-5}$: $\big(\varphi(0)-\varphi(k)\big)/\big(\varphi(0)k^2\big)\to\langle r^2\rangle/12=\hbar/2m$. The departures are the $k^4$ terms.}
+\label{tab:mass}
+\end{table}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{ccccc}
+\toprule
+$1-\alpha$ & $k=0.1$ & $k=0.3$ & $k=1$ & $\sqrt{1-\alpha}$\\
+\midrule
+$10^{-2}$ & $0.09187$ & $0.09185$ & $0.09163$ & $0.10000$\\
+$10^{-3}$ & $0.03081$ & $0.03080$ & $0.03073$ & $0.03162$\\
+$10^{-4}$ & $0.00992$ & $0.00992$ & $0.00990$ & $0.01000$\\
+$10^{-6}$ & $0.00100$ & $0.00100$ & $0.00100$ & $0.00100$\\
+\bottomrule
+\end{tabular}
+\caption{The diffusive admixture of Theorem~\ref{thm:unitary}: the extra decay of mode $k$ divided by its kinetic phase, with $\langle r^2\rangle=0.06$. The predicted value is $\tfrac12\sqrt\eps(1+\sqrt{\hat g})-\tfrac\pi4\eps$, for example $0.0921$ at $\eps=10^{-2}$ and $k=0.1$.}
+\label{tab:diffusion}
+\end{table}
+
+\emph{Wavepacket.} The packet is $e^{-x^2/2+ix}$ on a periodic box of length $40$ with $128$ points. Its past is the carrier rotating one way over the whole infinite past, added exactly by Lemma~\ref{lem:modes}(4). It is evolved by~\eqref{eq:update} to Schr\"odinger time $(\hbar/2m)t=0.5$ and compared with free Schr\"odinger evolution after aligning the global phase.
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{cccccc}
+\toprule
+$1-\alpha$ & $\langle r^2\rangle$ & updates & $\lVert\text{CAL}-\text{Schr}\rVert$ & floor ($k^4$) & counter-rotating\\
+\midrule
+$10^{-2}$ & $0.06$ & $1010$ & $6.96\times10^{-2}$ & $1.14\times10^{-2}$ & $5.6\times10^{-5}$\\
+$10^{-3}$ & $0.06$ & $3168$ & $2.63\times10^{-2}$ & $1.24\times10^{-2}$ & $7.2\times10^{-7}$\\
+$10^{-4}$ & $0.24$ & $2501$ & $4.83\times10^{-2}$ & $4.81\times10^{-2}$ & $1.2\times10^{-7}$\\
+$10^{-4}$ & $0.12$ & $5001$ & $2.57\times10^{-2}$ & $2.48\times10^{-2}$ & $4.3\times10^{-8}$\\
+$10^{-4}$ & $0.06$ & $10002$ & $1.46\times10^{-2}$ & $1.26\times10^{-2}$ & $1.8\times10^{-8}$\\
+\bottomrule
+\end{tabular}
+\caption{Corollary~\ref{cor:dispersion}, Theorem~\ref{thm:unitary} and Proposition~\ref{prop:orientation}. The floor is the distance between the exact modes and Schr\"odinger, which is the $k^4$ terms; it halves with $\langle r^2\rangle$. As $\alpha\to1^-$ the error falls onto the floor. The norm loss at $1-\alpha=10^{-4}$ is $0.9$--$1.5\%$: the uniform part plus the diffusive part $\sqrt{1-\alpha}\,\langle k^2\rangle(\hbar/2m)t$. With a two-cycle history instead, $70$--$97\%$ of the norm goes into the counter-rotating mode.}
+\label{tab:packet}
+\end{table}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{cccccc}
+\toprule
+ & \multicolumn{2}{c}{one-way past} & & \multicolumn{2}{c}{zero past}\\
+\cmidrule{2-3}\cmidrule{5-6}
+$1-\alpha$ & $\tr Q$ drift per radian & readout drift & & $\tr Q$ swing & readout drift\\
+\midrule
+$10^{-2}$ & $2.1\times10^{-2}$ & $5.5\times10^{-3}$ & & $3.5$ & $3.7\times10^{-2}$\\
+$10^{-3}$ & $2.8\times10^{-3}$ & $1.9\times10^{-3}$ & & $2.2$ & $3.6\times10^{-2}$\\
+$10^{-4}$ & $5.5\times10^{-4}$ & $6.0\times10^{-4}$ & & $2.0$ & $3.7\times10^{-2}$\\
+\bottomrule
+\end{tabular}
+\caption{Proposition~\ref{prop:born}, over $60$ radians. With one orientation the closure and the readout become conserved as $\alpha\to1^-$. With both directions present they do not.}
+\label{tab:closure}
+\end{table}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{cccc}
+\toprule
+$b$ & past never fades & $\lambda=0.1$ & $\lambda=0.01$\\
+\midrule
+$0$ & $+0.1010$ & $+0.0647$ & $+0.0964$\\
+$0.05$ & $+0.0775$ & $+0.0293$ & $+0.0715$\\
+$0.2$ & $+0.0356$ & $-0.0456$ & $+0.0270$\\
+$0.5$ & $+0.0103$ & $-0.0874$ & $+0.0005$\\
+$0.9$ & $+0.0012$ & $-0.0987$ & $-0.0088$\\
+\bottomrule
+\end{tabular}
+\caption{Theorem~\ref{thm:feedback} at $\alpha=1.01$: growth per update ($>0$ runs away, $<0$ settles). The criterion gives $b>0.095$ for $\lambda=0.1$ and $b>0.501$ for $\lambda=0.01$. Without braking or fading the growth is $0.1010$ against $\sqrt{\alpha-1}=0.1$, and at $\alpha=1.001$ it is $0.03167$ against $0.03162$. At $\alpha=1$ the carrier is frozen.}
+\label{tab:feedback}
+\end{table}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{lccc}
+\toprule
+kernel ($\sum_jw_j=1$) & $1-\alpha$ & largest $\lvert z\rvert$ & slowest decay/update\\
+\midrule
+exponential, width $10$ & $10^{-2}$ & $0.97677$ & $2.35\times10^{-2}$\\
+exponential, width $100$ & $10^{-2}$ & $0.99205$ & $7.98\times10^{-3}$\\
+summable power law $j^{-1.5}$ & $10^{-2}$ & $0.98656$ & $1.35\times10^{-2}$\\
+Dirac, $w_j=\delta_{j1}$ & $10^{-2}$ & $0.97979$ & $2.04\times10^{-2}$\\
+all four & $10^{-4}$ & $0.99980$ & $2.0\times10^{-4}$\\
+\bottomrule
+\end{tabular}
+\caption{Theorem~\ref{thm:normalizable}: every root inside the unit circle, from the companion matrix of the recurrence with $400$ lags.}
+\label{tab:normalizable}
+\end{table}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{lc}
+\toprule
+Check & Result\\
+\midrule
+$\lVert{\rm Tr}_{\rm right}\lvert J\rangle\!\rangle\langle\!\langle J\rvert-JJ^\dagger\rVert$, 200 random $J$ & $1.8\times10^{-15}$\\
+$\lvert C-1/\gamma\rvert$, same $J$ & $1.2\times10^{-15}$\\
+trace readout against $\lvert\Phi_m^\dagger\Psi\rvert^2/\Psi^\dagger\Psi$, $N\in\{2,4,16,1024\}$ & $3.7\times10^{-16}$\\
+product carriers: $\lvert p(m,n)-p_A(m)p_B(n)\rvert$ & $1.1\times10^{-16}$\\
+rank-4 $J_{AB}$: marginal mismatch & $0$\\
+$J_{AB}=\Phi^+\eta^\dagger$: rank, ${\rm Tr}_BQ$ & $1$, $I_2/2$\\
+${\rm diag}(2,2,0,0)$: $\det J$, largest $2\times2$ minor, ${\rm tr}\,P$ & $0$, $4$, $2$\\
+boost by $\eta=0.5,1,2$: $C$ against $\operatorname{sech}\eta$ & equal to $6$ digits\\
+boosts $0.7$ then $0.9$: $C$ against $\operatorname{sech}1.6$ & $0.387978$, $0.387978$\\
+\bottomrule
+\end{tabular}
+\caption{Propositions~\ref{prop:carrier}--\ref{prop:composition} and Lemma~\ref{lem:minors}.}
+\label{tab:readout}
+\end{table}
+
+\clearpage
+%======================================================================
+\section{Remarks on scope}
+
+\begin{remark}[What changes relative to~\cite{Skeleton} and to the earlier version]
+Seven things change.
+\begin{itemize}
+\item Posit~1 of~\cite{Skeleton} is replaced by the update rule, Axiom~\ref{ax:update}. The earlier field equation $T=0$ is not used; $T$ is the new state, and vanishes only when the present balances the past.
+\item The phase prefactor is removed. Its job is done by integrating the source's phase channel (Axiom~\ref{ax:phase}) and by the orientation of the source's past (Axiom~\ref{ax:orientation}).
+\item The coupling constant is removed. In the free, flat sector the transport chain is the identity.
+\item The time unit and the double scaling are removed. Time is relational (Definition~\ref{def:time}).
+\item Unitarity was exact for every $\alpha<1$ in the earlier version, because the prefactor cancelled the phase of the memory. Without the prefactor it is exact only in the limit (Theorem~\ref{thm:unitary}).
+\item The earlier mass formula, which contained the coupling and the time unit, is replaced by $\hbar/2m=\langle r^2\rangle/12$ in rest radians.
+\item The one-sidedness of the edge is now the feedback classification of Theorem~\ref{thm:feedback}.
+\end{itemize}
+\end{remark}
+
+\begin{remark}[Relation to $\alpha=2$]
+At $\alpha=2$ the update rule is not the dynamics, since the present term alone doubles the current. There the balance reading applies: the present equals the light-cone accumulated past, which gives the Klein--Gordon equation and Feynman's path sum~\cite{Alpha2}. Exactly at $2$ that law is conservative, and above $2$ it runs away.
+\end{remark}
+
+\begin{remark}[The wave is the accumulated past]
+Proposition~\ref{prop:orientation}(4) shows that the whole one-way history is needed.
+\begin{itemize}
+\item Accumulation with real weights gives diffusion: the channel $e^{-H/\tau}$, as in Feynman--Kac.
+\item Accumulation with phase gives waves: the channel $e^{iS/\hbar}$, as in Feynman's path integral.
+\item The edge law of Theorem~\ref{thm:unitary} is a mixture of the two, dominated by the phase.
+\item In Feynman's formulation, $\psi(x,t)$ is likewise the sum over the past parts of paths ending at $(x,t)$~\cite{Feynman}. This is a parallel, not a derivation.
+\end{itemize}
+\end{remark}
+
+\begin{remark}[A measurable departure]
+If physics sits at the edge, unitarity is exact. If it sits slightly below, Theorem~\ref{thm:unitary} predicts a universal decay of $(\pi/4)(1-\alpha)$ per radian of rest rotation, plus a diffusion term of relative size $\sqrt{1-\alpha}$. Precision interference and clock comparisons would therefore bound $1-\alpha$.
+\end{remark}
+
+\begin{remark}[Forward pointer: the equivalence condition]
+At the edge the inertial mass comes from the kernel width, and the rest rotation from the feedback rate. Nothing here ties them together. Requiring the width to be $\sqrt6$ Compton wavelengths is the statement that the inertial mass equals the rest energy divided by $c^2$, which a universal coupling of gravity to energy would require. This belongs to the $\alpha=2$ program and is not claimed here.
+\end{remark}
+
+%======================================================================
+\section{Conclusion}
+
+The Causal Accumulation Law, iterated as a transducer, produces Schr\"odinger evolution at $\alpha\to1^-$ with nothing added. The accumulated past enters with a negative sign below $\alpha=1$ and pulls the current back. That feedback makes the current rotate by $\sqrt{1-\alpha}$ per update, and the rotation is the $i$ of the Schr\"odinger equation. The kernel's spatial width slows the rotation at short wavelengths exactly as a kinetic term does, with $\hbar/2m=\langle r^2\rangle/12$ in units of the rest rotation. So the mass is a property of the memory's spatial extent.
+
+Unitarity is derived but holds only in the limit. Below the edge the fractional order leaks a uniform $(\pi/4)(1-\alpha)$ per radian and adds a diffusive admixture of relative size $\sqrt{1-\alpha}$. Both vanish at the edge, which leaves the phase channel alone.
+
+The direction of rotation, and with it the Born readout's stability, is inherited from the source's one-way past, and the whole past is needed. At $\alpha=1$ the past decouples and the carrier freezes. Above it the feedback turns positive: a causal response runs away, and a bounded one anticipates its source, as for the Abraham--Lorentz--Dirac equation.
+
+Normalizable memories cannot sustain the rotation. The power law can, because its total weight is infinite, and as $\alpha\to1^-$ it becomes the accumulator of the fundamental theorem of calculus.
+
+The edge is Galilean and free: interaction needs the return leg, which is order $2$. Its readout is the closure of a carrier that is itself two factors, with concurrence $1/\gamma$.
+
+%======================================================================
+\appendix
+\section{Notation}
+
+{\small\begin{tabular}{ll}
+$\alpha$, $\eps=1-\alpha$ & fractional order and its distance to the edge\\
+$n$, $t=\varphi_0 n$ & update count and time in rest radians\\
+$w_j$, $W(z)$ & order-$\alpha$ memory weights and their generating function\\
+$g$, $\hat g$, $\langle r^2\rangle$ & spatial profile, its Fourier transform, its second moment\\
+$F(z)$ & characteristic function of the update rule\\
+$\varphi$ & co-rotating root: rotation (real) and decay (imaginary) per update\\
+$\hbar/2m=\langle r^2\rangle/12$ & kinetic coefficient in rest radians\\
+$b$, $\lambda$ & brake and fading rate (Theorem~\ref{thm:feedback})\\
+$\lvert J\rangle\!\rangle$ & the carrier read as a vector in $\mathbb C^2\otimes\mathbb C^2$\\
+$Q=JJ^\dagger$, $P_m$ & positive closure; outcome projectors\\
+$C$, $\gamma$, $\eta$ & concurrence; Lorentz factor and rapidity of the closure\\
+\end{tabular}}
+
+\section{Numerical methods}\label{app:num}
+
+\emph{Roots.} Newton iteration on $F(e^{i\varphi})$, with $W$ evaluated by~\eqref{eq:jonquiere}. The two Hurwitz zeta functions are evaluated by Euler--Maclaurin with $30$ terms and seven Bernoulli corrections, and checked against an independent arbitrary-precision library.
+
+\emph{Iteration.} Equation~\eqref{eq:update} is iterated with the full history, an $O(N^2)$ direct sum. A one-way past is added exactly through Lemma~\ref{lem:modes}(4), using cumulative partial sums of $w_je^{-i\varphi_hj}$.
+
+\emph{Packets and closure.}
+\begin{itemize}
+\item The packet runs keep the Fourier modes with amplitude above $10^{-9}$ of the maximum.
+\item The counter-rotating fraction is fitted over the last two cycles.
+\item The closure test uses $J=\psi_aU+\psi_bV$, with random $U,V\in M_2(\mathbb C)$, packets centred at $k_0=1$ and $k_0=-1.5$, and a random rank-one projector $P$.
+\end{itemize}
+
+\emph{Feedback and normalizable kernels.}
+\begin{itemize}
+\item Growth rates are least-squares slopes of $\log\lvert J_n\rvert$ over the second half of $6000$ updates.
+\item The normalizable-kernel roots are eigenvalues of the companion matrix of the recurrence truncated at $400$ lags.
+\end{itemize}
+
+\emph{Readout.} Partial traces by index contraction; outcome bases from QR factorization of random complex matrices; boosts $e^{\eta\,n\cdot\sigma/2}$ along a random axis.
+
+%======================================================================
+\begin{thebibliography}{99}
+\bibitem{CAL} S.~Leizerman, \emph{The Causal Accumulation Law: The Four Corners of $\alpha$, Algebraic Closure, and the Standard Model}, LIOR Research Initiative (2026).
+\bibitem{Skeleton} S.~Leizerman, \emph{The $\alpha=1$ Unitary Skeleton and the Emergence of Schr\"odinger Evolution in the $\delta$-Kernel Limit of the Causal Accumulation Law}, LIOR Research Initiative (2026).
+\bibitem{Info} S.~Leizerman, \emph{On Information Physics: From State Distinguishability to Causal Accumulation}, LIOR Research Initiative (2026).
+\bibitem{Alpha2} S.~Leizerman, \emph{An Axiomatic Derivation of the Feynman Path Sum at the Light-Cone Kernel Width and Closure Order $\alpha=2$ of the Causal Accumulation Law}, LIOR Research Initiative (2026).
+\bibitem{Feynman} R.~P.~Feynman, Space-time approach to non-relativistic quantum mechanics, Rev.\ Mod.\ Phys.\ \textbf{20}, 367--387 (1948).
+\bibitem{Dirac} P.~A.~M.~Dirac, Classical theory of radiating electrons, Proc.\ R.\ Soc.\ Lond.\ A \textbf{167}, 148--169 (1938).
+\bibitem{Landauer} R.~Landauer, Irreversibility and heat generation in the computing process, IBM J.\ Res.\ Dev.\ \textbf{5}, 183--191 (1961).
+\bibitem{Lewin} L.~Lewin, \emph{Polylogarithms and Associated Functions}, North-Holland (1981).
+\bibitem{DLMF} \emph{NIST Digital Library of Mathematical Functions}, \S25.12 (polylogarithms) and \S25.11 (Hurwitz zeta function), \url{https://dlmf.nist.gov}.
+\bibitem{SKM} S.~G.~Samko, A.~A.~Kilbas, O.~I.~Marichev, \emph{Fractional Integrals and Derivatives: Theory and Applications}, Gordon and Breach (1993).
+\bibitem{VDD} F.~Verstraete, J.~Dehaene, B.~De~Moor, Local filtering operations on two qubits, Phys.\ Rev.\ A \textbf{64}, 010101(R) (2001); Lorentz singular-value decomposition and its applications to pure states of three qubits, Phys.\ Rev.\ A \textbf{65}, 032308 (2002).
+\bibitem{SSS} J.~Samuel, K.~Shivam, S.~Sinha, Lorentzian geometry for detecting qubit entanglement, Ann.\ Phys.\ \textbf{396}, 159--172 (2018).
+\bibitem{PR} R.~Penrose, W.~Rindler, \emph{Spinors and Space-Time, Vol.~1}, Cambridge University Press (1984).
+\end{thebibliography}
+
+\end{document}
