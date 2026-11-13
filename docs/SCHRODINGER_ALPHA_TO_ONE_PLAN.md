@@ -1,165 +1,212 @@
-# Plan: the CAL field equation collapses to Schrödinger as $\alpha\to1^-$
+# Plan (v2): Schrödinger from the bare CAL at $\alpha\to1^-$, as feedback on the accumulated past
 
-**Status:** executed; see `docs/paper/cal_schrodinger_collapse.pdf` and `SCHRODINGER_ALPHA_TO_ONE_RESULTS.md`.
+**Status:** plan and outline for rewriting `docs/paper/cal_schrodinger_collapse.tex`.
+- The tests are done: `scripts/cal_edge_transducer.py` (numpy only, about 9 s).
+- v1 of this plan (prefactor, $r_1$, $\tau_c$, double scaling, $T=0$) is in git history before this commit.
 
-Companion plan to the draft *The $\alpha=1$ Unitary Skeleton and the Emergence of Schrödinger Evolution in the $\delta$-Kernel Limit of the CAL* (`schrodinger_axiomatic.pdf`).
-
-**Goal.** Make the CAL itself, read as a field equation, become $i\hbar\,\partial_t\psi=H\psi$ as $\alpha\to1^-$. This replaces Posit 1 and the identification $H\equiv i\hbar\dot UU^{-1}$ with theorems.
-
-**Kept from the draft:**
-- Axioms 1–3;
-- Definitions 2.3–2.5 ($\mathcal V$, $\mathcal H$, $f_{\rm map}$);
-- Lemma 4.1 (kernel blindness at $\alpha=1$);
-- Theorem 5.1 (skeleton);
-- Theorem 6.1(ii) (invariance forces $\hat R_{\mathcal H}=r_0\nabla^2+r_1$).
-
-**Notation.** $\varepsilon\equiv1-\alpha$. Modes are written $e^{-iEt/\hbar}$. $E_c\equiv\hbar/\tau_c$. All complex powers take the principal branch.
+**Goal.** Derive Schrödinger evolution at $\alpha\to1^-$ from the CAL as written, adding only the update rule.
 
 ---
 
-## 1. Definitions added
+## 1. What changed from v1, and why
 
-**D1 (power-law memory, causal Weyl integration).**
-
-$$
-W^\alpha f(t)=\frac1{\Gamma(\alpha)}\int_{-\infty}^t(t-s)^{\alpha-1}f(s)\,ds .
-$$
-
-$D^\alpha$ is the Weyl derivative, with $D^\alpha W^\alpha=\mathbb 1$ on admissible $f$ (no spectral weight at $E=0$). Symbol: $D^\alpha e^{-iEt/\hbar}=(-iE/\hbar)^\alpha e^{-iEt/\hbar}$.
-
-**D2 (kernel factorization).**
-$k(\tau;x,x')=\tau_c^{-\alpha}\,\dfrac{\tau^{\alpha-1}}{\Gamma(\alpha)}\times g(x-x')$, where $g$ is a nonnegative, normalized, isotropic spatial weight, and the transports are taken time-translation invariant.
-- On the spinless gauge-neutral sector, invariance gives $\hat R_{\mathcal H}=r_0\nabla^2+r_1$ (draft Thm 6.1(ii)).
-- $r_0=\sigma_g^2/6>0$, the second moment of $g$.
-- The cone-supported (non-factorized) kernel is treated in §5.
+| v1 input | Status | Reason |
+|---|---|---|
+| Prefactor $e^{-i\sigma\alpha\pi/2}$ on the memory (Def. 2.3, Axiom 3) | **removed** | The phase belongs to the source. Integrating the source's phase channel turns it by $\alpha$ quarter turns ($\alpha=2\theta/\pi$). A factor in front counts that rotation twice. |
+| Coupling $r_1$ (Def. 2.4) | **removed** | Not in the CAL. It stood in for $\Pi P\Phi$, which is the identity for a free carrier in flat space. |
+| Time unit $\tau_c$, double scaling at fixed $(1-\alpha)/\tau_c$ (Def. 2.5) | **removed** | Time is relational. Only rates compared with other rates mean anything. Time is counted in updates and quoted in radians of the carrier's own rotation. |
+| $T=0$ as the law of motion (Axiom 3) | **removed** | $T$ is the new state. It vanishes only when the present balances the past. |
+| "The lossy integrand gives the decay" | **relabelled** | Loss means contraction from rank 2 to rank 1, which is many-to-one. The measured damping comes from the fractional order instead. |
 
 ---
 
-## 2. Axioms
+## 2. Inputs of the rewritten paper
 
-- **Axiom 1 (CAL), Axiom 2 (two channels), Axiom 3 (channel angle $\theta=\alpha\pi/2$):** as in the draft, with one change. Make the *kernel and transports* real, not $J$. Solutions are $\propto e^{-iEt/\hbar}$, so $J$ must be $\mathbb C\otimes\mathbb H$-valued as Axiom 2 already says. Lemma 4.3 needs only $\hat R$ real-symmetric.
-- **Axiom 3 applied to the memory channel.** The memory channel is rotated by $e^{-i\sigma\theta}$ relative to the present channel. Together with the unit of D2, this gives the factor $(\sigma i\tau_c)^{-\alpha}=\tau_c^{-\alpha}e^{-i\sigma\alpha\pi/2}$, with $\sigma=\pm1$ the orientation.
-- **Field equation (FE), replacing Posit 1:**
+1. **The CAL (C8):** $T=\alpha J-(1-\alpha)\int_{J^-}k\,\Pi P\Phi\,J$.
+2. **The free, flat sector:**
+   - $\Pi P\Phi=\mathbb 1$;
+   - an order-$\alpha$ power-law kernel, in update units, with weights $w_j=(j^\alpha-(j-1)^\alpha)/\Gamma(\alpha+1)$;
+   - a spatial profile $\hat g(k)=e^{-\langle r^2\rangle k^2/6}$, or any normalized isotropic profile.
+3. **The update rule (feedback loop):** each output state becomes the next current, $J_{n+1}=T_n$. $T$ and $J$ are both rank-1 currents, so this is type-consistent.
+4. **Orientation:** the current's past has rotated one way. This plays the role $\sigma$ played, now as a property of the source, not a factor.
 
-$$
-T=0:\qquad \alpha J=\varepsilon\,(\sigma i\tau_c)^{-\alpha}\,\hat R_{\mathcal H}\,W^\alpha J .
-$$
-
-$\partial_tT=0$ gives the same tempered solutions: under Weyl admissibility $T$ is a constant, and that constant is $0$.
-
----
-
-## 3. Lemmas
-
-**L1 (inversion).**
-FE $\iff$ $\alpha\,(\sigma i\tau_c)^\alpha D^\alpha J=\varepsilon\,\hat R_{\mathcal H}J$. *Proof:* apply $D^\alpha$ and use $D^\alpha W^\alpha=\mathbb 1$.
-
-**L2 (phase cancellation, verified numerically).**
-$(\sigma i)^\alpha(-iE)^\alpha$ is real and positive iff ${\rm sign}\,E=\sigma$. For the other sign it is $\lvert E\rvert^\alpha e^{\pm i\alpha\pi}$, which is real only at $\alpha=1$. The channel angle exactly cancels the Weyl symbol's phase on one sign of frequency.
-
-**L3 (operator facts; fixes Lemmas 4.3/4.4).**
-- $\hat R_{\mathcal H}=r_0\nabla^2+r_1(x)$ is self-adjoint on $H^2(\mathbb R^3)$: $\nabla^2$ is essentially self-adjoint on $C_c^\infty$, and $r_1$ is handled by Kato–Rellich.
-- $\lVert\hat R\rVert=\infty$, so draft Lemma 4.4's spectral inclusion is vacuous; use a lower bound instead.
-- Commuting the limit with $\Pi_{\mathcal H}$ needs strong-resolvent convergence of $\hat R_w\to\hat R$, not just $\lVert\Pi_{\mathcal H}\rVert=1$.
+**Not used:** a prefactor, $r_1$, $\tau_c$, $T=0$, or any double scaling.
 
 ---
 
-## 4. Theorems
+## 3. Established results (numbers from `cal_edge_transducer.py`)
 
-**Theorem 1 (collapse).**
-Take $\alpha\to1^-$ with $\varepsilon\hat R_{\mathcal H}$ held fixed. That is a double scaling: $\varepsilon r_0$ and $\varepsilon r_1$ are fixed. Then FE becomes
-
+**Update rule and characteristic equation.**
 $$
-i\hbar\,\partial_tJ=\sigma\,\varepsilon E_c\,\hat R_{\mathcal H}J
-=\Big[-\frac{\hbar^2}{2m}\nabla^2+V\Big]J,
-\qquad
-\frac{\hbar^2}{2m}=\varepsilon E_c r_0,\quad V=-\varepsilon E_c r_1 .
+J_{n+1}=\alpha J_n-(1-\alpha)\,\hat g(k)\sum_{j\ge1}w_jJ_{n-j},\qquad
+z-\alpha+(1-\alpha)\,\hat g\,W(z)=0,\qquad W(z)=\sum_{j\ge1}w_jz^{-j}.
 $$
 
-- **The orientation is fixed by physics.** Positive mass with a nonnegative, lag-independent spread ($r_0>0$) forces $\sigma=-1$. The cone-supported kernel forces $\sigma=+1$ instead (see `SCHRODINGER_ALPHA_TO_ONE_RESULTS.md` §4); the causal kernel decides.
-- **The mass formula** is the draft's $\hbar^2/2m=(1-\alpha)r_0$, with $E_c$ restored for units.
-- **Without the double scaling** ($r_0$, $r_1$ fixed), $H\to0$: $J$ freezes, which is Thm 5.1. In this route the skeleton is a frozen $J$; it equals the draft's $E_c\,{\rm Id}$ phase up to an unobservable global phase.
-- **So Thm 5.1 and Thm 6.1 are two scalings of one limit.** At fixed $r_0$ the past drops out (kernel blindness). At fixed $\varepsilon r_0$ the memory stays live and becomes $H$.
-
-**Theorem 2 (unitarity derived; replaces Posit 1).**
-By Fourier analysis in $t$ and the spectral theorem for $\hat R_{\mathcal H}$, using L1 and L2, for every $\alpha<1$:
-- **Stationary sector.** On ${\rm Ran}\,\mathbb 1_{\varepsilon\hat R\ge0}$ the solutions are $e^{-itE(\hat R)/\hbar}$ with
-  $$E(\hat R)=\sigma E_c\big(\varepsilon\hat R/\alpha\big)^{1/\alpha},$$
-  real. By Stone's theorem this is a unitary group with self-adjoint generator $E(\hat R)$.
-- **Free case** ($\sigma=-1$, kinetic energy $K=\varepsilon E_cr_0k^2$, cap $E_{\rm cap}=\varepsilon E_cr_1$): the stationary sector is exactly $K\le E_{\rm cap}$, with
-  $$E=(K-E_{\rm cap})\big[1+\varepsilon\big(1+\ln\tfrac{E_{\rm cap}-K}{E_c}\big)\big]+O(\varepsilon^2)$$
-  (checked against the exact form to $10^{-5}$ at $\varepsilon=10^{-2}$).
-- **Above the cap.** *Corrected by the run:* eternal (Weyl) solutions have no component there at all, because the decaying root grows into the past and is not tempered. Responses to a source decay there at ${\rm Im}\,E\approx-\pi\varepsilon\lvert E\rvert$ (paper Prop. 5.5; Weyl integration with zero past, no Caputo data).
-- **The limit.** As $\alpha\to1^-$ the damping goes to $0$, L2's restriction disappears, and the flow becomes the full unitary Schrödinger group of Theorem 1.
-
-**Theorem 3 (why the limit is from below).**
-1. **Convergence.** $W^\alpha$ converges on oscillating input only for $\alpha<1$. At $\alpha=1$ its value exists only as the limit from below.
-2. **Mass sign.** From above, $\varepsilon<0$, so $\hbar^2/2m=\varepsilon E_cr_0<0$ for any nonnegative kernel: negative mass.
-3. **Runaway.** From above, the non-stationary sector *grows*: ${\rm Im}\,E\approx+\pi\lvert\varepsilon\rvert\lvert E\rvert$ (numerically $+0.99$). That is a runaway, the same pathology as the poster's Abraham–Lorentz–Dirac panel, appearing on the wrong side of $\alpha=1$.
-
----
-
-## 5. Causality estimate (the $J^-(x)$ support)
-
-> **Superseded twice.** The framework assigns the Lorentz signature to the $\alpha=2$ closure, so the edge has no light cone; the light-cone results below are $\alpha=2$ structure (paper, Appendix C). Earlier note: **superseded by the run** (`SCHRODINGER_ALPHA_TO_ONE_RESULTS.md` §4). The estimate below assumed a spread that does not grow with the lag. With a cone-supported kernel the result is different:
-> - the exact $\alpha\to1^-$ dispersion is $E=\hbar kv\coth(\hbar kv/E_0)$;
-> - $m=3E_0/(2v_{\rm eff}^2)$, so $E_0\le\tfrac23mc^2$;
-> - there is no lower bound on $\varepsilon$.
->
-> The original estimate is kept below for the record.
-
-The spatial reach of the memory is at most $c$ times the lag. So $r_0\lesssim(c\tau_{\rm eff})^2/6$, and with $\hbar^2/2m=\varepsilon E_cr_0$:
-
+**Exact memory sum (Jonquière form).** Write $z=e^{i\varphi}$. Then
 $$
-\varepsilon\;\gtrsim\;\frac{3\,t_C}{\tau_{\rm eff}},\qquad t_C=\frac{\hbar}{mc^2}\quad(\text{electron: }1.3\times10^{-21}\,{\rm s}).
+W=(1-e^{-i\varphi})\sum_{k\in\mathbb Z}\big(i(\varphi+2\pi k)\big)^{-\alpha-1}.
 $$
+- The sum over $k\neq0$ is evaluated with Hurwitz zeta functions.
+- Agreement with direct summation is $10^{-14}$; with mpmath, $3\times10^{-16}$.
 
-- **Consequence.** $\alpha\to1^-$ at fixed $m$ requires $\tau_{\rm eff}/t_C\to\infty$, so the Schrödinger limit is jointly a nonrelativistic limit.
-- **Consequence.** $E_c\ll mc^2$, so the skeleton scale is not the rest energy.
-- **Deliverable.** Redo the estimate with a cone-supported (non-factorized) kernel. The $k^2$ coefficient then acquires frequency dependence; show it reduces to D2 as $c\to\infty$.
+**R1. Rotation from feedback.**
+- Below 1 the memory term enters with sign $-(1-\alpha)<0$: the accumulated past pulls back.
+- The rotation per update is $\varphi\simeq\sqrt{(1-\alpha)\hat g(k)}$.
+- With flat weights the result is exact: $z^2-(1+\alpha)z+\alpha+(1-\alpha)\hat g=0$. At $k=0$ both roots lie on $|z|=1$, with $\cos\varphi=(1+\alpha)/2$.
+- Measured rotation over $\sqrt{1-\alpha}$: 0.9897, 0.9983, 0.99978, 0.99997, 1.00000 for $1-\alpha=10^{-2},\dots,10^{-7}$.
+- Direct iteration matches the roots to every digit.
 
----
+**R2. Schrödinger dispersion and mass.**
+- $\big(\varphi(0)-\varphi(k)\big)/\varphi(0)\to\langle r^2\rangle k^2/12$, with measured ratios 1.0000 to 0.990.
+- So $\hbar/2m=\langle r^2\rangle/12$ in rest-radian units, set by the kernel width alone.
+- The regime is long wavelengths: the $k^4$ floor halves when $\langle r^2\rangle$ halves.
 
-## 6. Consistency checks
+**R3. Unitary in the limit.**
+- Uniform decay is $(\pi/4)(1-\alpha)$ per radian. The measured ratios to $(1-\alpha)$ are 0.901, 0.840, 0.808, 0.795, 0.789, 0.787, tending to $\pi/4=0.785$.
+- There is also a diffusive admixture. The extra decay of mode $k$ over its kinetic rotation is $\sqrt{1-\alpha}$, independent of $k$: measured 0.0992 at $1-\alpha=10^{-2}$ and 0.00100 at $10^{-6}$.
+- Hence the evolution is $\exp[-(i+\sqrt{1-\alpha})(\hbar/2m)k^2t]$. That is the phase channel plus a vanishing real-channel admixture.
+- Asymptotics: $\varphi=\sqrt{\varepsilon\hat g}+\tfrac i2\varepsilon(1-\hat g)+\tfrac{i\pi}4\varepsilon^{3/2}\sqrt{\hat g}+O(\varepsilon^{3/2}\ln\varepsilon)$, with $\varepsilon=1-\alpha$.
 
-- **The two $i$'s agree.** Axiom 3's $i$ must be Axiom 2's central $i$ of $\mathbb C\otimes\mathbb H$. On the projected spinor sector, the only complex structures commuting with Lorentz are $\pm i$ (commutant $\cong\mathbb C$, checked numerically), so they agree up to $\sigma$.
-- **Equivalence of balance laws.** Under Weyl admissibility, $T=0$ and $\partial_tT=0$ have the same tempered solutions; the dispersion relations are identical.
-- **Weyl admissibility at the cap.** At the cap, $E\to0$, so admissibility fails there; the cap is a genuine boundary.
-- **Constant shifts.** Eq. (11)'s constant shift is inert only at $\alpha=1$. For $\alpha<1$ the zero of energy is physical, because it sets the cap.
+**R4. Wavepacket test.** The past is the carrier rotating one way over its whole infinite past, added exactly.
+- The error against Schrödinger falls onto the $k^4$ floor: at $1-\alpha=10^{-4}$, $(4.8,2.6,1.5)\times10^{-2}$ against a floor of $(4.8,2.5,1.3)\times10^{-2}$, for $\langle r^2\rangle=0.24,0.12,0.06$.
+- Leakage into the opposite rotation is about $10^{-8}$.
+- A two-cycle history fails: 70–97% leaks. The nearly flat memory needs the whole past.
 
----
+**R5. Closure and Born readout.**
 
-## 7. Changes to the draft
+| $1-\alpha$ | one-way past: trace drift per radian | one-way past: readout drift | zero past: trace swing | zero past: readout drift |
+|---|---|---|---|---|
+| $10^{-2}$ | $2.1\times10^{-2}$ | $5.5\times10^{-3}$ | 3.5 | $3.7\times10^{-2}$ |
+| $10^{-3}$ | $2.8\times10^{-3}$ | $1.9\times10^{-3}$ | 2.2 | $3.6\times10^{-2}$ |
+| $10^{-4}$ | $5.5\times10^{-4}$ | $6.0\times10^{-4}$ | 2.0 | $3.7\times10^{-2}$ |
 
-| Draft item | Change |
+- With a one-way past, the closure trace and the readout become conserved as $\alpha\to1^-$.
+- With a zero past, both rotation directions are present. The trace swings and the readout drift stays near $3.7\times10^{-2}$.
+- So Born needs one orientation. This is the edge analogue of positive frequency at $\alpha=2$.
+
+**R6. Feedback classification.**
+
+| Feedback from the accumulated past | Behaviour |
 |---|---|
-| Posit 1, Thm 6.1(i) | Replace with FE plus Theorems 1–2. As written, $H\equiv i\hbar\dot UU^{-1}$ after positing a unitary $U$ is a definition, so the derivation is circular. |
-| Axiom 1 "J real" | Say "kernel and transports real". $J$ is complex by Axiom 2 and by the solutions. |
-| Lemma 4.3 | Real plus symmetric gives *symmetric*. Self-adjointness needs L3. |
-| Lemma 4.4 | $\lVert\hat R\rVert=\infty$. The limit/projection exchange needs strong-resolvent convergence. |
-| Thm 6.1(iii), Cor 6.3 | $m=\hbar^2/(2(1-\alpha)r_0)\to\infty$ at fixed $r_0$. State the double scaling. |
-| Thm 5.1 | $H={\rm Id}$ must carry units: $E_c\,{\rm Id}$, with phase $e^{-iE_ct/\hbar}$. |
-| Remark 5.2 / Table 7.4 | The "$1^-$ edge" is the double-scaled limit, and "from below" is a theorem (Thm 3), not a convention. |
+| $\alpha<1$: negative | rotates (the Schrödinger edge) |
+| $\alpha=1$: none, the past decouples | frozen |
+| $\alpha>1$: positive | roots $e^{\pm\sqrt{\alpha-1}}$; causal response runs away, a bounded response must precede its source (ALD's two horns) |
+| $\alpha>1$ with braking $\kappa$ and a fading past $\lambda$ | settles if $(1-\kappa)\big(\alpha+(\alpha-1)/\lambda\big)<1$ |
+
+- Without fading, braking cannot stop the growth. This is integral windup.
+- Checked at $\alpha=1.01$: settles for $\kappa>0.10$ at $\lambda=0.1$, and for $\kappa>0.50$ at $\lambda=0.01$.
+
+**R7. Normalizable memory has no undamped mode (re-proof of old Thm 6.2 under the update rule).**
+- Take $\sum_jw_j=1$, $w_j\ge0$, and $|z|\ge1$.
+- Then $|\varepsilon W(z)|\le\varepsilon\le|z|-\alpha\le|z-\alpha|$.
+- Equality would need $z=1$, where $F(1)=2\varepsilon\neq0$.
+- So every root lies strictly inside the unit circle, and every mode decays.
+- The power law escapes because $W(z)$ is unbounded at $z\to1$: its total weight $\sum_jw_j$ is infinite.
+
+**R8. Loss means contraction.**
+- In the free edge the rank-2 pieces $\Pi P\Phi$ are the identity, which is one-to-one. So nothing is erased, consistent with unitarity in the limit.
+- Contraction becomes many-to-one in two places, and Landauer's $k_BT\ln2$ is paid there:
+  - interaction, a rank-2 action on a rank-1 state;
+  - readout, where the closure $JJ^\dagger$ sends 8 real components to 4.
 
 ---
 
-## 8. Order of work
+## 4. Outline of the rewritten paper
 
-1. D1, D2, FE, and L1–L3.
-2. Theorem 2: the Fourier/spectral proof, including the distributional details at the cap.
-3. Theorem 1, using Trotter–Kato for strong convergence of the groups.
-4. Theorem 3: three short lemmas.
-5. §5 with a cone-supported kernel.
-6. §6 checks.
-7. Gauge coupling: transports with $U(1)$ holonomy make $\hat R$ Hermitian rather than real. Redo L3 with the diamagnetic inequality; Theorems 1–2 only need Hermitian and bounded below on the relevant sector.
+**Working title.** *Schrödinger evolution from the bare Causal Accumulation Law at $\alpha\to1^-$: feedback on the accumulated past, unitarity in the limit, and carrier entanglement as time dilation.* Title to be confirmed.
+
+### Abstract
+- The CAL plus the update rule alone gives a rotation of $\sqrt{1-\alpha}$ per update and Schrödinger's dispersion, with $\hbar/2m=\langle r^2\rangle/12$.
+- Unitarity holds in the limit, with damping $(\pi/4)(1-\alpha)$ per radian and a $\sqrt{1-\alpha}$ diffusive admixture.
+- The orientation is inherited from the source.
+- Born needs one orientation.
+- The feedback classification across $\alpha=1$.
+- The carrier and readout results are kept.
+
+### 1. Scope and claim
+- A ledger of inputs, what is derived, and what is not claimed.
+- What changed from the Skeleton and from v1: the five removals in §1 above.
+
+### 2. Definitions
+- **D2.1 Causal Weyl integral** (keep). The symbol turns an oscillation by $\alpha$ quarter turns.
+- **D2.2 Memory kernel in update units:** $w_j$ and $\hat g$. No $\tau_c$.
+- **D2.3 Carrier and sector:** $J\in\mathbb C\otimes\mathbb H$. Free, flat transport means $\Pi P\Phi=\mathbb 1$.
+- **D2.4 Relational time:** update count $n$; rest radians $t=\varphi(0)\,n$.
+
+### 3. Axioms
+- **Ax1 (CAL)** keep.
+- **Ax2 (phase from the source):** the channel angle comes from integrating the source's phase channel, $\alpha=2\theta/\pi$. It is not a factor on the memory.
+- **Ax3 (update rule):** $J_{n+1}=T_n$, a feedback loop of repeated impulses.
+- **Ax4 (orientation):** the past current has rotated one way.
+
+### 4. Lemmas
+- **L4.1 Weyl symbol** (keep the old Lemma 4.1).
+- **L4.2 Exact memory sum** (Jonquière/Hurwitz).
+- **L4.3 Characteristic equation and z-transform:** the solution is the residues at the roots plus a branch-cut tail from $z=1$.
+- **L4.4 Flat weights, closed form:** unit circle at $k=0$.
+
+### 5. Main results
+- **Thm 5.1 Rotation from negative feedback** (R1).
+- **Thm 5.2 Dispersion and mass** (R2), with the long-wavelength floor. This replaces the old Prop 5.4 width scaling.
+- **Thm 5.3 Unitarity in the limit** (R3), with the evolution law $\exp[-(i+\sqrt{1-\alpha})(\hbar/2m)k^2t]$.
+- **Prop 5.4 Orientation from the past** (R4): the one-way past and the zero past.
+- **Thm 5.5 Feedback across $\alpha=1$** (R6): frozen at 1; above 1, the two ALD horns; braking and fading. This replaces the old Thm 5.8.
+
+### 6. Markov limits and loss
+- **Prop 6.1 FTC accumulator** (keep the old Prop 6.5, strengthened). The nearly flat sum over updates is the discrete integral; the state is not enlarged.
+- **Thm 6.2 Normalizable memory has no undamped mode** (R7, re-proved under the update rule). The exponential kernel becomes an example.
+- **Remark 6.3 Loss is contraction** (R8): absent in the free edge; present in interaction and readout.
+
+### 7. Structure of the edge
+- **§7.1 Galilean, no light cone** (keep).
+- **§7.2 No interaction** (keep, sharper): the edge is one order-1 leg, and a return leg makes order 2.
+- **§7.3 Readout** (keep the whole old §6.5: two factors, $C=1/\gamma$, composition, $\Lambda^2J=0$). Add R5: Born needs one orientation.
+
+### 8. Numerical verification
+New tables from `cal_edge_transducer.py`, sections A–E, plus the braking and fading table.
+
+### 9. Remarks on scope
+- **Relation to $\alpha=2$:** the balance reading. The update rule is not used there, because $2J$ alone doubles the current each update.
+- **Optional, needs the author's sign-off:** if the rest rotation is $mc^2/\hbar$, then the kernel width is $\sqrt6$ Compton wavelengths, and "Schrödinger regime" means wavelength much longer than the kernel width.
+
+### Appendices
+- Notation.
+- Numerical methods.
+- The old Appendix C (light cone imposed by hand) is dropped and the α = 2 paper cited instead.
 
 ---
 
-## References
+## 5. Removed from the current paper
 
-- S. G. Samko, A. A. Kilbas, O. I. Marichev, *Fractional Integrals and Derivatives* (1993): Weyl/Liouville integrals, admissibility.
-- M. Naber, *Time fractional Schrödinger equation*, J. Math. Phys. **45**, 3339 (2004): the $i^\alpha$ factor; here it comes from Axiom 3.
-- E. Nelson, *Feynman integrals and the Schrödinger equation*, J. Math. Phys. **5**, 332 (1964): boundary values of rotated semigroups.
-- T. Kato, *Perturbation Theory for Linear Operators* (holomorphic semigroups; Kato–Rellich).
-- M. Reed, B. Simon, *Methods of Modern Mathematical Physics* I–II (Stone; Trotter–Kato).
-- M. H. Stone, Ann. of Math. **33**, 643 (1932).
+- Definition 2.3 (prefactor).
+- $r_1$ in Definition 2.4.
+- Definition 2.5 (double scaling).
+- Lemma 4.2 (inversion with the prefactor) and Lemma 4.3 (phase cancellation).
+- Lemma 4.4 parts on $r_1$.
+- Theorems 5.1 and 5.3 as stated; Corollary 5.5; Proposition 5.6 (response to a source with the prefactor).
+- Proposition 6.1 (memory rate with $\tau_c$).
+- All old numerical tables.
+- Appendix C.
+
+---
+
+## 6. Order of work
+
+1. **Proofs.**
+   - Asymptotic root expansion R3, including the Euler–Maclaurin $-\tfrac12$ term, which cancels the order-$\varepsilon$ decay at $k=0$.
+   - The flat-weight closed form.
+   - The z-transform residue and branch-cut statement.
+   - R7.
+2. **Script.**
+   - Add the braking and fading table, and a numerical check of R7, to `cal_edge_transducer.py`.
+   - Retire the old `cal_schrodinger_collapse.py`, or keep it for the readout section only.
+3. **Rewrite the TeX** to the outline above. Compile and check pages.
+4. **Update `SCHRODINGER_ALPHA_TO_ONE_RESULTS.md`.**
+5. **Cross-paper follow-ups:**
+   - α = 2 paper: remove the channel-phase remark; set the chain to 1; make $\tau_c$ relational; reframe $T=0$ as the balance reading; add the runaway-above-2 table.
+   - Posters 3 and 4: step 1, step 2 and row 4 still show the prefactor and exact unitarity for $\alpha<1$.
+
+## 7. Open, needing the author
+
+- The Compton-width identification: include it or not.
+- The title.
