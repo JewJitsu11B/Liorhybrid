@@ -1,0 +1,172 @@
+\documentclass[9pt]{extarticle}
+\usepackage[letterpaper,margin=0.26in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage[most]{tcolorbox}
+\usepackage{multicol}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{1pt}
+\setlength{\columnsep}{16pt}
+
+\definecolor{ink}{HTML}{1F2A44}
+\definecolor{note}{HTML}{4A5568}
+\newcommand{\step}[2]{\vspace{1pt}{\color{ink}\textbf{#1.\ #2}}\par\nobreak}
+\newcommand{\say}[1]{{\color{note}\footnotesize\textit{#1}\par}}
+\newcommand{\Cp}{\mathbb{C}}
+\newcommand{\eps}{\varepsilon}
+\newcommand{\status}[1]{{\color{note}\footnotesize[#1]}}
+
+\begin{document}
+
+\begin{center}
+{\Large\bfseries\color{ink} From the Biquaternionic Carrier to Schr\"odinger at $\alpha\to1^-$}\\[2pt]
+{\small Sam Leizerman \;\textbullet\; LIOR Research Initiative \;\textbullet\; ORCID 0009-0000-0133-2291}\\[1pt]
+{\small\color{note} One-sheet companion to \textit{Schr\"odinger Evolution from the Bare Causal Accumulation Law at $\alpha\to1^-$}}
+\end{center}
+\vspace{-4pt}
+
+\begin{tcolorbox}[colback=ink!4,colframe=ink!60,boxrule=0.5pt,left=5pt,right=5pt,top=3pt,bottom=3pt]
+\small
+\textbf{Origin.} \ CAL is not a theory of quantum gravity. It is an information-physics engine for non-Markovian reality, built to lift self-attention to a field-theoretic form from first principles of cognition, causality and intelligence. Its derivations of known physics are unit tests: a law of causal memory that cannot recover established physics has no business modeling minds or societies.\\[2pt]
+\textbf{Definition 1 (Information).} \ Information $:=$ distinguishability of physical states.\\[2pt]
+\textbf{Remark 1 (Difference and observation).} \ To distinguish physical states is to observe a difference between them. Change is a difference between states along an ordered evolution; thus change is temporally ordered distinguishability. Observation here denotes physical distinguishability, not a required conscious observer.\\[2pt]
+\textbf{Definition 2 (Causality).} \ Causality $:=$ change in physical state, including its rate of change.\\[1pt]
+{\color{note}\footnotesize\textit{From On Information Physics: From State Distinguishability to Causal Accumulation, Sec.~1.}}
+\end{tcolorbox}
+
+\vspace{-2pt}
+{\color{ink}\textbf{The Causal Accumulation Law}} {\color{note}\small(On Information Physics, Eq.~61)}
+{\small
+\[
+\begin{aligned}
+T^{\mu\nu a}{}_{\rho\sigma}(x)\ =\ &\underbrace{\alpha_{\rm frac}\,J^{\mu\nu a}{}_{\rho\sigma}(x)}_{\text{present source}}-(1-\alpha_{\rm frac})\int_{J^-(x)}\underbrace{k(\tau;x,x')}_{\text{history kernel}}\ \underbrace{\Pi^{\mu\nu}{}_{\rho\sigma|\alpha\beta}{}^{\gamma\delta}(x,x')}_{\text{slot coupling}}\\
+&\times\underbrace{P^{\alpha}{}_{\alpha'}(x,x')\,P^{\beta}{}_{\beta'}(x,x')\,P_{\gamma}{}^{\gamma'}(x,x')\,P_{\delta}{}^{\delta'}(x,x')}_{\text{spacetime transport of the past to }x}\ \times\ \underbrace{\Phi^a{}_b(x)\,P^b{}_{c'}(x,x')}_{\text{internal channel action}}\ \ J^{\alpha'\beta'c'}{}_{\gamma'\delta'}(x')\,d^4x'.
+\end{aligned}
+\]}
+\say{Read left to right: what the field is now ($T$) equals a share $\alpha_{\rm frac}$ of the present source, minus a share $1-\alpha_{\rm frac}$ of the past. Only the causal past $J^-(x)$ counts. Each past contribution is weighted by how long ago it happened ($k$), carried to the present point so it can be compared there (the four $P$ factors), and rotated in its internal channel ($\Phi P$). The single dial $\alpha_{\rm frac}$ sets how much the present weighs against memory. Below, $\alpha\equiv\alpha_{\rm frac}$ and the law is reduced to the spinless, gauge-neutral sector, where the transports are the identity.}
+
+\vspace{1pt}
+{\small\textbf{Definitions and symbols}}\par\vspace{1pt}
+{\scriptsize\setlength{\tabcolsep}{3pt}\renewcommand{\arraystretch}{1.02}
+\begin{minipage}[t]{0.5\linewidth}
+\begin{tabular}{@{}>{$}l<{$} p{1.75in} l c@{}}
+\toprule
+\text{Sym.} & Meaning & Type & Step\\
+\midrule
+T^{\mu\nu a}{}_{\rho\sigma} & Accumulated output tensor & tensor field & CAL\\
+J^{\mu\nu a}{}_{\rho\sigma} & Indexed source current & tensor field & CAL\\
+J^-(x),\ \tau & Causal past of $x$; proper time & set; real & CAL\\
+J & Carrier $\sum_aZ_ae_a$ & $M_2(\Cp)$ & 0\\
+Z_a & Channel amplitude & complex & 0\\
+e_a & Basis $e_0=I_2$, $e_j=-i\sigma_j$ & $M_2(\Cp)$ & 0\\
+\alpha_{\rm frac},\ \eps & Interaction depth; $\eps=1-\alpha$ & real & CAL\\
+\sigma & Orientation of the source's past & $\pm1$ & 4\\
+k & History kernel & real & CAL\\
+n,\ t & Update count; rest radians $t=\varphi_0n$ & integer; real & 1\\
+g,\ \hat g & Profile; its transform & real fn. & 1\\
+\bottomrule
+\end{tabular}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\linewidth}
+\begin{tabular}{@{}>{$}l<{$} p{1.6in} l c@{}}
+\toprule
+\text{Sym.} & Meaning & Type & Step\\
+\midrule
+\Pi & Output/input slot coupling & tensor & CAL\\
+P^\alpha{}_{\alpha'} & Parallel propagator & bitensor & CAL\\
+\Phi^a{}_b & Action on internal index & matrix field & CAL\\
+w_j & Memory weight at lag $j$ & real & 1\\
+W^\alpha,\ W(z) & Weyl integral; memory sum & op.; fn. & 2, 3\\
+\theta & Channel angle $\alpha\pi/2$ & angle & 2\\
+F(z) & Characteristic function of the loop & fn. & 3\\
+\varphi & Rotation $+\,i\,$decay per update & complex & 4\\
+\langle r^2\rangle & Second moment of $g$ & real $>0$ & 6\\
+m & Mass, $\hbar/2m=\langle r^2\rangle/12$ & real $>0$ & 6\\
+\bottomrule
+\end{tabular}
+\end{minipage}}
+
+\vspace{3pt}
+\begin{multicols}{2}
+\fontsize{7.7}{8.9}\selectfont
+\setlength{\abovedisplayskip}{2pt}\setlength{\belowdisplayskip}{2pt}\setlength{\abovedisplayshortskip}{1pt}\setlength{\belowdisplayshortskip}{2pt}
+
+\step{0}{The carrier}
+\say{Each channel carries a Boltzmann-type decay weight and a Feynman-type phase weight; four channels assemble into one matrix.}
+\[
+Z_a=A_ae^{-H_a/\tau_E}+B_ae^{iS_a/\hbar_{\rm eff}},\qquad J=\textstyle\sum_{a=0}^3Z_ae_a\in M_2(\Cp).
+\]
+
+\step{1}{The law as a feedback loop on the carrier}
+\say{$T$ is the new state; feed it back as the next current. $P$ is the full real transport; $n$ counts updates.}
+\[
+J_{n+1}=T_n=\alpha J_n-(1-\alpha)\int_{J^-}k\,P\,J .
+\]
+\say{On the spinless, gauge-neutral sector with a power-law kernel this reads}
+\[
+J_{n+1}=\alpha J_n-\eps\,\hat g(k)\sum_{j\ge1}w_jJ_{n-j},\qquad w_j=\frac{j^\alpha-(j-1)^\alpha}{\Gamma(\alpha+1)}.
+\]
+\say{$J$ must be complex: the phase channel $B_ae^{iS_a/\hbar_{\rm eff}}$ rules out a real carrier.}
+
+\step{2}{The memory acting on a wave}
+\say{The past-only integral of an oscillation returns the same oscillation, rescaled and rotated.}
+\[
+W^\alpha e^{-iEt/\hbar}=(-iE/\hbar)^{-\alpha}e^{-iEt/\hbar},\qquad 0<\alpha<1.
+\]
+\say{It converges only below $\alpha=1$, which is why the limit is one-sided. The turn $\theta=\alpha\pi/2$ belongs to the source; nothing multiplies the memory.}
+
+\step{3}{The modes of the loop}
+\say{A mode $z^n$ solves the loop when $F(z)=0$.}
+\[
+F(z)=z-\alpha+\eps\,\hat g\,W(z),\qquad W(z)={\textstyle\sum_{j\ge1}}w_jz^{-j}.
+\]
+\say{With flat weights ($\alpha\to1$) at $k=0$: $z^2-(1+\alpha)z+1=0$, both roots exactly on $\lvert z\rvert=1$.}
+
+\step{4}{The past pulls back: rotation}
+\say{Below $\alpha=1$ the memory enters with the sign $-(1-\alpha)<0$, so the accumulated past pulls the current back, and the current rotates:}
+\[
+\varphi=\sqrt{\eps\hat g}+i\Big[\tfrac12\eps(1-\hat g)+\tfrac\pi4\eps^{3/2}\sqrt{\hat g}\Big]+\dots
+\]
+\say{Its direction ($\sigma$) is inherited from the source's past.}
+
+\step{5}{Unitarity is derived, in the limit}
+\say{For $\alpha<1$ each mode is a contraction:}
+\[
+\exp\Big[-\big(i+\sqrt{1-\alpha}\big)\tfrac{\hbar}{2m}k^2t-\tfrac\pi4(1-\alpha)\,t\Big].
+\]
+\say{Both vanish as $\alpha\to1^-$, where the evolution is a strongly continuous unitary group.}
+
+\step{6}{Take the limit}
+\say{Let $\eps\to0^+$, with $t$ in radians of the carrier's own rotation. The rotation slows with wavenumber as $\sqrt{\hat g}$:}
+\[
+\big(1-\sqrt{\hat g(k)}\big)\,t=\frac{\langle r^2\rangle}{12}k^2t+O(k^4),\qquad \frac{\hbar}{2m}=\frac{\langle r^2\rangle}{12}.
+\]
+\say{The co-rotating branch has positive mass, set by the kernel's spatial width.}
+
+\step{7}{The kinetic term, exactly}
+\say{Take wavelengths long against the kernel's spatial width at fixed $\hbar/2m$. Higher orders vanish and the rest rotation is only a global phase.}
+\[
+\boxed{\,i\hbar\,\partial_tJ=-\frac{\hbar^2}{2m}\nabla^2J\,}
+\]
+
+\step{8}{Why it is Markov}
+\say{As $\alpha\to1^-$ the accumulated past of a rotating current lags it by a quarter turn, $W\approx1/(i\varphi)$. Pulling back along that lag turns the current instead of shrinking it. That quadrature is the $i$ in $i\hbar\partial_t$.}
+\say{As $w_j\to1$ the kernel becomes a flat accumulator whose inverse is $\partial_t$, and the hidden memory modes collapse onto the carrier itself: Markov through the fundamental theorem of calculus, no records, no enlarged state space. \textbf{[Derived]}}
+
+\step{9}{The readout survives}
+\say{On a one-way past the Born normalization is conserved at the edge; with both directions present it swings.}
+\[
+\tfrac12\operatorname{tr}(JJ^\dagger)={\textstyle\sum_a}\lvert Z_a\rvert^2\quad\text{is constant in }t.
+\]
+
+\step{10}{Which sector carries the dynamics}
+\say{Linearized, $Z_a(t)=A_ae^{\lambda_at}+B_ae^{i\omega_at}$ with $\lambda_a>0$. Boundedness on the whole time line removes the decay sector, so the phase sector $B_ae^{iS_a/\hbar_{\rm eff}}$ is what becomes Schr\"odinger. Below the edge it survives as the $\sqrt{1-\alpha}$ admixture.}
+
+\step{11}{What the edge is}
+\say{Galilean (time ordering only; the Lorentz signature belongs to the $\alpha=2$ closure), free, and single-carrier: it can carry existing entanglement but cannot create it. Above $\alpha=1$ the one-way equation has no causal, bounded continuation.}
+
+\end{multicols}
+\end{document}
