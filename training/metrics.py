@@ -273,26 +273,20 @@ class MetricsLogger:
         n_layers = model.n_layers if hasattr(model, 'n_layers') else 4
         n_attn = getattr(model, 'n_attention_layers', 0)
 
-        # Check for CausalField/BiQuat (O(N log N) via FFT)
         has_causal_field = hasattr(model, 'geometric_stack') or hasattr(model, 'causal_blocks')
         has_attention = n_attn > 0
 
         if has_causal_field and not has_attention:
-            metrics.complexity = "O(N log N)"  # Pure CausalField FFT
+            metrics.complexity = "O(N log N)"
         elif has_causal_field and has_attention:
-            metrics.complexity = "O(N log N) + O(N²)"  # CausalField + some attention
+            metrics.complexity = "O(N log N) + O(N²)"
         else:
-            metrics.complexity = "O(N²)"  # Standard transformer
+            metrics.complexity = "O(N²)"
 
         # Estimate FLOPs per forward pass
-        # CausalField: O(N log N) via FFT - roughly 5 * N * log(N) * d per layer
-        # BiQuat blocks: ~8 * d² per layer (no FFN, quaternion ops)
-        # Attention: 4 * N² * d per layer (QK^T, softmax, V)
-
         log_n = math.log2(max(seq_length, 2))
 
         if "O(N log N)" in metrics.complexity and "O(N²)" not in metrics.complexity:
-            # Pure CausalField/BiQuat - O(N log N)
             causal_flops = 5 * batch_size * seq_length * log_n * d_model * n_layers
             biquat_flops = 8 * batch_size * seq_length * (d_model ** 2) * n_layers // d_model  # simplified
             total_flops = causal_flops + biquat_flops
@@ -305,7 +299,6 @@ class MetricsLogger:
             ffn_flops = 8 * batch_size * seq_length * (d_model ** 2) * n_attn
             total_flops = causal_flops + biquat_flops + attn_flops + ffn_flops
         else:
-            # Standard transformer O(N²)
             attn_flops = 4 * batch_size * (seq_length ** 2) * d_model * n_layers
             ffn_flops = 8 * batch_size * seq_length * (d_model ** 2) * n_layers
             total_flops = attn_flops + ffn_flops
@@ -314,10 +307,8 @@ class MetricsLogger:
         metrics.flops_per_token = total_flops / (batch_size * seq_length) / 1e6  # MFLOPs/token
 
         if "O(N²)" in metrics.complexity and "O(N log N)" not in metrics.complexity:
-            # Pure O(N²): normalize by N to show per-token scaling
             metrics.base_ops_per_token = (total_flops / (batch_size * seq_length * seq_length)) / 1e6
         elif "O(N log N)" in metrics.complexity:
-            # O(N log N): normalize by log(N) to show base cost
             metrics.base_ops_per_token = (total_flops / (batch_size * seq_length * log_n)) / 1e6
         else:
             metrics.base_ops_per_token = metrics.flops_per_token
