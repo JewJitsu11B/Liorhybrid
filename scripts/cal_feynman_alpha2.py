@@ -7,8 +7,9 @@ Units: hbar = c = 1 unless stated, and mu = m c^2 / hbar.
 Sections
   1  Light-cone memory of order alpha: closed-form symbol against direct integration,
      and Lorentz invariance only at alpha = 2 (and trivially alpha = 0).
-  2  The alpha = 2 law gives Klein-Gordon: dispersion from the retarded symbol.
-     The channel-phase alternative gives a tachyon.
+  2  The alpha = 2 law gives Klein-Gordon: dispersion from the retarded symbol.  The transport
+     chain is the identity (free, flat sector), so the only scale is the kernel's lag unit tau_c:
+     mu = 1/(sqrt 2 tau_c).  An extra factor -1 on the memory (not in the CAL) would give a tachyon.
   3  Path sum in 1+1: iterated accumulation along the two null legs (one mass insertion
      per step) against the massive propagator (1/2) J0(mu sqrt(uv)); grid refinement.
   3b Feynman's checkerboard on a lattice (amplitude i eps mu per corner): the corner-odd
@@ -17,13 +18,11 @@ Sections
   4  Path sum in 3+1 by exact descent: the tail inside the cone against
      -mu J1(mu sqrt(w)) / (4 pi sqrt(w)).
   5  Positive frequency: composition on the pair (J, dJ/dt), unitary evolution, the
-     nonrelativistic limit to Feynman's free kernel, and why the positive-frequency
-     restriction is needed for the trace readout.
-  6  Test of the channel phase as alpha -> 2-: with the phase e^{-i sigma alpha pi/2} on the
-     memory, the field equation is time-stepped directly (per k-mode, zero past, real source).
-     With (1 - alpha) r1 > 0 the phase selects one sign of frequency (sgn E = sigma) as exactly
-     stationary for every alpha < 2, and the other sign decays at (pi/2)(2 - alpha) mu / gamma.
-     At alpha = 2 it coincides with the additive law.  With r1 > 0 every k has a growing mode.
+     nonrelativistic limit to Feynman's free kernel, and why one sign of frequency is needed
+     for the trace readout.
+  6  The CAL near alpha = 2 (light-cone kernel, no factor on the memory): both signs of
+     frequency decay at (pi/4)(2 - alpha) mu^2/omega below 2, are conserved at 2, and grow at
+     the same rate above 2 (runaway).  Growing-mode counts and a time-stepped run.
 """
 import cmath
 import math
@@ -115,28 +114,27 @@ def section_1():
 # --------------------------------------------------------------------------- section 2
 def section_2():
     print("=" * 78)
-    print("2. The alpha = 2 law  T = 2J + (r1/tau_c^2) G * J = 0  on plane waves (retarded symbol)")
-    r1, tau_c = 2.0, 1.0
-    mu2 = r1 / (2 * tau_c ** 2)
-    print(f"   r1 = {r1}, tau_c = {tau_c}: mu^2 = r1/(2 tau_c^2) = {mu2}")
-    print(f"   {'k':>5} {'root E (additive form)':>23} {'sqrt(k^2+mu^2)':>15} {'channel phase: E^2':>19}")
+    print("2. The alpha = 2 law  T = 2J + tau_c^-2 G * J  (transport chain = 1); balance T = 0 on plane waves")
+    tau_c = 1 / math.sqrt(2)
+    mu2 = 1 / (2 * tau_c ** 2)
+    print(f"   tau_c = 1/sqrt(2): mu^2 = 1/(2 tau_c^2) = {mu2:.6f}   (mu tau_c = 1/sqrt 2; only this ratio is physical)")
+    print(f"   {'k':>5} {'root E':>14} {'sqrt(k^2+mu^2)':>15} {'E^2 with an extra factor -1':>28}")
     eta = 1e-12
     for k in (0.0, 0.5, 1.0, 2.0, 4.0):
-        def F(E, sign):
-            s = eta - 1j * E
-            return 2 + sign * (r1 / tau_c ** 2) / (s * s + k * k)
+        def F(E):
+            s_ = eta - 1j * E
+            return (2 + tau_c ** -2 / (s_ * s_ + k * k)).real
         lo, hi = math.sqrt(k * k + 1e-9) + 1e-9, 50.0
-        f = lambda E: F(E, +1).real
         for _ in range(200):
             mid = 0.5 * (lo + hi)
-            if f(lo) * f(mid) <= 0:
+            if F(lo) * F(mid) <= 0:
                 hi = mid
             else:
                 lo = mid
-        E2_phase = k * k - mu2                        # 2 - kappa/(k^2 - E^2) = 0
-        print(f"   {k:5.1f} {0.5 * (lo + hi):23.10f} {math.sqrt(k * k + mu2):15.10f} {E2_phase:19.4f}")
-    print("   -> Klein-Gordon dispersion E^2 = k^2 + mu^2 with mu^2 = r1/(2 tau_c^2): real mass for r1 > 0.")
-    print("      With the edge paper's channel phase on the memory, E^2 = k^2 - mu^2: a tachyon for k < mu.")
+        E2_flip = k * k - mu2                        # 2 - tau_c^-2/(k^2 - E^2) = 0
+        print(f"   {k:5.1f} {0.5 * (lo + hi):14.10f} {math.sqrt(k * k + mu2):15.10f} {E2_flip:28.4f}")
+    print("   -> Klein-Gordon dispersion E^2 = k^2 + mu^2.  The double accumulation supplies the half turn itself;")
+    print("      a further factor -1 on the memory (the old edge prefactor at alpha = 2) would make E^2 = k^2 - mu^2.")
 
 
 # --------------------------------------------------------------------------- section 3
@@ -288,16 +286,16 @@ def section_5():
 
 # --------------------------------------------------------------------------- section 6
 def m_complex(a, E, b):
-    """Light-cone symbol at s = -iE (tau_c = 1); principal branch, continued below the real axis."""
+    """Light-cone symbol at s = -iE (lag unit 1); principal branch, continued below the real axis."""
     s = -1j * E
     if abs(a - 2) < 1e-14:
         return 1 / (s * s + b * b)
     return ((s - 1j * b) ** (1 - a) - (s + 1j * b) ** (1 - a)) / (2j * b * (a - 1))
 
 
-def F_disp(a, E, b, r1, ph):
-    """Symbol of T = alpha J - (1 - alpha) r1 ph K_alpha J on e^{-iEt + ikx}."""
-    return a + (a - 1) * r1 * ph * m_complex(a, E, b)
+def F_cal(a, E, b, tau_c):
+    """Symbol of T = alpha J - (1 - alpha) tau_c^-alpha K_alpha J on e^{-iEt + ikx}: no factor on the memory."""
+    return a + (a - 1) * tau_c ** (-a) * m_complex(a, E, b)
 
 
 def newton_c(f, z):
@@ -312,19 +310,16 @@ def newton_c(f, z):
     return z
 
 
-def uhp_zero_count(a, b, r1, ph, X=12.0, Y=12.0, eta=1e-7, n=20000):
-    """Winding number of the symbol on [-X, X] x [eta, Y]: zeros with Im E > 0 are growing modes."""
+def growing_zero_count(a, b, tau_c, X=12.0, Y=12.0, eta=2e-3, n=200000):
+    """Winding number of the symbol on [-X, X] x [eta, Y]: zeros with Im E > eta are growing modes."""
     z = np.concatenate([np.linspace(-X, X, n) + 1j * eta, X + 1j * np.linspace(eta, Y, n),
                         np.linspace(X, -X, n) + 1j * Y, -X + 1j * np.linspace(Y, eta, n)])
-    ang = np.unwrap(np.angle([F_disp(a, zz, b, r1, ph) for zz in z]))
+    ang = np.unwrap(np.angle([F_cal(a, zz, b, tau_c) for zz in z]))
     return (ang[-1] - ang[0]) / (2 * PI)
 
 
-def time_step(a, b, r1, ph, T=200.0, h=0.02, t0=10.0, w=1.0):
-    """alpha J + (alpha - 1) r1 ph (K * J) = S for one k-mode, trapezoid product rule, zero past.
-
-    K(tau) = tau^(alpha-1) sinc(b tau) / Gamma(alpha), so K(0) = 0 and the step is explicit.
-    """
+def time_step(a, b, tau_c, T=200.0, h=0.02, t0=10.0, w=1.0):
+    """alpha J + (alpha - 1) tau_c^-alpha (K * J) = S for one k-mode, trapezoid product rule, zero past."""
     N = int(T / h) + 1
     t = np.arange(N) * h
     K = np.zeros(N)
@@ -332,7 +327,7 @@ def time_step(a, b, r1, ph, T=200.0, h=0.02, t0=10.0, w=1.0):
     S = np.exp(-(t - t0) ** 2 / (2 * w * w))
     J = np.zeros(N, complex)
     J[0] = S[0] / a
-    coef = (a - 1) * r1 * ph * h
+    coef = (a - 1) * tau_c ** (-a) * h
     for n in range(1, N):
         conv = np.dot(K[1:n + 1], J[n - 1::-1]) - 0.5 * K[n] * J[0]
         J[n] = (S[n] - coef * conv) / a
@@ -341,77 +336,26 @@ def time_step(a, b, r1, ph, T=200.0, h=0.02, t0=10.0, w=1.0):
     return t, J
 
 
-def frequency_split(t, J):
-    """Parts with E > 0 and E < 0 in the e^{-iEt} convention."""
-    Jh = np.fft.fft(J)
-    E = -2 * PI * np.fft.fftfreq(len(J), d=t[1] - t[0])
-    return np.fft.ifft(np.where(E > 0, Jh, 0)), np.fft.ifft(np.where(E < 0, Jh, 0))
-
-
 def section_6():
     print("=" * 78)
-    print("6. Test: the channel phase e^{-i sigma alpha pi/2} on the memory, as alpha -> 2-")
-    print("   T = alpha J - (1 - alpha) r1 ph K_alpha J;  |r1| = 2 so mu^2 = 1 at alpha = 2;  units hbar = c = tau_c = 1")
-    configs = (("additive, r1 = +2", 2.0, None), ("phase s=-1, r1 = -2", -2.0, -1),
-               ("phase s=+1, r1 = -2", -2.0, +1), ("phase s=-1, r1 = +2", 2.0, -1))
-
-    def phase(a, sig):
-        return 1.0 if sig is None else cmath.exp(-1j * sig * a * PI / 2)
-
-    print("   6a growing modes (zeros with Im E > 0), k = 0.1, 0.5, 1, 2, 5:")
-    for label, r1, sig in configs:
-        row = [f"a={a}: " + ",".join(f"{uhp_zero_count(a, b, r1, phase(a, sig)):.0f}" for b in (0.1, 0.5, 1, 2, 5))
-               for a in (1.9, 1.99)]
-        print(f"      {label:21s} " + "   ".join(row))
-    print("   6b time-stepped field equation, k = 1, real Gaussian source (both signs of E driven equally):")
-    print(f"      {'config':21s} {'alpha':>5} {'|J(E>0)| t=60':>14} {'t=180':>9} {'|J(E<0)| t=60':>14} {'t=180':>9}"
-          f"   root decay rates (E>0, E<0)")
-    for label, r1, sig in configs[:3]:
-        for a in (1.95, 1.99, 2.0):
-            ph = phase(a, sig)
-            t, J = time_step(a, 1.0, r1, ph)
-            Jp, Jm = frequency_split(t, J)
-            i60, i180 = int(round(60 / 0.02)), int(round(180 / 0.02))
-            rp = -newton_c(lambda E: F_disp(a, E, 1.0, r1, ph), 1.4 + 0.01j).imag
-            rm = -newton_c(lambda E: F_disp(a, E, 1.0, r1, ph), -1.4 + 0.01j).imag
-            print(f"      {label:21s} {a:5.2f} {abs(Jp[i60]):14.3e} {abs(Jp[i180]):9.3e} {abs(Jm[i60]):14.3e}"
-                  f" {abs(Jm[i180]):9.3e}   ({rp:+.2e}, {rm:+.2e})")
-    for a, b in ((1.9, 1.0), (2.0, 0.5)):
-        t, J = time_step(a, b, 2.0, phase(a, -1))
-        print(f"      phase s=-1, r1 = +2   alpha = {a}, k = {b}: |J| reaches {np.max(np.abs(J)):.1e} by t = {t[-1]:.0f}")
-    print("   6c phase s=-1, r1 = -2: real zeros (the only modes bounded on the whole time line), E in [-20, 20]:")
-    for a in (1.9, 1.99):
-        ph = phase(a, -1)
-        out = []
-        for b in (0.1, 1.0, 5.0):
-            E = np.linspace(-20, 20, 40001)
-            E = E[np.abs(np.abs(E) - b) > 1e-6]
-            v = np.abs([F_disp(a, e, b, -2.0, ph) for e in E])
-            idx = [i for i in range(1, len(v) - 1) if v[i] < v[i - 1] and v[i] < v[i + 1] and v[i] < 5e-2]
-            roots = sorted({round(newton_c(lambda z: F_disp(a, z, b, -2.0, ph), complex(E[i])).real, 6)
-                            for i in idx})
-            out.append(f"k={b}: {roots}")
-        print(f"      a={a}: " + "   ".join(out))
-    print("   6d decay of the other sign:  rate x |E| / (E^2 - k^2)  vs  (pi/2)(2 - alpha)")
-    for a in (1.99, 1.999):
-        ph = phase(a, -1)
-        row = []
-        for b in (1e-4, 1.0, 4.0, 8.0):
-            z = newton_c(lambda E: F_disp(a, E, b, -2.0, ph), complex(math.sqrt(b * b + 1), 0.01))
-            row.append(f"k={b:g}: {-z.imag * abs(z.real) / (z.real ** 2 - b * b):.5f}")
-        print(f"      a={a}: (pi/2)(2-a) = {PI / 2 * (2 - a):.5f};  " + "  ".join(row))
-    print("   6e stationary branch vs Klein-Gordon, max_k |E^2 - k^2 - E(0)^2| / E(0)^2 over k in [0, 8]:")
-    row = []
-    for a in (1.9, 1.99, 1.999, 2.0):
-        ph = phase(a, -1)
-        Es = [(b, newton_c(lambda E: F_disp(a, E, b, -2.0, ph), complex(-math.sqrt(b * b + 1))).real)
-              for b in np.linspace(1e-4, 8, 41)]
-        E0 = Es[0][1] ** 2
-        row.append(f"a={a}: {max(abs(e * e - b * b - E0) for b, e in Es) / E0:.1e}")
-    print("      " + "   ".join(row))
-    print("   -> with (1 - alpha) r1 > 0 the phase keeps sgn E = sigma exactly stationary for every alpha < 2;")
-    print("      the other sign decays at (pi/2)(2 - alpha) mu / gamma (proper-time rate); at alpha = 2 the law")
-    print("      is the additive law.  With r1 > 0 (the edge's sign) every k has a growing mode.")
+    print("6. The CAL near alpha = 2: T = alpha J - (1 - alpha) tau_c^-alpha K_alpha J, light-cone kernel, no factor")
+    tau_c = 1 / math.sqrt(2)
+    print("   tau_c = 1/sqrt 2 (mu = 1 at alpha = 2), k = 1.  Root near E = +-sqrt 2:  Im E < 0 decays, Im E > 0 grows")
+    print(f"   {'alpha':>6} {'E (+ branch)':>24} {'E (- branch)':>24} {'(pi/4)|a-2| mu^2/w':>19} {'growing modes k=0.1,1,5':>24}")
+    for a in (1.9, 1.99, 2.0, 2.01, 2.05, 2.1):
+        zp = newton_c(lambda E: F_cal(a, E, 1.0, tau_c), 1.4 + 0.01j)
+        zm = newton_c(lambda E: F_cal(a, E, 1.0, tau_c), -1.4 + 0.01j)
+        w = abs(zp.real)
+        pred = (PI / 4) * abs(a - 2) * (w * w - 1) / w
+        cnt = [round(growing_zero_count(a, b, tau_c)) for b in (0.1, 1.0, 5.0)] if abs(a - 2) > 0.005 else ["-"] * 3
+        print(f"   {a:6.2f} {zp.real:+12.6f}{zp.imag:+.3e}i {zm.real:+12.6f}{zm.imag:+.3e}i {pred:19.3e} {str(cnt):>24}")
+    print("   time-stepped field, k = 1, real Gaussian source at t0 = 10 (zero past):")
+    for a in (1.95, 2.0, 2.05):
+        t, J = time_step(a, 1.0, tau_c)
+        vals = ", ".join(f"{abs(J[int(x / 0.02)]):.2e}" for x in (50, 100, 150, 200) if int(x / 0.02) < len(J))
+        print(f"     alpha = {a:4.2f}: |J| at t = 50, 100, 150, 200: {vals}")
+    print("   -> conservative exactly at alpha = 2; below, both signs decay (no sign is selected); above, both grow")
+    print("      (causal runaway).  One sign of frequency must come from the source's past, as at the edge.")
 
 
 if __name__ == "__main__":

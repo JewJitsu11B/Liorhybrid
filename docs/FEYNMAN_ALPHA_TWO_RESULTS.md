@@ -1,63 +1,39 @@
-# Results: the Feynman path sum at closure order $\alpha=2$ with the light-cone kernel width
+# One-pager: the Feynman path sum at closure order α = 2, light-cone kernel width
 
-> **Status, November 13, 2026: revision pending.** The edge paper has been rewritten on the bare CAL. The α = 2 paper still contains three things that are not in the CAL, and will be revised to match:
-> - **The coupling r₁.** The transport chain is 1 in the free, flat sector, so μ² = 1/(2τ_c²).
-> - **τ_c as a time unit.** It becomes relational: the mass is the carrier's own rate, and only mass ratios are physical.
-> - **The channel-phase remark.** The phase belongs to the source current, so no factor goes on the memory, and the "additive law" is simply the CAL.
->
-> In addition:
-> - **T = 0 will be reframed as the balance reading:** the present equals the light-cone past.
-> - **A runaway-above-2 table will be added.** The law is conservative at exactly 2 and grows at (π/4)(α−2)μ²/ω above it.
->
-> The kernel results (Lorentz invariance only at α = 2, the Kirchhoff shell, the null-leg split, the checkerboard, the descent tail) do not use any of these and stand as they are.
+**Paper:** *An Axiomatic Derivation of the Feynman Path Sum at the Light-Cone Kernel Width and Closure Order α = 2 of the Causal Accumulation Law*. PDF at `docs/paper/cal_feynman_alpha2.pdf`, source in the `.tex` next to it.
 
-**The paper** (*An Axiomatic Derivation of the Feynman Path Sum at the Light-Cone Kernel Width and Closure Order α = 2 of the Causal Accumulation Law*): `docs/paper/cal_feynman_alpha2.pdf` (source `docs/paper/cal_feynman_alpha2.tex`). It has the full statements and proofs; this file summarizes them.
+**Reproduce:** `python3 scripts/cal_feynman_alpha2.py` (numpy only, about 25 s). Units: ħ = c = 1 and τ_c = 1/√2, so μ = 1.
 
-**Reproduce:** `python3 scripts/cal_feynman_alpha2.py` (numpy only, about 7 seconds). Units: $\hbar=c=\tau_c=1$ and $\mu=1$, unless stated.
+## Inputs
+- The CAL at α = 2: T = 2J + K₂J. In the free, flat sector the transport chain is 1, so there is no coupling constant.
+- A light-cone kernel: at lag τ the profile is the light front of radius cτ, with Fourier transform sinc(c|k|τ) in d = 1, 2, 3.
+- The balance reading: T is the new state; a free carrier balances its light-cone past, T = 0; a source is the imbalance. The edge's update rule is not used, because at α = 2 the 2J term alone would double the current every update.
+- The phase belongs to the source. The double accumulation gives the half turn by itself, and no factor goes on the memory; an added −1 would make the mass tachyonic.
+- For the readout only: one sign of frequency, inherited from the source's past, as at the edge.
 
-**Inputs:**
-- the CAL at $\alpha=2$, written as $T=2J+r_1K_2J=S$, where $S$ is a source with zero past;
-- a light-cone kernel: at lag $\tau$ the profile is the light front of radius $c\tau$. Its Fourier transform is $\operatorname{sinc}(c|k|\tau)$ in $d=1,2,3$;
-- no channel phase on the memory. With the phase, the mass is tachyonic;
-- for the readout only: one sign of frequency.
+The kernel's lag scale τ_c is the only scale. Time is relational, so only ratios such as μτ_c are physical.
 
 ## Results
 
-1. **Lorentz invariance selects $\alpha=2$.**
-   - The order-$\alpha$ symbol is $(\tau_cR)^{-\alpha}\sin((\alpha-1)\varphi)/((\alpha-1)\sin\varphi)$.
-   - It depends on $s^2+c^2k^2$ alone only at $\alpha=2$ (and trivially at $\alpha=0$). The leading defect is $\alpha(2-\alpha)\varphi^2/6$.
-   - At $\alpha=2$ the kernel is the retarded Green's function of $\square$. In 3+1 it is Kirchhoff's shell. In 1+1 it is one order-one accumulation along each null leg.
-2. **Klein–Gordon.** After the source is off, $(\square+\mu^2)J=0$, with $\mu^2=r_1/(2\tau_c^2)$ and $mc^2=\hbar\sqrt{r_1/2}/\tau_c$. No double scaling is needed.
-3. **Path sum.**
-   - The Neumann series $\tfrac12\sum(-\mu^2)^nG^{*n}*S$ converges absolutely, with bound $\tfrac12\cosh\mu t$. It resums to the retarded propagator $G_\mu$.
-   - It is a sum over piecewise-null histories with $-\mu^2$ per corner.
-   - In 1+1, the $n$-th term is the $(2n+1)$-corner amplitude of Feynman's checkerboard divided by $2ic\mu$, because $(-\mu^2)^n=(i\mu)^{2n}$.
-   - In 3+1, by descent, the histories without corners lie on the cone. The corners alone build the $J_1$ tail inside it.
-4. **Pair composition.** The past enters only through $(J,\partial_tJ)$. This is not the faithful limit, because no records are kept.
-5. **Unitarity and readout.**
-   - Each sign of frequency is unitary, with generator $\sqrt{m^2c^4-\hbar^2c^2\nabla^2}$.
-   - On positive frequency, $\int JJ^\dagger$ is conserved. So the trace readout is normalized in every fixed frame.
-   - Mixed frequencies break this.
-   - The Klein–Gordon charge is the frame-independent conserved quantity. It differs from the trace at order $v^2/c^2$.
-6. **Feynman's kernel.** Strip the rest phase from the positive-frequency part of the path sum and let $c\to\infty$. It converges to $K_F$ with error $O(1/c^2)$. Its group law is Feynman's time slicing.
+| Result | Statement | Check |
+|---|---|---|
+| Lorentz invariance selects α = 2 | The light-cone symbol depends on s² + c²k² alone only at α = 2 (and α = 0). The leading defect is α(2−α)φ²/6. | defect 0 at α = 0, 2; 0.10 at 1.9 and 2.1 |
+| Kernel = retarded Green's function | Kirchhoff's shell in 3+1; one order-1 accumulation per null leg in 1+1 (2 = 1 + 1). | closed form matches direct integration to 6 digits |
+| Klein–Gordon | The balanced carrier obeys (□ + μ²)J = 0 with μτ_c = 1/√2. The mass is the kernel's own rate. | roots = √(k² + μ²) to 10 digits |
+| Conservative exactly at 2 | Both signs decay at (π/4)(2−α)μ²/ω below 2 and grow at that rate above 2 (runaway). Nothing near 2 selects a sign. | Im ω: −5.5×10⁻³ at 1.99, 0 at 2, +5.6×10⁻³ at 2.01 |
+| Path sum | The Neumann series is a sum over piecewise-null histories with −μ² per corner. It converges absolutely (bound ½cosh μt) and resums to G_μ. | 1+1 residual 3.35×10⁻⁵ → 8.38×10⁻⁶ as h halves |
+| Checkerboard | In 1+1 the n-th term is the (2n+1)-corner amplitude over 2icμ, since (−μ²)ⁿ = (iμ)²ⁿ. | lattice error halves with ε: 3.7×10⁻² → 4.5×10⁻³ |
+| Corner tail | In 3+1, histories without corners sit on the cone; the corners alone build the J₁ tail inside it. | ≤ 2.5×10⁻⁶ |
+| Pair composition | The past enters only through (J, ∂ₜJ). That is not the faithful limit. | 1.1×10⁻¹⁴ |
+| Unitarity and readout | Each sign of frequency is unitary. On one sign, ∫JJ† is conserved, so the trace readout is Born-normalized in every frame; mixed signs break it. | spread 2.5×10⁻¹⁶ vs 1.6×10⁻¹ |
+| Feynman's kernel | The positive-frequency path sum, rest phase removed, gives K_F as c → ∞ with error O(1/c²). | error·c² → 3.667 (predicted 3.672) |
 
-## Numbers
+**Where the *i* comes from.** The α = 2 dynamics is real. The *i* of K_F enters only with the sign of frequency inherited from the source. At the edge it is the rotation produced by negative feedback.
 
-| check | result |
-|---|---|
-| symbol, closed vs numeric | agree to 6 digits; Lorentz defect 0 only at α = 0, 2 |
-| KG roots, k = 0…4 | equal to √(k²+μ²) to 10 digits |
-| 1+1 path sum vs ½J₀ | residual 3.35e-5 → 8.38e-6 as h halves (grid error) |
-| checkerboard vs J₀ | 3.70e-2, 1.81e-2, 8.95e-3, 4.45e-3 (first order in ε) |
-| 3+1 descent tail vs −μJ₁/(4π√w) | ≤ 2.5e-6 |
-| pair composition | 1.1e-14 |
-| NR limit, err·c² | 2.42, 3.32, 3.59, 3.65, 3.67 → predicted 3.672 |
-| ‖J‖² spread: positive / mixed frequency | 2.5e-16 / 1.6e-1 |
-
-## Open
-
-- what selects one sign of frequency;
-- interaction between carriers at α = 2;
-- the spin (Dirac) form in 3+1;
-- the relation between the α = 2 mass and the edge mass;
-- a frame-independent position readout (Newton–Wigner).
+## Not claimed / open
+- Interaction between carriers, the reciprocal return leg.
+- Spin (a Dirac form in 3+1).
+- Mass ratios between carriers: with the same kernel every carrier has the same rate.
+- The relation to the edge's rest rotation. The equivalence condition (kernel width √6 Compton wavelengths) is a forward pointer only.
+- A frame-independent position readout (the Newton–Wigner problem).
+- Prior art: the 1+1 checkerboard and its slow limit (Feynman–Hibbs, Jacobson–Schulman, Gaveau–Jacobson–Kac–Schulman) and causal-set chain sums (Johnston). What is new is the source: the history sum is the CAL's own memory series.
