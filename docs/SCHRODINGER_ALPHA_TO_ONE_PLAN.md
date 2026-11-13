@@ -71,6 +71,7 @@ $$
 - The error against Schrödinger falls onto the $k^4$ floor: at $1-\alpha=10^{-4}$, $(4.8,2.6,1.5)\times10^{-2}$ against a floor of $(4.8,2.5,1.3)\times10^{-2}$, for $\langle r^2\rangle=0.24,0.12,0.06$.
 - Leakage into the opposite rotation is about $10^{-8}$.
 - A two-cycle history fails: 70–97% leaks. The nearly flat memory needs the whole past.
+- So the wave at a point is the particle's accumulated causal past evaluated there, not a spread in space at one instant.
 
 **R5. Closure and Born readout.**
 
@@ -167,7 +168,14 @@ New tables from `cal_edge_transducer.py`, sections A–E, plus the braking and f
 
 ### 9. Remarks on scope
 - **Relation to $\alpha=2$:** the balance reading. The update rule is not used there, because $2J$ alone doubles the current each update.
-- **Optional, needs the author's sign-off:** if the rest rotation is $mc^2/\hbar$, then the kernel width is $\sqrt6$ Compton wavelengths, and "Schrödinger regime" means wavelength much longer than the kernel width.
+- **The wave is the accumulated past** (R4). The full one-way history is required; two cycles fail.
+  - Smearing with real weights gives diffusion, the $e^{-H/\tau}$ channel. Smearing with phase gives waves, the $e^{iS/\hbar}$ channel.
+  - The edge law $\exp[-(i+\sqrt{1-\alpha})(\hbar/2m)k^2t]$ is that mix.
+  - Parallel: Feynman (1948) defines $\psi(x,t)$ as the sum over the past parts of paths.
+- **Forward pointer only (one sentence): the equivalence condition.**
+  - At the edge, inertial mass comes from the kernel width and rest energy from the rotation rate, and nothing ties the two.
+  - Requiring width $=\sqrt6$ Compton wavelengths is the statement that inertial mass $=$ rest energy$/c^2$. Gravity coupling universally to energy would need it.
+  - The full treatment belongs to the $\alpha=2$ / gravity program (§6, item 5). It is not claimed here.
 
 ### Appendices
 - Notation.
@@ -205,8 +213,14 @@ New tables from `cal_edge_transducer.py`, sections A–E, plus the braking and f
 5. **Cross-paper follow-ups:**
    - α = 2 paper: remove the channel-phase remark; set the chain to 1; make $\tau_c$ relational; reframe $T=0$ as the balance reading; add the runaway-above-2 table.
    - Posters 3 and 4: step 1, step 2 and row 4 still show the prefactor and exact unitarity for $\alpha<1$.
+   - Gravity notes, for a later paper; none of this goes in the edge paper:
+     - the $\alpha=2$ light-cone kernel is the retarded propagator of linearized gravity in harmonic gauge, as it is for the Maxwell potential;
+     - the rank-2 closure dyads, which satisfy the energy conditions, accumulated on that cone give a linearized-gravity-shaped field;
+     - the equivalence condition above, with Weinberg (1964) as the matching result from the gravity side.
+     - Open: $G$ as a ratio, $Gm^2/\hbar c=(\ell_P/\text{kernel width})^2$; conservation of the rank-2 source, which by Deser (1970) would then force GR; and nonlinearity.
+     - Prior art: Hehl–Mashhoon nonlocal gravity.
 
 ## 7. Open, needing the author
 
-- The Compton-width identification: include it or not.
+- The Compton-width identification. Default: a one-sentence forward pointer in §9 as the equivalence condition, not a result.
 - The title.
