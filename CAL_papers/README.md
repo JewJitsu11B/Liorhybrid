@@ -13,6 +13,6 @@ One folder to copy as a whole.
 | `cal_feynman_onesheet_v1.pdf` / `.tex` | α = 2 one-sheet, same format as the edge one-sheet |
 | `FEYNMAN_ALPHA_TWO_RESULTS.md` | α = 2 one-pager, Markdown version |
 | `causality_source_note_killing.pdf` / `.tex` | On Information Physics (the author's note) |
-| `info_physics_onesheet_v2.pdf` / `.tex` | On Information Physics one-sheet (*One Carrier, Two Readouts*) |
+| `info_physics_onesheet_v3.pdf` / `.tex` | On Information Physics one-sheet (*One Carrier, Two Readouts*), with the full CAL underbraced below the definitions box |
 
 The working copies live in `docs/paper/`, `scripts/`, `docs/` and `SourceDocs/`. This folder holds snapshots taken on November 13, 2026.

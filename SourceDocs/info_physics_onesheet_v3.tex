@@ -1,0 +1,183 @@
+\documentclass[9pt]{extarticle}
+\usepackage[letterpaper,margin=0.26in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage[most]{tcolorbox}
+\usepackage{multicol}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{1pt}
+\setlength{\columnsep}{16pt}
+\setlength{\multicolsep}{3pt plus 1pt minus 1pt}
+
+\definecolor{ink}{HTML}{1F2A44}
+\definecolor{note}{HTML}{4A5568}
+\newcommand{\step}[2]{\vspace{1pt}{\color{ink}\textbf{#1.\ #2}}\par\nobreak}
+\newcommand{\say}[1]{{\color{note}\footnotesize\textit{#1}\par}}
+\newcommand{\Cp}{\mathbb{C}}
+\newcommand{\status}[1]{{\color{note}\footnotesize[#1]}}
+
+\begin{document}
+
+\begin{center}
+{\Large\bfseries\color{ink} One Carrier, Two Readouts: Born, Lorentz, Bloch, and Killing}\\[2pt]
+{\small Sam Leizerman \;\textbullet\; LIOR Research Initiative \;\textbullet\; ORCID 0009-0000-0133-2291}\\[1pt]
+{\small\color{note} One-sheet companion to \textit{On Information Physics: From State Distinguishability to Causal Accumulation}}
+\end{center}
+\vspace{-4pt}
+
+\begin{tcolorbox}[colback=ink!4,colframe=ink!60,boxrule=0.5pt,left=5pt,right=5pt,top=3pt,bottom=3pt]
+\small
+\textbf{Origin.} \ CAL is not a theory of quantum gravity. It is an information-physics engine for non-Markovian reality, built to lift self-attention to a field-theoretic form from first principles of cognition, causality and intelligence. Its derivations of known physics are unit tests: a law of causal memory that cannot recover established physics has no business modeling minds or societies.\\[2pt]
+\textbf{Definition 1 (Information).} \ Information $:=$ distinguishability of physical states.\\[2pt]
+\textbf{Remark 1 (Difference and observation).} \ To distinguish physical states is to observe a difference between them. Change is a difference between states along an ordered evolution; thus change is temporally ordered distinguishability. Observation here denotes physical distinguishability, not a required conscious observer.\\[2pt]
+\textbf{Definition 2 (Causality).} \ Causality $:=$ change in physical state, including its rate of change.
+\end{tcolorbox}
+
+\vspace{-2pt}
+{\color{ink}\textbf{The Causal Accumulation Law}} {\color{note}\small(On Information Physics, Eq.~61)}
+{\footnotesize
+\vspace{-3pt}
+\[
+\begin{aligned}
+T^{\mu\nu a}{}_{\rho\sigma}(x)\ =\ &\underbrace{\alpha_{\rm frac}\,J^{\mu\nu a}{}_{\rho\sigma}(x)}_{\text{present source}}-(1-\alpha_{\rm frac})\int_{J^-(x)}\underbrace{k(\tau;x,x')}_{\text{history kernel}}\ \underbrace{\Pi^{\mu\nu}{}_{\rho\sigma|\alpha\beta}{}^{\gamma\delta}(x,x')}_{\text{slot coupling}}\\[-2pt]
+&\times\underbrace{P^{\alpha}{}_{\alpha'}(x,x')\,P^{\beta}{}_{\beta'}(x,x')\,P_{\gamma}{}^{\gamma'}(x,x')\,P_{\delta}{}^{\delta'}(x,x')}_{\text{spacetime transport of the past to }x}\ \times\ \underbrace{\Phi^a{}_b(x)\,P^b{}_{c'}(x,x')}_{\text{internal channel action}}\ \ J^{\alpha'\beta'c'}{}_{\gamma'\delta'}(x')\,d^4x'.
+\end{aligned}
+\]\par\vspace{-5pt}}
+\say{Read left to right: what the field is now ($T$) equals a share $\alpha_{\rm frac}$ of the present source, minus a share $1-\alpha_{\rm frac}$ of the past. Only the causal past $J^-(x)$ counts. Each past contribution is weighted by how long ago it happened ($k$), carried to the present point so it can be compared there (the four $P$ factors), and rotated in its internal channel ($\Phi P$).}
+
+\vspace{-1pt}
+{\small\textbf{Definitions and symbols}}\par\vspace{0pt}
+{\scriptsize\setlength{\tabcolsep}{3pt}\renewcommand{\arraystretch}{0.94}
+\begin{minipage}[t]{0.5\linewidth}
+\begin{tabular}{@{}>{$}l<{$} p{1.75in} l c@{}}
+\toprule
+\text{Sym.} & Meaning & Type & Eq.\\
+\midrule
+K(t,\tau),\ F & Memory kernel; aspect of past state & kernel; map & (5)\\
+M(t) & History functional & path functional & (5)\\
+\tau_E,\ \hbar_{\rm eff} & Energy scale; action scale & positive reals & (9)\\
+e_a & $e_0=I_2$, $e_j=-i\sigma_j$ & $M_2(\Cp)$ & (10)\\
+J & Carrier $\sum_a Z_a e_a$ & $\Cp\otimes\mathbb{H}\cong M_2(\Cp)$ & (11)\\
+\varrho & Positive closure $JJ^\dagger$ & Hermitian, $\succeq0$ & (12)\\
+E_m,\ p_m & Positive effects; Born probabilities & $\succeq0$; $[0,1]$ & (13)\\
+x^\mu,\ \eta_{\mu\nu} & Closure four-vector; Minkowski metric & real & (16)\\
+\bottomrule
+\end{tabular}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\linewidth}
+\begin{tabular}{@{}>{$}l<{$} p{1.6in} l c@{}}
+\toprule
+\text{Sym.} & Meaning & Type & Eq.\\
+\midrule
+\alpha\equiv\alpha_{\rm frac} & Interaction depth; fractional order & real & (19)\\
+I^\alpha & Past-supported Weyl integral & operator & (19)\\
+\theta & Accumulated Wick angle $\pi\alpha/2$ & angle & (21)\\
+\hat\varrho,\ \vec r & Normalized closure; Bloch vector & state; $|\vec r|\le1$ & (29)\\
+G & $SL(2,\Cp)$ element & Lie group & (36)\\
+\kappa & Killing form $\operatorname{tr}(\mathrm{ad}_A\mathrm{ad}_B)$ & bilinear form & (49)\\
+T^{\mu\nu},\ w_i & Dyad sum; dyad weights & tensor; real & (57)\\
+W,\ \pi^\mu & Action weight; canonical momentum & positive fn.; field & (62)\\
+\bottomrule
+\end{tabular}
+\end{minipage}}
+
+\vspace{1pt}
+\begin{multicols}{2}
+\fontsize{7.5}{8.1}\selectfont\setlength{\parskip}{0.3pt}
+\setlength{\abovedisplayskip}{1pt}\setlength{\belowdisplayskip}{1pt}\setlength{\abovedisplayshortskip}{0pt}\setlength{\belowdisplayshortskip}{1pt}
+
+\step{1}{History is more than its endpoints}
+\say{The fundamental theorem of calculus recovers net change. A history functional can tell apart two trajectories with the same endpoints.}
+\[
+X(t)-X(t_0)=\int_{t_0}^{t}\dot X\,d\tau,\qquad M(t)=\int_{t_0}^{t}K(t,\tau)\,F\big(X(\tau)\big)\,d\tau .
+\]
+\say{Only two kernels make the present sufficient: the Dirac limit (forgetful) and the light-cone limit (faithful). Because $K$ depends on the evaluation time, $M$ is not additive under concatenation, so it is not a functor to any additive group; its carrier is the path category $\mathrm{Path}(S)$, outside the de Rham tiers.}
+
+\step{2}{Two weights in one channel}
+\say{Each channel holds a Boltzmann weight and a Feynman weight. The substitution $1/k_BT\to1/(i\hbar)$ turns one into the other, the move that makes the path integral a partition function with quantropy as its entropy.}
+\[
+Z_a=A_a e^{-H_a/\tau_E}+B_a e^{iS_a/\hbar_{\rm eff}},\ \ A_a+B_a=1,\quad J=\textstyle\sum_{a}Z_a e_a\in M_2(\Cp).
+\]
+
+\step{3}{The Born rule from positive closure}
+\say{Closing the carrier with its own adjoint gives a positive matrix. Its trace adds up the channels; positive effects read probabilities off it.}
+\[
+\varrho=JJ^\dagger\succeq0,\quad \tfrac12\operatorname{tr}\varrho={\textstyle\sum_a}|Z_a|^2,\quad p_m=\frac{\operatorname{tr}(E_m JJ^\dagger)}{\operatorname{tr}(JJ^\dagger)} .
+\]
+\say{For $J=\psi\eta^\dagger$ and $E_m=\phi_m\phi_m^\dagger$ this is $p_m=|\phi_m^\dagger\psi|^2/\psi^\dagger\psi$. The inputs are positive effects and trace evaluation; the squared amplitude is algebraic.}
+
+\step{4}{Lorentz from the determinant}
+\say{The same matrix has a real Hermitian slice. Its determinant is the Minkowski interval, and $SL(2,\Cp)$ congruence preserves it.}
+\[
+X=x^\mu\sigma_\mu,\quad \det X=(x^0)^2-|\vec x|^2,\quad \det(GXG^\dagger)=\det X .
+\]
+\say{The closure sits in the future cone: $\det\varrho=|\det J|^2\ge0$, rank one is null, rank two is timelike. This is the $\Cp$ case of $\mathfrak{sl}(2,\mathbb K)\cong\mathfrak{so}(\dim\mathbb K+1,1)$.}
+
+\step{5}{The Bloch ball is a slice of the cone}
+\say{Normalize the trace to one and the future cone's cross-section is the Bloch ball.}
+\[
+\hat\varrho=\frac{\varrho}{\operatorname{tr}\varrho}=\tfrac12\big(I_2+\vec r\cdot\vec\sigma\big),\quad |\vec r|\le1,\quad \det\hat\varrho=\tfrac14\big(1-|\vec r|^2\big).
+\]
+\say{Surface: pure, null closures. Interior: mixed, timelike closures. Rotations keep the normalization; boosts do not, so the Bloch section is a normalization, not a Lorentz-invariant slice. \textbf{[Derived]} $2\sqrt{\det\varrho}/\operatorname{tr}\varrho=\sqrt{1-|\vec r|^2}=1/\gamma=\sqrt{2S_L}$, the concurrence of a purification ($S_L=1-\operatorname{tr}\hat\varrho^2$); pure closures are null.}
+
+\step{6}{The Killing form on the generator slice}
+\say{On traceless anti-Hermitian generators the determinant is the Killing form of $\mathfrak{su}(2)$, up to scale.}
+\[
+\det A=|\vec y|^2=-\tfrac12\operatorname{tr}A^2=-\tfrac18\,\kappa(A,A),\qquad A=y^je_j .
+\]
+\say{On all of $\mathfrak u(2)$ the Killing form misses the centre; the determinant restores it with opposite sign, $\det A=-(y^0)^2+|\vec y|^2$. Trace gives probability, determinant gives the metric, Killing gives the internal symmetry: three readings of one carrier.}
+
+
+\columnbreak
+
+\step{7}{Real slices of one complex form}
+\say{Over $\Cp$, $\det J=Z_0^2+Z_1^2+Z_2^2+Z_3^2$ has no signature. Choosing which channels carry an $i$ chooses the slice.}
+{\footnotesize
+\[
+\begin{array}{lll}
+\mathbb H & (+,+,+,+) & \text{quaternion norm}\\
+i\mathfrak u(2)\ \text{(Hermitian)} & (+,-,-,-) & \text{closures, Born, Minkowski}\\
+\mathfrak u(2)\ \text{(anti-Hermitian)} & (-,+,+,+) & \text{transport generators}
+\end{array}
+\]}
+\say{Minkowski is the Euclidean form with the three vector channels rotated by $i$: the algebraic quarter turn of Wick rotation. \textbf{[Derived]} Multiplication by $i$ swaps the state and generator slices isometrically. The two pairings use two bars: Born uses ${}^\dagger$; the Lorentz pairing applies the bar $X\mapsto\operatorname{adj}X=\epsilon X^{T}\epsilon^{T}$ ($\epsilon=i\sigma_2$) once, $X\operatorname{adj}X=\det X\,I_2$; applying it twice returns $X$, giving back the Born pairing on the Hermitian slice.}
+
+\step{8}{Order is kept, but lossily}
+\say{Left-acting histories are remembered by $JJ^\dagger$ and erased by $J^\dagger J$.}
+\[
+J_{tx}J_{tx}^\dagger=U_tU_x\varrho U_x^\dagger U_t^\dagger\ \neq\ J_{xt}J_{xt}^\dagger,\qquad J_{tx}^\dagger J_{tx}=J_{xt}^\dagger J_{xt}=J^\dagger J .
+\]
+\say{The closure distinguishes some histories and identifies others: neither faithful nor forgetful. The commutator of two closures is anti-Hermitian, $[\varrho_1,\varrho_2]^\dagger=-[\varrho_1,\varrho_2]$ \textbf{[Derived]}, so order-sensitive content lives on the generator slice; the Jarlskog CP invariant $\det[H_u,H_d]$ is of this form \textbf{[Proposed]}.}
+
+\step{9}{Fractional accumulation keeps both readouts}
+\say{The Weyl integral rescales the decay sector and rotates the phase sector. The rotation between them is the Wick angle.}
+\[
+I^\alpha e^{st}=s^{-\alpha}e^{st},\quad I^\alpha Z_a=A_a\lambda_a^{-\alpha}e^{\lambda_a t}+B_a(i\omega_a)^{-\alpha}e^{i\omega_a t},\quad \theta=\frac{\pi\alpha}{2}.
+\]
+\say{$\theta$ is a quarter turn at $\alpha=1$ and a half turn at $\alpha=2$. Since $\varrho^{(\alpha)}=(I^\alpha J)(I^\alpha J)^\dagger\succeq0$, the Born and cone identities hold at every order.}
+
+\step{10}{Energy conditions from positivity}
+\say{Build a rank-two tensor from closure vectors. Positive weights on future-causal vectors give the energy conditions with no extra input.}
+\[
+\begin{gathered}
+T^{\mu\nu}={\textstyle\sum_i}w_i x_i^\mu x_i^\nu,\qquad T_{\mu\nu}u^\mu u^\nu={\textstyle\sum_i}w_i(x_i\!\cdot u)^2\ge0,\\
+T^\mu{}_\nu u^\nu={\textstyle\sum_i}w_i(x_i\!\cdot u)\,x_i^\mu,\qquad T^\mu{}_\mu={\textstyle\sum_i}w_i\det\varrho_i .
+\end{gathered}
+\]
+\say{In the accumulation the weights are $\alpha_{\rm frac}$ (present) and $(\alpha_{\rm frac}-1)k$ (history). With $k\ge0$: $\alpha_{\rm frac}\ge1$ gives weak, null, and dominant energy conditions automatically.}
+
+\step{11}{A weight gradient acts as friction \ \status{Derived}}
+\say{Weight the action by a positive function and the Euler--Lagrange equations gain a term set by the log-gradient of the weight.}
+\[
+\partial_\mu\pi^\mu-\frac{\partial L}{\partial\Phi}=-(\partial_\mu\ln W)\,\pi^\mu .
+\]
+\say{$W=e^{\gamma t}$ gives the Caldirola--Kanai damped oscillator; $W=a^3$ gives Hubble friction. Exchanging the two integrals of the CAL action gives exactly this form, with $W(x)=\alpha_{\rm frac}+(\alpha_{\rm frac}-1)\int_{J^+(x)}k\,d^4z$ \textbf{[Derived; finiteness of $W$ open]}: uniform accumulation is invisible, a change in accumulation acts as friction, and matter exchanges energy with the weight, $\nabla^\mu(WT_{\mu\nu})=L_m\nabla_\nu W$.}
+
+\step{12}{Why closed systems forget \ \status{Proposed}}
+\say{Finite capacity forces erasure at $k_BT\ln2$ per bit, so a closed system reaches only the forgetful limit: physical memory is lossy.}
+
+\end{multicols}
+\end{document}
