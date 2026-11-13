@@ -1,0 +1,167 @@
+\documentclass[9pt]{extarticle}
+\usepackage[letterpaper,margin=0.26in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage[most]{tcolorbox}
+\usepackage{multicol}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{1pt}
+\setlength{\columnsep}{16pt}
+
+\definecolor{ink}{HTML}{1F2A44}
+\definecolor{note}{HTML}{4A5568}
+\newcommand{\step}[2]{\vspace{1pt}{\color{ink}\textbf{#1.\ #2}}\par\nobreak}
+\newcommand{\say}[1]{{\color{note}\footnotesize\textit{#1}\par}}
+\newcommand{\Cp}{\mathbb{C}}
+\newcommand{\eps}{\varepsilon}
+\newcommand{\status}[1]{{\color{note}\footnotesize[#1]}}
+
+\begin{document}
+
+\begin{center}
+{\Large\bfseries\color{ink} From the Light Cone to Feynman's Path Sum at $\alpha=2$}\\[2pt]
+{\small Sam Leizerman \;\textbullet\; LIOR Research Initiative \;\textbullet\; ORCID 0009-0000-0133-2291}\\[1pt]
+{\small\color{note} One-sheet companion to \textit{An Axiomatic Derivation of the Feynman Path Sum at the Light-Cone Kernel Width and Closure Order $\alpha=2$ of the CAL}}
+\end{center}
+\vspace{-4pt}
+
+\begin{tcolorbox}[colback=ink!4,colframe=ink!60,boxrule=0.5pt,left=5pt,right=5pt,top=3pt,bottom=3pt]
+\small
+\textbf{Origin.} \ CAL is not a theory of quantum gravity. It is an information-physics engine for non-Markovian reality, built to lift self-attention to a field-theoretic form from first principles of cognition, causality and intelligence. Its derivations of known physics are unit tests: a law of causal memory that cannot recover established physics has no business modeling minds or societies.\\[2pt]
+\textbf{Definition 1 (Information).} \ Information $:=$ distinguishability of physical states.\\[2pt]
+\textbf{Remark 1 (Difference and observation).} \ To distinguish physical states is to observe a difference between them. Change is a difference between states along an ordered evolution; thus change is temporally ordered distinguishability. Observation here denotes physical distinguishability, not a required conscious observer.\\[2pt]
+\textbf{Definition 2 (Causality).} \ Causality $:=$ change in physical state, including its rate of change.\\[1pt]
+{\color{note}\footnotesize\textit{From On Information Physics: From State Distinguishability to Causal Accumulation, Sec.~1.}}
+\end{tcolorbox}
+
+\vspace{-2pt}
+{\color{ink}\textbf{The Causal Accumulation Law}} {\color{note}\small(On Information Physics, Eq.~61)}
+{\small
+\[
+\begin{aligned}
+T^{\mu\nu a}{}_{\rho\sigma}(x)\ =\ &\underbrace{\alpha_{\rm frac}\,J^{\mu\nu a}{}_{\rho\sigma}(x)}_{\text{present source}}-(1-\alpha_{\rm frac})\int_{J^-(x)}\underbrace{k(\tau;x,x')}_{\text{history kernel}}\ \underbrace{\Pi^{\mu\nu}{}_{\rho\sigma|\alpha\beta}{}^{\gamma\delta}(x,x')}_{\text{slot coupling}}\\
+&\times\underbrace{P^{\alpha}{}_{\alpha'}(x,x')\,P^{\beta}{}_{\beta'}(x,x')\,P_{\gamma}{}^{\gamma'}(x,x')\,P_{\delta}{}^{\delta'}(x,x')}_{\text{spacetime transport of the past to }x}\ \times\ \underbrace{\Phi^a{}_b(x)\,P^b{}_{c'}(x,x')}_{\text{internal channel action}}\ \ J^{\alpha'\beta'c'}{}_{\gamma'\delta'}(x')\,d^4x'.
+\end{aligned}
+\]}
+\say{Read left to right: what the field is now ($T$) equals a share $\alpha_{\rm frac}$ of the present source, minus a share $1-\alpha_{\rm frac}$ of the past. Only the causal past $J^-(x)$ counts. Each past contribution is weighted by how long ago it happened ($k$), carried to the present point so it can be compared there (the four $P$ factors), and rotated in its internal channel ($\Phi P$). Below, $\alpha_{\rm frac}=2$, so the prefactor $-(1-\alpha)$ is $+1$; the sector is spinless and gauge-neutral, where the transports are the identity; and the memory is spread over the light cone.}
+
+\vspace{1pt}
+{\small\textbf{Definitions and symbols}}\par\vspace{1pt}
+{\scriptsize\setlength{\tabcolsep}{3pt}\renewcommand{\arraystretch}{1.02}
+\begin{minipage}[t]{0.5\linewidth}
+\begin{tabular}{@{}>{$}l<{$} p{1.75in} l c@{}}
+\toprule
+\text{Sym.} & Meaning & Type & Step\\
+\midrule
+T^{\mu\nu a}{}_{\rho\sigma} & Accumulated output tensor & tensor field & CAL\\
+J^{\mu\nu a}{}_{\rho\sigma} & Indexed source current & tensor field & CAL\\
+J^-(x),\ \tau & Causal past of $x$; proper time & set; real & CAL\\
+J & Carrier $\sum_aZ_ae_a$ & $M_2(\Cp)$ & 0\\
+e_a & Basis $e_0=I_2$, $e_j=-i\sigma_j$ & $M_2(\Cp)$ & 0\\
+\alpha_{\rm frac} & Interaction depth; here $2$ & real & CAL\\
+\nu_\tau & Light-cone profile, radius $c\tau$ & measure & 2\\
+\tau_c & Kernel lag scale (the only scale) & real $>0$ & 2\\
+K_\alpha,\ m_\alpha & Light-cone memory; its symbol & op.; fn. & 2, 3\\
+\bottomrule
+\end{tabular}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\linewidth}
+\begin{tabular}{@{}>{$}l<{$} p{1.6in} l c@{}}
+\toprule
+\text{Sym.} & Meaning & Type & Step\\
+\midrule
+\Pi,\ P,\ \Phi & Coupling; propagators; internal & tensors & CAL\\
+\square & Wave operator $\partial_t^2-c^2\nabla^2$ & operator & 4\\
+G,\ G_\mu & Retarded Green's fns.\ ($\mu=0$; $\mu$) & kernels & 4, 7\\
+u,\ v & Null coordinates $ct\mp x$ & real & 4\\
+\mu,\ m & Rest rate $\mu\tau_c=1/\sqrt2$; $mc^2=\hbar\mu$ & real $>0$ & 5\\
+\Phi_{2n+1} & Checkerboard amplitude & complex & 8\\
+\hat H & $\sqrt{m^2c^4-\hbar^2c^2\nabla^2}$ & s.a.\ op. & 10\\
+K_F & Feynman's free kernel & kernel & 11\\
+\bottomrule
+\end{tabular}
+\end{minipage}}
+
+\vspace{3pt}
+\begin{multicols}{2}
+\fontsize{7.7}{8.9}\selectfont
+\setlength{\abovedisplayskip}{2pt}\setlength{\belowdisplayskip}{2pt}\setlength{\abovedisplayshortskip}{1pt}\setlength{\belowdisplayshortskip}{2pt}
+
+\step{0}{The carrier}
+\say{Each channel carries a Boltzmann-type decay weight and a Feynman-type phase weight; four channels assemble into one matrix.}
+\[
+Z_a=A_ae^{-H_a/\tau_E}+B_ae^{iS_a/\hbar_{\rm eff}},\qquad J=\textstyle\sum_{a=0}^3Z_ae_a\in M_2(\Cp).
+\]
+
+\step{1}{The law at closure order two}
+\say{The present counts twice and the whole past adds. A free carrier balances its accumulated past; a source is the imbalance.}
+\[
+T=2J+K_2J,\qquad T=0\ \text{(free)},\qquad T=S\ \text{(sourced)}.
+\]
+
+\step{2}{The light-cone kernel}
+\say{At lag $\tau$ the profile is the light front of radius $c\tau$.}
+\[
+\hat\nu_\tau(k)=\frac{\sin(c\lvert k\rvert\tau)}{c\lvert k\rvert\tau},\qquad K_\alpha f=\tau_c^{-\alpha}\!\int_0^\infty\!\frac{\tau^{\alpha-1}}{\Gamma(\alpha)}\,(\nu_\tau*f)(t-\tau)\,d\tau .
+\]
+
+\step{3}{Lorentz invariance selects $\alpha=2$ \ \status{Derived}}
+\say{With $s=R\cos\varphi$, $c\lvert k\rvert=R\sin\varphi$:}
+\[
+\tau_c^\alpha m_\alpha=R^{-\alpha}\frac{\sin((\alpha-1)\varphi)}{(\alpha-1)\sin\varphi}=R^{-\alpha}\Big[1+\frac{\alpha(2-\alpha)}6\varphi^2+\dots\Big].
+\]
+\say{Lorentz invariant only at $\alpha=2$ (and trivially $0$).}
+
+\step{4}{The kernel is the retarded Green's function}
+\[
+G^{(3)}=\frac{\theta(t)\,\delta(\lvert x\rvert-ct)}{4\pi c^2t},\qquad G^{(1)}=\frac{\theta(u)\theta(v)}{2c}=\frac{1}{4c^2}W_u^1W_v^1 .
+\]
+\say{Kirchhoff's shell in $3+1$; in $1+1$, one order-one accumulation per null leg: $2=1+1$.}
+
+\step{5}{The balanced law is Klein--Gordon}
+\[
+T=0\ \Longrightarrow\ (\square+\mu^2)J=0,\qquad \mu\tau_c=\tfrac1{\sqrt2},\qquad mc^2=\hbar\mu .
+\]
+\say{The phase belongs to the source: the double accumulation supplies the half turn; nothing multiplies the memory. Only mass ratios are physical.}
+
+\step{6}{Conservative exactly at $\alpha=2$}
+\[
+{\rm Im}\,\omega=\frac\pi4\,(\alpha-2)\,\frac{\mu^2}{\lvert\omega\rvert}.
+\]
+\say{Below $2$ both signs of frequency decay; above $2$ the causal response runs away. Nothing near $2$ selects a sign.}
+
+\step{7}{The path sum \ \status{Derived}}
+\say{The Neumann series of the balance converges absolutely and is a sum over piecewise-null histories, with $-\mu^2$ at each corner.}
+\[
+J=\tfrac12{\textstyle\sum_{n\ge0}}(-\mu^2)^nG^{*n}*S,\qquad G_\mu={\textstyle\sum_{n\ge0}}(-\mu^2)^nG^{*(n+1)} .
+\]
+
+\step{8}{Feynman's checkerboard in $1+1$}
+\[
+G^{*(n+1)}=\frac{\theta(u)\theta(v)}{2c}\frac{(uv/4c^2)^n}{(n!)^2},\qquad (-\mu^2)^nG^{*(n+1)}=\frac{\Phi_{2n+1}}{2ic\mu}.
+\]
+\say{Term by term, because $(-\mu^2)^n=(i\mu)^{2n}$: each history of $n$ insertions is a null zigzag with $2n+1$ corners.}
+
+\step{9}{The corners fill the cone in $3+1$}
+\[
+G_\mu=\frac{\delta(r-ct)}{4\pi cr}-\theta(ct-r)\,\frac{\mu}{4\pi c^2}\frac{J_1(\mu\sqrt w/c)}{\sqrt w}.
+\]
+\say{Histories without corners lie on the cone; the Bessel tail inside it is the corners alone (by descent).}
+
+\step{10}{Unitarity and the readout}
+\[
+J(t)=e^{-i\hat Ht/\hbar}J(0),\qquad Q=\textstyle\int JJ^\dagger\ \text{constant}.
+\]
+\say{Each sign of frequency is unitary; the sign is inherited from the source's past. On one sign the trace readout is Born-normalized. Markov on the pair $(J,\partial_tJ)$.}
+
+\step{11}{Feynman's kernel}
+\[
+\frac{2mc^2}{i\hbar}\,e^{imc^2t/\hbar}\,[G_\mu]^+(t)\ \longrightarrow\ K_F(t)=e^{i\hbar t\nabla^2/2m}\qquad(c\to\infty),
+\]
+\say{with error $O(1/c^2)$; its composition is Feynman's time slicing. The dynamics is real: the $i$ of $K_F$ enters only with the inherited sign of frequency.}
+
+\end{multicols}
+\end{document}
