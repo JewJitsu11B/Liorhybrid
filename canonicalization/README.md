@@ -2,7 +2,8 @@
 
 Machine checks of the algebra and representation theory in "Field Theoretic Self-Attention:
 A Canonicalization of Born, Lorentz, and Killing", the companion to "On Information Physics"
-(the Causal Accumulation Law). Two independent methods:
+(the Causal Accumulation Law). The paper is `FieldTheoretic_SelfAttention_Born_Lorentz_Killing.pdf`
+in this folder. Two independent methods:
 
 - `lean/` - Lean 4 (v4.35.0) with Mathlib v4.35.0 and PhysLean. 175 theorems, no `sorry`,
   no `native_decide`, no custom axioms. `CalChecks/Crosscheck.lean` prints the axioms of
