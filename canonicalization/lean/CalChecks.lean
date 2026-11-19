@@ -1,0 +1,8 @@
+import CalChecks.Basic
+import CalChecks.Extras
+import CalChecks.RepTheory
+import CalChecks.Complete
+import CalChecks.Structure
+import CalChecks.Clifford
+import CalChecks.Final
+import CalChecks.Crosscheck

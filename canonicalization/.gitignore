@@ -1,0 +1,3 @@
+.lake/
+*.log
+__pycache__/
