@@ -190,5 +190,8 @@ theorem σz_eq_physlib : σz = PauliMatrix.pauliMatrix (Sum.inr 2) := rfl
 #print axioms trace_herm
 #print axioms conj_splits_one_three
 #print axioms purity_boost_dependent
+#print axioms closure_trace_ne_zero
+#print axioms born_weight_nonneg
+#print axioms born_kinematic
 
 end CalChecks

@@ -41,4 +41,48 @@ theorem purity_boost_dependent :
   simp [trace_fin_two, Matrix.mul_apply, Fin.sum_univ_two]
   norm_num
 
+/-! ## The Born rule as a kinematic theorem
+
+Everything below uses only the carrier `J` and its closure `J J†`: no equation of motion. -/
+
+section BornKinematic
+open scoped ComplexOrder
+
+/-- The closure vanishes only for the zero carrier. -/
+theorem closure_trace_ne_zero (J : M2) (hJ : J ≠ 0) : (J * Jᴴ).trace ≠ 0 :=
+  fun h => hJ (Matrix.trace_mul_conjTranspose_self_eq_zero_iff.mp h)
+
+/-- Non-negativity: `tr(E J J†) ≥ 0` for every effect `E ⪰ 0`. -/
+theorem born_weight_nonneg (E J : M2) (hE : E.PosSemidef) : 0 ≤ (E * (J * Jᴴ)).trace := by
+  have h : (E * (J * Jᴴ)).trace = (Jᴴ * E * J).trace := by
+    rw [← Matrix.mul_assoc, Matrix.trace_mul_comm, ← Matrix.mul_assoc]
+  rw [h]
+  exact (hE.conjTranspose_mul_mul_same J).trace_nonneg
+
+theorem nonneg_div_nonneg {a t : ℂ} (ha : 0 ≤ a) (ht : 0 ≤ t) : 0 ≤ a / t := by
+  obtain ⟨har, hai⟩ := Complex.nonneg_iff.mp ha
+  obtain ⟨htr, hti⟩ := Complex.nonneg_iff.mp ht
+  have ha' : a = (a.re : ℂ) := Complex.ext rfl (by simpa using hai.symm)
+  have ht' : t = (t.re : ℂ) := Complex.ext rfl (by simpa using hti.symm)
+  rw [ha', ht', ← Complex.ofReal_div]
+  exact Complex.zero_le_real.mpr (div_nonneg har htr)
+
+/-- The Born rule from kinematics alone. For any nonzero carrier `J` and any measurement
+`{E_m}` (`E_m ⪰ 0`, `Σ E_m = 1`), the weights `p_m = tr(E_m J J†) / tr(J J†)` are a
+probability distribution, and they do not change under `J ↦ J U` with `U` unitary. -/
+theorem born_kinematic {ι : Type*} [Fintype ι] (E : ι → M2) (J : M2) (hJ : J ≠ 0)
+    (hE : ∀ m, (E m).PosSemidef) (hsum : ∑ n, E n = 1) :
+    (∀ m, 0 ≤ (E m * (J * Jᴴ)).trace / (J * Jᴴ).trace) ∧
+    (∑ m, (E m * (J * Jᴴ)).trace / (J * Jᴴ).trace = 1) ∧
+    (∀ U : M2, U * Uᴴ = 1 → ∀ m,
+      (E m * ((J * U) * (J * U)ᴴ)).trace / ((J * U) * (J * U)ᴴ).trace
+        = (E m * (J * Jᴴ)).trace / (J * Jᴴ).trace) := by
+  refine ⟨fun m => ?_, born_weights_sum E _ hsum (closure_trace_ne_zero J hJ), ?_⟩
+  · exact nonneg_div_nonneg (born_weight_nonneg (E m) J (hE m))
+      (born_posSemidef J).trace_nonneg
+  · intro U hU m
+    rw [born_right_unitary J U hU]
+
+end BornKinematic
+
 end CalChecks
