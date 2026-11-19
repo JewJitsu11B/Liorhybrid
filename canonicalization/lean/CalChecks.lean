@@ -5,4 +5,5 @@ import CalChecks.Complete
 import CalChecks.Structure
 import CalChecks.Clifford
 import CalChecks.Final
+import CalChecks.SO4
 import CalChecks.Crosscheck

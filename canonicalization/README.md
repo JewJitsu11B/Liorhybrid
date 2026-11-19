@@ -5,7 +5,7 @@ A Canonicalization of Born, Lorentz, and Killing", the companion to "On Informat
 (the Causal Accumulation Law). The paper is `FieldTheoretic_SelfAttention_Born_Lorentz_Killing.pdf`
 in this folder. Two independent methods:
 
-- `lean/` - Lean 4 (v4.35.0) with Mathlib v4.35.0 and PhysLean. 175 theorems, no `sorry`,
+- `lean/` - Lean 4 (v4.35.0) with Mathlib v4.35.0 and PhysLean. 207 theorems, no `sorry`,
   no `native_decide`, no custom axioms. `CalChecks/Crosscheck.lean` prints the axioms of
   every theorem; all depend only on `propext`, `Classical.choice`, `Quot.sound`.
 - `python/` - sympy exact symbolic checks, 67 of 67 passing.
@@ -33,6 +33,7 @@ python python/check_onesheet_sympy.py
 | `Structure.lean` | Kernel {+1, -1} of the spinor map, Mathlib `killingForm` over C and R, positive cone as one congruence orbit |
 | `Clifford.lean` | Cl(3,0) isomorphic to M2(C) as real algebras, dimension 8 |
 | `Final.lean` | 1 + 3 split under conjugation, boost dependence of purity, the Born rule as a kinematic theorem (`born_kinematic`) |
+| `SO4.lean` | (Sp(1) x Sp(1)) / {+1, -1} isomorphic to SO(4) as groups: every rotation of the four channels is x -> p x q for unit quaternions (via Cartan-Dieudonne), kernel exactly (1,1) and (-1,-1) |
 | `Crosscheck.lean` | Agreement with PhysLean's Pauli matrices and SL(2,C) results; axiom audit |
 
 ## Kinematics
@@ -46,7 +47,6 @@ unchanged under `J -> J U` with `U` unitary. Additivity is `born_additive`.
 ## Not formalized
 
 - Zeeman's theorem.
-- (SU(2) x SU(2))/Z2 = SO(4) as an isomorphism (only that the map lands in SO(4)).
 - Clebsch-Gordan as a decomposition of representations (characters and weights only).
 - The dynamics: the CAL integral itself and the transport and holonomy rows, which the paper defers.
 - The forward lemma the paper discloses as unwritten (that the alpha = 2 integration carries

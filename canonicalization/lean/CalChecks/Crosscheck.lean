@@ -6,7 +6,7 @@ a homomorphism, orthochronous with det 1, surjective onto the restricted group, 
 import Physlib.Relativity.PauliMatrices.Basic
 import Physlib.Relativity.SL2C.Basic
 import Physlib.Relativity.SL2C.Cover
-import CalChecks.Final
+import CalChecks.SO4
 
 namespace CalChecks
 
@@ -193,5 +193,39 @@ theorem σz_eq_physlib : σz = PauliMatrix.pauliMatrix (Sum.inr 2) := rfl
 #print axioms closure_trace_ne_zero
 #print axioms born_weight_nonneg
 #print axioms born_kinematic
+#print axioms quat_sandwich
+#print axioms IsLR.comp
+#print axioms reflection_isLR
+#print axioms isometry_isLR
+#print axioms qc_qv
+#print axioms qv_qc
+#print axioms qc_add
+#print axioms qc_smul
+#print axioms qv_add
+#print axioms qv_smul
+#print axioms Lmat_mulVec
+#print axioms Rmat_mulVec
+#print axioms Cmat_mulVec
+#print axioms Cmat_det
+#print axioms Lmat_mul
+#print axioms Rmat_mul
+#print axioms normSq_eq_dot
+#print axioms unit_qc
+#print axioms dot_orth
+#print axioms isoOf_apply
+#print axioms so4_surjective
+#print axioms so4_kernel
+#print axioms so4_kernel_converse
+#print axioms eq_one_of_mul_self
+#print axioms normSq_unitary
+#print axioms norm_unitary
+#print axioms mem_unitary_of_norm
+#print axioms norm_qv
+#print axioms LR_mem_SO4
+#print axioms so4Hom_apply
+#print axioms so4Hom_surjective
+#print axioms so4Hom_ker
+#print axioms so4Hom
+#print axioms so4Equiv
 
 end CalChecks
