@@ -1,0 +1,7 @@
+import PhyslibDraft.SO4
+#print axioms Quaternion.isUnitTwoSided_linearIsometryEquiv
+#print axioms SO4.exists_leftMulMatrix_mul_rightMulMatrix
+#print axioms SO4.leftMulMatrix_mul_rightMulMatrix_eq_one
+#print axioms SO4.quaternionCover_surjective
+#print axioms SO4.quaternionCover_eq_one_iff
+#print axioms SO4.quaternionCoverEquiv

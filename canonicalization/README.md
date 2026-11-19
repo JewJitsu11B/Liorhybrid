@@ -36,6 +36,13 @@ python python/check_onesheet_sympy.py
 | `SO4.lean` | (Sp(1) x Sp(1)) / {+1, -1} isomorphic to SO(4) as groups: every rotation of the four channels is x -> p x q for unit quaternions (via Cartan-Dieudonne), kernel exactly (1,1) and (-1,-1) |
 | `Crosscheck.lean` | Agreement with PhysLean's Pauli matrices and SL(2,C) results; axiom audit |
 
+## Draft for PhysLean
+
+`lean/PhyslibDraft/` holds the SO(4) result rewritten to PhysLean's contribution rules, as a
+draft that has not been submitted: `QuaternionIsometry.lean`, `SO4.lean`, and
+`AUTHOR_NOTES.md` (what each statement says, why it is true, and where the paper uses it).
+Build with `lake build PhyslibDraft`. PhysLean's own linters have not been run on it.
+
 ## Kinematics
 
 The Born, Lorentz and Killing results are kinematic: they are proved from the carrier
