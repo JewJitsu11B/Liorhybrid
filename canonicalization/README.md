@@ -3,7 +3,8 @@
 Machine checks of the algebra and representation theory in "Field Theoretic Self-Attention:
 A Canonicalization of Born, Lorentz, and Killing", the companion to "On Information Physics"
 (the Causal Accumulation Law). The paper is `FieldTheoretic_SelfAttention_Born_Lorentz_Killing.pdf`
-in this folder. Two independent methods:
+in this folder, with its LaTeX source. Each step in the paper carries a "Checked" line naming
+the Lean theorems and sympy checks below. Two independent methods:
 
 - `lean/` - Lean 4 (v4.35.0) with Mathlib v4.35.0 and PhysLean. 207 theorems, no `sorry`,
   no `native_decide`, no custom axioms. `CalChecks/Crosscheck.lean` prints the axioms of
@@ -53,7 +54,9 @@ unchanged under `J -> J U` with `U` unitary. Additivity is `born_additive`.
   the source current to 1 - R_n). `uniq_alpha_dotσ` proves the compatibility result only.
 - The Bayesian reading of `J J†` and the category-theory remark, which the paper marks as readings.
 
-## Points to tighten in the paper
+## Wording fixed in the paper
+
+These three points were found by the checks and are corrected in the current edition.
 
 1. The uniqueness lemma needs 1 and R_n linearly independent; R^dagger = R and R^2 = 1
    alone allow R = +1 or -1. It does hold for R_n = n.sigma (`uniq_alpha_dotσ`).

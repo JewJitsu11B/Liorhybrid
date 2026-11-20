@@ -1,0 +1,347 @@
+\documentclass[10pt]{article}
+\usepackage[letterpaper,margin=0.5in]{geometry}
+\usepackage{longtable}
+\usepackage{needspace}
+\usepackage{multirow}
+\usepackage{tikz-cd}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{booktabs,array,colortbl}
+\usepackage{xcolor}
+\usepackage{pdfrender}
+\usepackage[most]{tcolorbox}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\definecolor{boxbg}{HTML}{F3F3F3}
+\definecolor{boxfr}{HTML}{9A9A9A}
+\definecolor{hdr}{HTML}{E4E4E4}
+\newtcolorbox{sheetbox}{breakable,coltext=black,colback=boxbg,colframe=boxfr,boxrule=0.5pt,arc=2pt,left=6pt,right=6pt,top=2pt,bottom=2pt}
+\newcommand{\Cp}{\mathbb{C}}
+\newcommand{\tr}{\operatorname{tr}}
+\definecolor{repc}{HTML}{1F3A6E}
+\newcommand{\rep}[1]{#1}
+\newcommand{\forces}[1]{\textit{(#1)}\quad}
+\newcommand{\forcesline}[1]{\par\vspace{-4pt}{\centering\small\textit{(#1)}\par}\vspace{2pt}}
+\newcommand{\repline}[1]{\par\vspace{-2pt}{\leftskip=0.35in\rightskip=0.2in\noindent\textbf{Group class.} #1\par}\vspace{0pt}}
+\newcommand{\lean}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\chk}[1]{\par{\leftskip=0.35in\rightskip=0.2in plus 1fil\noindent\footnotesize\textbf{Checked.} #1\par}\vspace{1pt}}
+\newcommand{\rephead}{{\large\textbf{Representation / group class}}}
+
+\AtBeginDocument{\setlength{\abovedisplayskip}{2pt}\setlength{\belowdisplayskip}{2pt}\setlength{\abovedisplayshortskip}{2pt}\setlength{\belowdisplayshortskip}{3pt}}
+\linespread{0.97}
+\begin{document}
+\color{black}\pdfrender{TextRenderingMode=FillStroke,LineWidth=0.22pt,StrokeColor=black,FillColor=black}
+\vspace{0pt}
+\begin{center}
+{\Large\textbf{What in the $\mathbf{Hol}_{\boldsymbol\gamma}$ Bloch Ball, Batman?!}}\\[3pt]
+{\large Or, Field Theoretic Self-Attention: A Canonicalization of Born, Lorentz, and Killing}\\[4pt]
+\textit{Companion to On Information Physics: From State Distinguishability to Causal Accumulation}
+\end{center}
+\vspace{2pt}
+\begin{sheetbox}
+\textbf{Origin.} CAL is not a theory of quantum gravity. It is an information-physics engine for non-Markovian reality, built to lift self-attention to a field-theoretic form from first principles of cognition, causality and intelligence. Its derivations of known physics are unit tests: a law of causal memory that cannot recover established physics has no business modeling minds or societies.\par\vspace{2pt}
+\textbf{Definition 1 (Information).} Information $:=$ distinguishability of physical states.\par\vspace{2pt}
+\textbf{Remark 1 (Difference and observation).} To distinguish physical states is to observe a difference between them. Change is a difference between states along an ordered evolution; thus change is temporally ordered distinguishability. Observation here denotes physical distinguishability, not a required conscious observer.\par\vspace{2pt}
+\textbf{Definition 2 (Causality).} Causality $:=$ change in physical state, including its rate of change.\par\vspace{2pt}
+{\footnotesize\textit{From On Information Physics: From State Distinguishability to Causal Accumulation, Sec.~1.}}
+\end{sheetbox}
+
+\vspace{2pt}
+\textbf{Motivation: kinematics before dynamics.} The Born rule, the Lorentz signature and the Killing form are obtained below kinematically: they are properties of the carrier and its closure, fixed before any equation of motion is written. The field theory must still supply dynamics, and those dynamics are admissible only if they respect this structure: the positive cone, the signature of the Hermitian slice, and the invariant forms. The order is deliberate. Equations of motion are constrained by the state space on which they act, so a search for dynamics without the correct kinematics has no fixed target. This document establishes the kinematics, so that the search for dynamics becomes well posed.\par
+{\footnotesize\textit{Each step below carries a ``Checked'' line naming the Lean theorems and sympy checks that verify it; see Machine verification at the end.}}\par
+\vspace{2pt}
+{\large\textbf{The Causal Accumulation Law}} (On Information Physics, Eq.~61)
+\[
+\begin{aligned}
+T^{\mu\nu a}{}_{\rho\sigma}(x) \;=\; \underbrace{\alpha\, J^{\mu\nu a}{}_{\rho\sigma}(x)}_{\text{present source}} \;-\; (1-\alpha)\int_{J^-(x)} &\underbrace{k(\tau;x,x')}_{\text{history kernel}}\;\underbrace{\Pi^{\mu\nu}{}_{\rho\sigma|\alpha\beta}{}^{\gamma\delta}(x,x')}_{\text{slot coupling}}\\
+\times\;\underbrace{P^{\alpha}{}_{\alpha'}(x,x')\,P^{\beta}{}_{\beta'}(x,x')\,P_{\gamma}{}^{\gamma'}(x,x')\,P_{\delta}{}^{\delta'}(x,x')}_{\text{spacetime transport of the past to }x}
+&\;\times\;\underbrace{\Phi^{a}{}_{b}(x)\,P^{b}{}_{c'}(x,x')}_{\text{internal channel action}}\;\; J^{\alpha'\beta'c'}{}_{\gamma'\delta'}(x')\,d^4x'.
+\end{aligned}
+\]
+{\large\textbf{Carrier.}}\quad $J=\sum_{a=0}^{3}Z_ae_a\in M_2(\Cp),\qquad Z_a=A_ae^{-H_a/\tau_E}+B_ae^{iS_a/\hbar_{\rm eff}},\qquad A_a+B_a=1.$
+
+\vspace{6pt}
+{\large\textbf{Channels and multiplication}}\par\vspace{3pt}
+\begin{minipage}[t]{0.56\linewidth}
+\renewcommand{\arraystretch}{1.2}\setlength{\tabcolsep}{5pt}
+\begin{tabular}[t]{@{}c c c c c@{}}
+\toprule
+$a$ & $e_a$ & $e_a^\dagger$ & slice & $SU(2)$ conj.\\
+\midrule
+$0$ & $1$ & $e_0$ & $1$ & singlet $\mathbf1$ (time)\\
+$1$ & $-i\sigma_x$ & $-e_1$ & $\sigma_x$ & triplet $\mathbf3$\\
+$2$ & $-i\sigma_y$ & $-e_2$ & $\sigma_y$ & triplet $\mathbf3$\\
+$3$ & $-i\sigma_z$ & $-e_3$ & $\sigma_z$ & triplet $\mathbf3$\\
+\bottomrule
+\end{tabular}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.4\linewidth}
+\renewcommand{\arraystretch}{1.2}\setlength{\tabcolsep}{6pt}
+\begin{tabular}[t]{@{}c|cccc@{}}
+$\cdot$ & $1$ & $e_1$ & $e_2$ & $e_3$\\
+\hline
+$1$ & $1$ & $e_1$ & $e_2$ & $e_3$\\
+$e_1$ & $e_1$ & $-1$ & $e_3$ & $-e_2$\\
+$e_2$ & $e_2$ & $-e_3$ & $-1$ & $e_1$\\
+$e_3$ & $e_3$ & $e_2$ & $-e_1$ & $-1$\\
+\end{tabular}\par\vspace{2pt}
+Row times column: $e_je_k=-\delta_{jk}+\epsilon_{jkl}e_l$.
+\end{minipage}
+
+\vspace{6pt}
+Each channel $a$ carries its own decay weight $A_ae^{-H_a/\tau_E}$ and phase weight $B_ae^{iS_a/\hbar_{\rm eff}}$. The basis is trace-orthogonal, $\tr(e_ae_b^\dagger)=2\delta_{ab}$, so the channels add in quadrature and multiply as quaternions: $\tfrac12\tr(JJ^\dagger)=\sum_a|Z_a|^2$ is the Born weight, $\det J=\sum_aZ_a^2$ fixes purity (pure exactly when it vanishes), and $h\,e_j=\sigma_j$ turns the three imaginary channels into the spatial axes of the Hermitian slice, with $e_0$ as time.
+\chk{Lean: \lean{e1_sq}, \lean{e2_sq}, \lean{e3_sq}, \lean{e1_e2}, \lean{e2_e3}, \lean{e3_e1}, \lean{e2_e1}, \lean{carrier_coordsOf}, \lean{coordsOf_carrier}, \lean{trace_carrier_mul_conjTranspose}, \lean{det_carrier}, \lean{born_singular_iff}, \lean{I_smul_e}. Sympy: Q1, B1, B2.}
+
+\vspace{2pt}
+
+\vspace{3pt}\needspace{1.3in}
+{\large\textbf{Born rule}}\quad $(\alpha=2,\ k=\delta(\tau-\tau_0),\ P\to1)$\hfill{\footnotesize\textit{Born rule paper, Thm.~6.1}}\par
+{\small\textit{Each step is followed by its representation / group class.}}\par
+\[
+T\big|_{\alpha=2,\,\delta} = 2J(x)+J(x')
+\]
+\repline{\rep{Linear in $J$, so it stays in the carrier module $M_2(\Cp)\cong\Cp^2\otimes\Cp^2$; left $SL(2,\Cp)$ acts as two copies of $(\tfrac12,0)$. With $P\to1$ the transport is the identity.}}
+\chk{Lean: \lean{cal_alpha_two}, \lean{left_action_columns}. Sympy: B0.}
+
+\[
+\text{Born quadratic: }\; JJ^\dagger
+\]
+\forcesline{forces Born postulate; non-negativity from the signature}\repline{\rep{Invariant under right $U(2)$, $J\mapsto JU$; covariant under left $GL(2,\Cp)$ by congruence $JJ^\dagger\mapsto GJJ^\dagger G^\dagger$. Image: the positive cone, interior $GL(2,\Cp)/U(2)$, rank one on the boundary.}}
+\chk{Lean: \lean{born_right_unitary}, \lean{born_left_congruence}, \lean{born_posSemidef}, \lean{cone_transitive}, \lean{cone_orbit_posDef}, \lean{cone_stabilizer}, \lean{born_singular_iff}. Sympy: B3--B7.}
+
+\[
+\text{normalized: }\; \dfrac{JJ^\dagger}{\tr(JJ^\dagger)}
+\]
+\forcesline{forces normalization}\repline{\rep{Quotient by dilations $\mathbb R_{>0}$; image is the Bloch ball. $SU(2)$ conjugation acts on it as $SO(3)$ rotations (adjoint $\mathbf1\oplus\mathbf3$); boosts do not preserve the trace.}}
+\chk{Lean: \lean{su2_acts_by_rotation}, \lean{Rot_orthogonal}, \lean{Rot_det}, \lean{conj_splits_one_three}, \lean{vsq_bounds}, \lean{boost_changes_trace}. Sympy: L16, L17, R5, R6.}
+
+\[
+Z_a=A_ae^{-H_a/\tau_E}-B_ae^{iS_a/\hbar_{\rm eff}}\ \ \big(\theta=\tfrac{\alpha\pi}{2}=\pi\big)
+\]
+\repline{\rep{$e^{i\theta}$ is a $U(1)$ character; at $\theta=\pi$ it is the sign rep of $\mathbb Z_2=\{\pm1\}\subset U(1)$.}}
+\chk{Lean: \lean{half_turn}, \lean{channel_half_turn}, \lean{sign_character}.}
+
+\[
+\tfrac12\tr\big(JJ^\dagger\big)=\sum_a\big|A_ae^{-H_a/\tau_E}-B_ae^{iS_a/\hbar_{\rm eff}}\big|^2
+\]
+\repline{\rep{Hilbert--Schmidt form, invariant under $U(2)_L\times U(2)_R$, $J\mapsto UJV^\dagger$. On the index $a$, $(SU(2)\times SU(2))/\mathbb Z_2\cong SO(4)$ acts by real rotations, keeping both $\sum_a|Z_a|^2$ and $\det J=\sum_aZ_a^2$.}}
+\chk{Lean: \lean{trace_carrier_mul_conjTranspose}, \lean{hs_invariant}, \lean{so4Hom_surjective}, \lean{so4Hom_ker}, \lean{so4Equiv}, \lean{sumSq_left}, \lean{sumSq_right}, \lean{normSq_left}, \lean{normSq_right}. Sympy: B1, B8--B12. The $SO(4)$ isomorphism is proved with unit quaternions $Sp(1)$ in place of $SU(2)$.}
+
+\[
+p_m=\dfrac{\tr(E_mJJ^\dagger)}{\sum_n\tr(E_nJJ^\dagger)}=\dfrac{\tr(E_mJJ^\dagger)}{\tr(JJ^\dagger)}
+\]
+\forcesline{forces additivity}\repline{\rep{Dual pairing of $\mathrm{Herm}(2)$ with its dual: invariant under $\varrho\mapsto G\varrho G^\dagger$, $E\mapsto G^{-\dagger}EG^{-1}$ (contragredient). $\sum_nE_n=1$ survives only for $G\in U(2)$, so the $p_m$ are $U(2)$-invariant.}}
+\chk{Lean: \lean{born_kinematic}, \lean{born_additive}, \lean{born_weights_sum}, \lean{povm_pairing}, \lean{povm_sum}, \lean{povm_sum_survives_iff}. Sympy: B13, B14.}
+
+
+
+\vspace{4pt}
+
+\vspace{3pt}\needspace{1.3in}
+{\large\textbf{Lorentz signature}}\hfill{\footnotesize\textit{Born rule paper, Lemma~4.2}}\par
+\[
+\mathcal H(q)=\tfrac12\big(q+q^\dagger\big)
+\]
+\repline{\rep{Projector onto the Hermitian summand of $M_2(\Cp)=\mathrm{Herm}(2)\oplus i\,\mathrm{Herm}(2)$; commutes with $q\mapsto GqG^\dagger$, so it is an $SL(2,\Cp)$ intertwiner.}}
+\chk{Lean: \lean{H_idem}, \lean{H_isHermitian}, \lean{H_add_A}, \lean{H_intertwines}. Sympy: L1--L3.}
+
+\[
+M_2(\Cp)\xrightarrow{\;\mathcal H\;}\operatorname{span}_{\mathbb R}\{1,\sigma_x,\sigma_y,\sigma_z\}
+\]
+\repline{\rep{Under congruence $M_2(\Cp)$ is two copies of the real $(\tfrac12,\tfrac12)$; $\mathcal H$ keeps one.}}
+\chk{Lean: \lean{exists_herm}, \lean{herm_injective}, \lean{A_eq_I_smul_H}, \lean{A_intertwines}. Sympy: L5, L6, R4.}
+
+\[
+X=t\,1+x\,\sigma_x+y\,\sigma_y+z\,\sigma_z
+\]
+\repline{\rep{Real vector rep $(\tfrac12,\tfrac12)$, $X\mapsto GXG^\dagger$; kernel $\{\pm1\}$, so $SO^+(1,3)\cong SL(2,\Cp)/\mathbb Z_2$.}}
+\chk{Lean: \lean{herm_isHermitian}, \lean{congruence_hermitian}, \lean{spinor_kernel}, \lean{spinor_kernel_converse}. Sympy: L6, L9. The kernel is checked; that the image is all of $SO^+(1,3)$ is cited.}
+
+\[
+\det X=t^2-x^2-y^2-z^2
+\]
+\repline{\rep{$\det(GXG^\dagger)=|\det G|^2\det X$: invariant for $SL(2,\Cp)$, conformal factor for $GL(2,\Cp)$. Isometry group $SO^+(1,3)$.}}
+\chk{Lean: \lean{det_herm}, \lean{det_congruence}, \lean{det_congruence_SL}. Sympy: L7, L8.}
+
+\[
+\text{basis}=\{1,\ h\mathbf i,\ h\mathbf j,\ h\mathbf k\},\ \ h^2=-1
+\]
+\repline{\rep{$(h\mathbf i)^2=+1$: $h\mathbf i,h\mathbf j,h\mathbf k$ generate $Cl(3,0)\cong M_2(\Cp)$; $\{1,h\mathbf i,h\mathbf j,h\mathbf k\}$ spans its paravectors, whose norm is the Minkowski form.}}
+\chk{Lean: $\sigma$\lean{_sq}, \lean{pauliVec_sq}, \lean{cliffordToM2_surjective}, \lean{cliffordToM2_injective}, \lean{finrank_Cl3}, \lean{paravector_norm}. Sympy: L10--L12.}
+
+\[
+\begin{gathered}\hat\varrho=\frac{JJ^\dagger}{\tr(JJ^\dagger)}:\ \ \tr\hat\varrho^{\,2}=1-2\det\hat\varrho\\ =\tfrac12\big(1+v^2\big),\quad v=|\vec x|/t\end{gathered}
+\]
+\repline{\rep{Purity, by Cayley--Hamilton at unit trace; $1-\tr\hat\varrho^{\,2}=1/(2\gamma^2)$. The Bloch radius is the velocity of the closure four-vector: null ($v=1$) is pure, timelike ($v<1$) is mixed, the time axis ($v=0$, $\hat\varrho=I/2$) is maximally mixed; the cone apex is the zero matrix. $\det$ is $SL(2,\Cp)$-invariant but $\tr=2t$ is a time component, so purity is $SU(2)$-invariant and boost-dependent; only rank (pure vs.\ mixed) is Lorentz-invariant.}}
+\chk{Lean: \lean{purity_unit_trace}, \lean{purity_velocity}, \lean{purity_gamma}, \lean{trace_herm}, \lean{purity_unitary_invariant}, \lean{purity_boost_dependent}, \lean{rank_invariant}. Sympy: L13--L15, L17.}
+
+\[
+\begin{gathered}\text{Born weight}\equiv\text{signature selector:}\\ \text{one map }\mathcal H\end{gathered}
+\]
+\repline{\rep{One intertwiner $\mathcal H$: trace on its image is $U(2)$-invariant (Born), determinant is $SL(2,\Cp)$-invariant (Lorentz).}}
+\chk{Lean: \lean{H_intertwines}, \lean{hs_invariant}, \lean{det_congruence_SL}. Summary of the rows above.}
+
+
+
+\vspace{3pt}\needspace{1.3in}
+{\large\textbf{Purity from the channels}}\par
+\[
+v^2=1-\frac{\big|\sum_a Z_a^2\big|^2}{\big(\sum_a|Z_a|^2\big)^2}=\frac{4\sum_{a<b}\big[\operatorname{Im}(Z_a\bar Z_b)\big]^2}{\big(\sum_a|Z_a|^2\big)^2}
+\]
+\repline{\rep{From the purity row with $\tfrac12\tr(JJ^\dagger)=\sum_a|Z_a|^2$, $\det J=\sum_aZ_a^2$, and $|w|^2-\operatorname{Re}(w^2)=2(\operatorname{Im}w)^2$. Invariant under real $SO(4)$ rotations of the channel index and a global phase $Z_a\mapsto e^{i\varphi}Z_a$; the overall scale cancels. $v$ measures only the relative phase misalignment of the four channels.}}
+\chk{Lean: \lean{purity_channels}, \lean{vsq_lagrange}, \lean{lagrange_channels}, \lean{normSq_sub_re_sq}, \lean{vsq_rotation}, \lean{vsq_scale}, \lean{vsq_bounds}. Sympy: P1--P3, P6.}
+\[
+A_a=1:\quad Z_a=e^{-H_a/\tau_E}\in\mathbb R\ \Rightarrow\ JJ^\dagger=\Big(\sum_aZ_a^2\Big)I,\qquad \hat\varrho=\tfrac12 I,\qquad v=0
+\]
+\repline{\rep{Real $Z_a$ make $J$ a real quaternion, and a real quaternion times its conjugate is its norm. The Boltzmann branch alone gives the maximally mixed closure, for every choice of $H_a$.}}
+\chk{Lean: \lean{born_real_channels}, \lean{vsq_real}. Sympy: P4.}
+\[
+\tau_E\to0\ \ (H_a>0):\quad Z_a\to B_ae^{iS_a/\hbar_{\rm eff}},\qquad v=1\iff\sum_aB_a^2e^{2iS_a/\hbar_{\rm eff}}=0
+\]
+\repline{\rep{Only the phase branch can lift the closure to the light cone. Purity is a phase condition: $\sum_aZ_a^2=\det J=0$, rank one.}}
+\chk{Lean: \lean{boltzmann_limit}, \lean{vsq_eq_one_iff}, \lean{born_singular_iff}. Sympy: P5.}
+\textbf{Scope.} These hold at fixed parameters. Scaling every $Z_a$ by one factor leaves $v$ unchanged; $v\to0$ when the real branch dominates every channel, or when a single channel dominates the sum. Adding the real branch does not lower $v$ monotonically in general, since a positive real offset can widen the angle between two channels. How $v$ evolves along a worldline needs equations of motion for $Z_a$, which are not yet written.\par
+
+\vspace{3pt}\needspace{1.3in}
+{\large\textbf{Generator slice $\mathfrak u(2)$ and its Killing form}}\hfill{\footnotesize\textit{On Information Physics, Eq.~49}}\par
+\[
+\mathcal A(q)=\tfrac12\big(q-q^\dagger\big)
+\]
+\repline{\rep{Complementary projector to $\mathcal H$, $\mathcal H+\mathcal A=1$; also commutes with $q\mapsto GqG^\dagger$, so it is an $SL(2,\Cp)$ intertwiner onto $i\,\mathrm{Herm}(2)$.}}
+\chk{Lean: \lean{H_add_A}, \lean{A_antiHermitian}, \lean{A_intertwines}. Sympy: L2, L4.}
+
+\[
+M_2(\Cp)\xrightarrow{\;\mathcal A\;}\mathfrak u(2)=\operatorname{span}_{\mathbb R}\{i1,\,e_1,\,e_2,\,e_3\}
+\]
+\repline{\rep{$\mathfrak u(2)=\mathfrak u(1)\oplus\mathfrak{su}(2)$; under the adjoint action of $U(2)$ this is $\mathbf1\oplus\mathbf3$ (centre trivial, $\mathfrak{su}(2)$ the $SO(3)$ vector).}}
+\chk{Lean: \lean{exists_gen}, \lean{conj_splits_one_three}. Sympy: K1, R5.}
+
+\[
+A=y^0(i1)+y^je_j,\qquad e_j=-i\sigma_j
+\]
+\repline{\rep{Generator coordinates; $e_j$ are the imaginary quaternion units, $e_je_k=-\delta_{jk}+\epsilon_{jkl}e_l$.}}
+\chk{Lean: \lean{e1_sq}, \lean{e2_sq}, \lean{e3_sq}, \lean{e1_e2}, \lean{e2_e3}, \lean{e3_e1}, \lean{e2_e1}. Sympy: Q1.}
+
+\[
+\det A=-(y^0)^2+|\vec y|^2
+\]
+\repline{\rep{Signature $(-,+,+,+)$. $A=iX$ with $X$ Hermitian gives $\det(iX)=-\det X$: multiplication by $i$ carries the state slice onto the generator slice and flips the overall sign of the Minkowski form.}}
+\chk{Lean: \lean{det_gen}, \lean{gen_eq_I_smul_herm}, \lean{det_I_smul}. Sympy: K2, K3.}
+
+\[
+\kappa(A,B)=\tr(\mathrm{ad}_A\mathrm{ad}_B)=4\tr(AB)-2\tr A\,\tr B
+\]
+\repline{\rep{Killing form of $\mathfrak{gl}(2)$; invariant under $\mathrm{Ad}$ (all Lie-algebra automorphisms). The centre $i1$ drops out: $\kappa$ is degenerate on $\mathfrak u(2)$.}}
+\chk{Lean: \lean{killing_gl2}, \lean{killingForm_gl2}, \lean{killing_ad_invariant}, \lean{killing_centre}. Sympy: K4, K5, K7.}
+
+\[
+\det A=|\vec y|^2=-\tfrac12\tr A^2=-\tfrac18\,\kappa(A,A)\quad(y^0=0)
+\]
+\repline{\rep{On $\mathfrak{su}(2)$: $\kappa=4\tr(AB)$ is negative definite (compact real form); $\mathfrak{su}(2)$ is simple, so by Schur the $\mathrm{Ad}$-invariant form is unique up to scale and $\det$ is that form.}}
+\chk{Lean: \lean{det_su2}, \lean{det_su2_killing}, \lean{invariant_form_unique}. Sympy: K6, K8.}
+
+\[
+\mathfrak{sl}(2,\Cp)_{\mathbb R}=\mathfrak{su}(2)\oplus i\,\mathfrak{su}(2)\cong\mathfrak{so}(1,3)
+\]
+\repline{\rep{Real Killing form $2\,\mathrm{Re}\,\kappa_{\Cp}$ has signature $(3,3)$: rotations (anti-Hermitian, $\kappa<0$) and boosts (traceless Hermitian, $\kappa>0$).}}
+\chk{Lean: \lean{sl2_decomposition}, \lean{killingForm_real}, \lean{killingForm_real_rotation}, \lean{killingForm_real_boost}, \lean{killingForm_real_orthogonal}. Sympy: K9, K10. The isomorphism with $\mathfrak{so}(1,3)$ is cited.}
+
+\[
+\begin{gathered}\text{trace}\to\text{Born},\quad\det\to\text{Lorentz},\\ \kappa\to\text{internal symmetry}\end{gathered}
+\]
+\repline{\rep{Three readouts of one carrier: $\tr$ is $U(2)$-invariant, $\det$ is $SL(2,\Cp)$-invariant, $\kappa$ is $\mathrm{Ad}$-invariant.}}
+\chk{Lean: \lean{hs_invariant}, \lean{det_congruence_SL}, \lean{killing_ad_invariant}. Summary of the rows above.}
+\vspace{3pt}\needspace{2.4in}
+{\large\textbf{The three readouts as one diagram}}\par\vspace{2pt}
+\[
+\begin{tikzcd}[column sep=6em,row sep=2.2em,every label/.append style={font=\normalsize}]
+M_2(\mathbb C) \arrow[r, "{c\colon J\mapsto JJ^\dagger}"]
+  & \mathrm{Herm}(2) \arrow[r, "\operatorname{tr}"] \arrow[dr, "\det"] \arrow[dd, "{i\,\cdot}"']
+  & \mathbb R \ \ \text{(Born)}\\
+  & & \mathbb R \ \ \text{(Lorentz)} \arrow[d, "-1"]\\
+  & \mathfrak u(2) \arrow[r, "\det"']
+  & \mathbb R\\
+  & \mathfrak{su}(2) \arrow[u, hook] \arrow[ur, "{-\frac18\kappa(A,A)}"']
+  & \ \ \text{(Killing)}
+\end{tikzcd}
+\]
+Every cell commutes. The closure lands in the Hermitian slice, $\mathcal H\circ c=c$, so the Born and Lorentz readouts read the same object. The square is $\det(iX)=-\det X$: multiplication by $i$ carries the state slice onto the generator slice and flips the sign of the Minkowski form. The triangle is $\det A=-\tfrac18\kappa(A,A)$ on $\mathfrak{su}(2)$. Each arrow into $\mathbb R$ is invariant under its own group: $\tr$ under $U(2)$, $\det$ under $SL(2,\mathbb C)$, $\kappa$ under $\mathrm{Ad}$. Because $c$, $\det$ and $\kappa(A,A)$ are not linear, the diagram commutes in the category of spaces with group actions and equivariant maps, not in $\mathbf{Rep}(G)$.\par
+\chk{Lean: \lean{born_posSemidef}, \lean{det_I_smul}, \lean{det_su2_killing}, \lean{gen_eq_I_smul_herm}. Sympy: B3, K3, K6.}
+
+
+
+
+\vspace{4pt}
+\begin{sheetbox}
+\textbf{Remark (a coframe musing).} The purity row leaves a loose thread. The determinant of the closure needs nothing but the carrier, yet its trace asks for a direction of time, and purity is the ratio of the two. On a curved background that direction would have to be supplied at every point, which is the job a coframe does in general relativity: the soldering $e^a{}_\mu\sigma_a$ turns $dx^\mu$ into the same Hermitian slice used here, and its timelike leg $e_0$ plays the observer. Picture two observers sharing one event and one closure, one boosted relative to the other. They agree whether the closure sits on the light cone or inside it, so they agree whether it is pure; they disagree on how mixed it is, because each normalizes by their own time. Now let the closure be the memory term of CAL, $J(x')$ carried to $x$ by $P^\alpha{}_{\alpha'}$. The transport moves the closure, and a coframe at each end decides how much of it reads as certain. Whether that frame should be an extra input, or something the accumulated history itself selects, is open. It sits with the transport choices the Legend defers, and is offered here only as a thought experiment.
+\end{sheetbox}
+\vspace{3pt}
+\begin{sheetbox}
+\textbf{Remark (category theory, arrived at by accident).} The group-class notes were written as algebra and representation theory and turned out to be category theory without asking permission. Each step commutes with a group action. The linear steps ($\mathcal H$, $\mathcal A$, and the trace for $U(2)$) are morphisms of $\mathbf{Rep}(G)$, the category whose morphisms are intertwiners, and Schur's lemma is a statement about its $\mathrm{Hom}$-sets; the multilinear ones ($JJ^\dagger$, $\det$, $\kappa$) are morphisms out of tensor products; the normalization $JJ^\dagger/\tr(JJ^\dagger)$ is nonlinear and is equivariant in the category of spaces with group actions. ``Canonical'' in the subtitle therefore means natural: no basis or frame is chosen. Definition~1 lands in the same place. By the Yoneda lemma an object is determined up to isomorphism by $\mathrm{Hom}(-,X)$, how everything maps into it, just as a state is determined by what distinguishes it from every other state. In short, you will be known by how you map. This is a reading of the definitions, not a theorem about CAL.
+\end{sheetbox}
+
+\vspace{3pt}
+\begin{sheetbox}
+\textbf{Why Bell is violated}. CHSH: $S=E(a,b)-E(a,b')+E(a',b)+E(a',b')$. A fixed $\pm1$ answer sheet gives $S=A(B-B')+A'(B+B')=\pm2$, so $|S|\le2$. Two carriers give the joint closure $\varrho=\frac14\Big(1\otimes1+\sum_{j=1}^{3} e_j\otimes e_j\Big)$. Tracing it with $a\otimes b$ keeps the dot-product part: $E(a,b)=-\,a\cdot b=-\cos\theta_{ab}$.\par\vspace{3pt}
+The cosine, not the local line $-(1-2\theta/\pi)$, lets $|S|$ reach $|b+b'|+|b-b'|=2\sqrt2$ when $b\perp b'$. Each marginal alone is a fair coin.\par\vspace{2pt}
+{\footnotesize\textbf{Checked.} Lean: \lean{chsh_local}, \lean{jointClosure_idem}, \lean{jointClosure_hermitian}, \lean{jointClosure_trace}, \lean{bell_correlation}, \lean{bell_marginal_left}, \lean{bell_marginal_right}, \lean{chsh_quantum_bound}, \lean{chsh_quantum_attained}, \lean{chsh_tsirelson}. Sympy: C1--C6.\par}
+\end{sheetbox}
+
+\vspace{3pt}
+\begin{sheetbox}
+\textbf{Legend}. $JJ^\dagger$: Born quadratic, reciprocal at $\alpha=2$.\quad $J$: the observed present source current.\quad $J^\dagger$: the $J(x')$ of the earlier step, the memory (integrated past causal impulses) carried into the present, where the two interact. It works as a Bayesian update: $J^\dagger$ is the prior, $J$ the new observation, and the trace normalizes their product.\quad \textbf{Notation note:} the concept is settled; the notation is provisional. How the propagator and the gauge bundle enter is not yet fixed, so writing this pairing as $JJ^\dagger$ may be in error and will be updated once that is worked out.\quad \textbf{Transport note:} the actual choices on how transport is handled are deferred until the author has properly learned it.\par\vspace{4pt}
+\textbf{Uniqueness:} on the normalized image $J_\lambda=1+\lambda R_{\mathbf n}$ ($|\lambda|=1$, $R_{\mathbf n}=\mathbf n\cdot\boldsymbol\sigma$ with $|\mathbf n|=1$, so $R_{\mathbf n}^\dagger=R_{\mathbf n}$, $R_{\mathbf n}^2=1$, $\tr R_{\mathbf n}=0$), $J_\lambda J_\lambda^\dagger=2+(\lambda+\bar\lambda)R_{\mathbf n}$ and $\alpha J_\lambda=\alpha+\alpha\lambda R_{\mathbf n}$, so $\alpha J=JJ^\dagger$ forces $\alpha=2$ and $\lambda=\pm1$, and $J/2$ is a projector. {\footnotesize\textbf{Checked.} Lean: \lean{uniq_expand}, \lean{uniq_alpha_dot}$\sigma$, \lean{uniq_projector}, \lean{indep_of_trace_zero}, \lean{dot}$\sigma$\lean{_hermitian}, \lean{dot}$\sigma$\lean{_sq}, \lean{dot}$\sigma$\lean{_trace}. Sympy: U1--U4.} \textbf{Lemma disclosure:} the forward lemma is not yet written: that the $\alpha=2$ integration carries the present source current, through the normalization map, to $1-R_{\mathbf n}$. Until it is, $2J=JJ^\dagger$ is a compatibility result, unique at $\alpha=2$, not a forward derivation from CAL; the identity admits both $\lambda=\pm1$, and only the half turn $e^{i\pi}=-1$ selects $\lambda=-1$.\par\vspace{4pt}
+$A_ae^{-H_a/\tau_E}$, $B_ae^{iS_a/\hbar_{\rm eff}}$: decay and phase exponentials of $Z_a$.\quad $\theta=\alpha\pi/2$: fractional phase, and $e^{i\pi}=-1$ at $\alpha=2$, so $Z_a=A_ae^{-H_a/\tau_E}-B_ae^{iS_a/\hbar_{\rm eff}}$.\par\vspace{4pt}
+$E_m$: detector effect, $E_m\succeq0$, $\sum_mE_m=1$. The bottom of the Born rule is the total over all outcomes; $\sum_nE_n=1$ and the linear trace make it $\tr(JJ^\dagger)$.\quad $Z_a$: carrier component.\quad $\tau_E$: thermal width of the cost channel.\quad $\hbar_{\rm eff}$: phase scale.
+\end{sheetbox}
+
+\vspace{4pt}
+{\large\textbf{The necessity chain}}\hfill{\footnotesize\textit{each element is forced by a modeling requirement}}\par\vspace{2pt}
+{\renewcommand{\arraystretch}{1.0}\setlength{\tabcolsep}{3pt}\setlength{\aboverulesep}{1pt}\setlength{\belowrulesep}{1.5pt}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{1.75in}>{\raggedright\arraybackslash}p{2.25in}>{\raggedright\arraybackslash}p{1.5in}>{\raggedright\arraybackslash}p{1.75in}@{}}
+\rowcolor{hdr}\textbf{Requirement} & \textbf{Structure / Element} & \textbf{AI Analogy} & \textbf{Role}\\
+\midrule\endfirsthead
+\rowcolor{hdr}\textbf{Requirement} & \textbf{Structure / Element} & \textbf{AI Analogy} & \textbf{Role}\\
+\midrule\endhead
+Track state evolution & $J(x)$\ \ (source current) & Transformer-like & Context-dependent current/query\\
+\multicolumn{4}{@{}>{\raggedright\arraybackslash}p{7.5in}@{}}{\hspace{0.25in}\textbf{Group class.} $J\in\Cp\otimes\mathbb H\cong M_2(\Cp)$; left $SL(2,\Cp)$ action $J\mapsto GJ$: two copies of $(\tfrac12,0)$; Hermitian slice $X\mapsto GXG^\dagger$: vector $(\tfrac12,\tfrac12)$ of $SO^+(1,3)$\newline\hspace*{0.25in}{\footnotesize\textbf{Checked.} Lean: \lean{carrier_coordsOf}, \lean{coordsOf_carrier}, \lean{left_action_columns}, \lean{H_intertwines}, \lean{exists_herm}. Sympy: L3, L6.}}\\[1pt]
+\midrule
+Compare states at different points & $\Pi^{\mu\nu}{}_{\rho\sigma\|\alpha\beta}{}^{\gamma\delta}(x,x')$\ \ (bitensor transport) & Geometric attention & Transport between states/positions\\
+\multicolumn{4}{@{}>{\raggedright\arraybackslash}p{7.5in}@{}}{\hspace{0.25in}\textbf{Group class.} $\operatorname{End}(V_x)$, $V$ the rank-$(2,2)$ tensor rep of $SO^+(1,3)$, built from $(\tfrac12,\tfrac12)^{\otimes2}=(0,0)\oplus(1,0)\oplus(0,1)\oplus(1,1)$\newline\hspace*{0.25in}{\footnotesize\textbf{Checked.} Lean: \lean{weights_vector_sq}, \lean{char_vector_sq}, \lean{char_vector_sym}, \lean{char_vector_alt}. Sympy: R1--R3. Characters and weights are checked; the decomposition of the representations is cited.}}\\[1pt]
+\midrule
+Comparison must respect geometry & $P^{\alpha}{}_{\alpha'}(x,x')$\ \ (parallel propagators) & Relative positional encoding & Parallel transport in curved space\\
+\multicolumn{4}{@{}>{\raggedright\arraybackslash}p{7.5in}@{}}{\hspace{0.25in}\textbf{Group class.} Holonomy in the frame-bundle structure group $SO^+(1,3)$, vector rep $(\tfrac12,\tfrac12)$; spinor lift in $SL(2,\Cp)$\newline\hspace*{0.25in}{\footnotesize\textbf{Not machine-checked.} Transport and holonomy are deferred with the dynamics.}}\\[1pt]
+\midrule
+States must live in some space & $\Phi^a{}_b(x),\ P^b{}_{c'}(x,x')$\ \ (fiber holonomy) & Latent state geometry & Internal degrees of freedom\\
+\multicolumn{4}{@{}>{\raggedright\arraybackslash}p{7.5in}@{}}{\hspace{0.25in}\textbf{Group class.} Internal gauge group $G_{\rm int}$ on the channel index $a=0,\dots,3$ (group not yet fixed); under $SU(2)\cong Sp(1)$ conjugation $a$ splits $\mathbf1\oplus\mathbf3$ ($e_0$ singlet, $e_j$ adjoint)\newline\hspace*{0.25in}{\footnotesize\textbf{Checked.} Lean: \lean{conj_splits_one_three}. Sympy: R5, R6. $SU(2)\cong Sp(1)$ is cited.}}\\[1pt]
+\midrule
+History must fade appropriately & $k(\tau;x,x')$\ \ (memory kernel, proper time) & SSM-like & Memory kernel, history propagation\\
+\multicolumn{4}{@{}>{\raggedright\arraybackslash}p{7.5in}@{}}{\hspace{0.25in}\textbf{Group class.} Lorentz scalar (depends on proper time $\tau$); convolution in $\tau$ is diagonalized by the characters $e^{s\tau}$ of $(\mathbb R,+)$, so $I^\alpha e^{s\tau}=s^{-\alpha}e^{s\tau}$ (lower limit $-\infty$, $\operatorname{Re}s>0$)\newline\hspace*{0.25in}{\footnotesize\textbf{Checked.} Lean: \lean{frac_integral_exp}. Sympy: R7.}}\\[1pt]
+\midrule
+Causal structure must be enforced & $J^-(x)$\ \ (past light cone integration) & Causal attention mask & Restrict to admissible past\\
+\multicolumn{4}{@{}>{\raggedright\arraybackslash}p{7.5in}@{}}{\hspace{0.25in}\textbf{Group class.} Preserved by the orthochronous group $SO^+(1,3)$; causal automorphisms of Minkowski space are Poincar\'e $\rtimes$ dilations (Zeeman)\newline\hspace*{0.25in}{\footnotesize\textbf{Not machine-checked.} Cited, Zeeman's theorem.}}\\[1pt]
+\midrule
+ & Integration over $J^-(x)$ & Recurrent / continuous memory & Incremental state update\\
+\multicolumn{4}{@{}>{\raggedright\arraybackslash}p{7.5in}@{}}{\hspace{0.25in}\textbf{Group class.} Invariant measure $d^4x'$ on an invariant domain: the integral is an intertwiner, covariant integrand in, covariant field at $x$ out\newline\hspace*{0.25in}{\footnotesize\textbf{Not machine-checked.} The integral belongs to the dynamics.}}\\[1pt]
+\midrule
+ & Symmetry and precompute & Structured models & Smaller vectors, exploit invariants\\
+\multicolumn{4}{@{}>{\raggedright\arraybackslash}p{7.5in}@{}}{\hspace{0.25in}\textbf{Group class.} Isotypic decomposition and Schur's lemma: equivariant maps act blockwise on irreducibles, cutting free parameters\newline\hspace*{0.25in}{\footnotesize\textbf{Checked.} Lean: \lean{invariant_form_unique}. Sympy: K8. One instance; the general statement is cited.}}\\[1pt]
+\midrule
+\end{longtable}}
+
+\vspace{4pt}\needspace{1.6in}
+{\large\textbf{Machine verification}}\par\vspace{2pt}
+The algebra and representation theory above were checked twice, by independent methods.\par\vspace{2pt}
+\textbf{Lean.} Lean 4.35.0 with Mathlib v4.35.0: 207 theorems, no \texttt{sorry}, no \texttt{native\_decide}, no added axioms. Every theorem depends only on the three standard axioms \texttt{propext}, \texttt{Classical.choice} and \texttt{Quot.sound}. PhysLean is used as a cross-check that the Pauli matrices here are the ones in that library.\par\vspace{2pt}
+\textbf{Sympy.} Exact symbolic computation, 67 of 67 checks passing. The labels (Q, B, L, P, K, C, U, R) are those printed by the script.\par\vspace{2pt}
+\textbf{Reading the tags.} A ``Checked'' line lists the Lean theorems and sympy checks for the step it follows. It records what was machine-checked and nothing more: a step marked cited rests on the published result, and its validity does not depend on the formalization. Source, at commit \texttt{18de579}: \texttt{\detokenize{github.com/JewJitsu11B/Liorhybrid}}, folder \texttt{canonicalization}.\par\vspace{3pt}
+\textbf{Stated here and not machine-checked.}\par
+{\leftskip=0.25in
+Zeeman's theorem (cited).\par
+Clebsch--Gordan as a decomposition of representations (characters and weights are checked).\par
+That $SL(2,\Cp)\to SO^+(1,3)$ is onto, $SU(2)\cong Sp(1)$, and $\mathfrak{sl}(2,\Cp)_{\mathbb R}\cong\mathfrak{so}(1,3)$ (cited; the kernel $\{\pm1\}$ and the Killing signature are checked).\par
+The dynamics: the CAL integral, the transport and holonomy rows, and the internal gauge group, which this document defers.\par
+The forward lemma disclosed in the Legend. The uniqueness of $\alpha=2$ is checked as a compatibility result.\par
+The Scope paragraph, the coframe and category-theory remarks, and the Bayesian reading of $JJ^\dagger$, which are readings and not theorems.\par
+}
+
+\end{document}
