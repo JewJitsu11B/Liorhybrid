@@ -451,9 +451,46 @@ def trainer2_entrypoint(
         f"[trainer2] memory={type(memory).__name__} field={type(field).__name__} "
         f"model={type(model).__name__}"
     )
+
+    # --- Training startup summary ---
+    if isinstance(model, nn.Module):
+        total_params = sum(p.numel() for p in model.parameters())
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        print(f"[trainer2] parameters: {total_params:,} total  {trainable_params:,} requires_grad")
+    steps_per_window = int(cfg.tbptt_window_steps)
+    try:
+        windows_per_epoch: Optional[int] = len(train_loader)  # type: ignore[arg-type]
+    except TypeError:
+        windows_per_epoch = None
+    if windows_per_epoch is not None:
+        print(
+            f"[trainer2] steps_per_window={steps_per_window}  "
+            f"windows_per_epoch={windows_per_epoch}  "
+            f"total_windows={windows_per_epoch * int(cfg.max_epochs)}"
+        )
+    else:
+        print(
+            f"[trainer2] steps_per_window={steps_per_window}  "
+            f"windows_per_epoch=unknown (dynamic loader)"
+        )
+
+    # --- Telemetry variable glossary ---
+    print(
+        "[trainer2] Telemetry glossary:\n"
+        "  total_loss / lior_mean  LOWER IS BETTER  primary loss scalar; monotone descent target\n"
+        "  perplexity              LOWER IS BETTER  exp(loss); spikes with loss; logged to JSONL\n"
+        "  R_mean                  STABLE/WATCH     curvature-proxy diagnostic; no universal optimum; spikes = instability\n"
+        "  spd_mean                LOWER IS BETTER  geometric retrieval distance; lower = tighter neighborhood alignment\n"
+        "  mem_norm                STABLE           L2 norm of memory bank; slow growth OK; explosion = instability\n"
+        "  window_ms               LOWER IS BETTER  wall-clock ms per window; throughput indicator\n"
+        "  gpu_alloc_gb            LOWER IS BETTER  GPU memory actively used (allocated) in GB\n"
+        "  gpu_reserved_gb         LOWER IS BETTER  GPU memory held by allocator (includes cache) in GB\n"
+        "  epoch / window / batch  IDENTIFIERS      each batch from train_loader advances window by 1"
+    )
     telemetry = TelemetryState()
     _ensure_jsonl(telemetry, cfg)
     window_idx = 0
+    epoch_idx = 0  # initialised before the loop so the KeyboardInterrupt handler always has a valid value
     nudge_every = max(int(cfg.nudge_every_windows), 1)
     did_log_first_batch = False
 
@@ -530,6 +567,10 @@ def trainer2_entrypoint(
                     metrics = free.metrics
                 t_window_end = time.time()
 
+                # GPU RAM at end of each window
+                gpu_alloc_gb = torch.cuda.memory_allocated(DEVICE) / 1024 ** 3
+                gpu_reserved_gb = torch.cuda.memory_reserved(DEVICE) / 1024 ** 3
+
                 # Log timing for first few batches
                 if batch_count <= 3:
                     print(f"[{_ts()}] window {window_idx} took {(t_window_end - t_window_start)*1000:.1f}ms")
@@ -561,7 +602,12 @@ def trainer2_entrypoint(
 
                 window_idx += 1
                 # Window progression diagnostic
-                print(f"[PROGRESS] window={window_idx} mem_norm={mem_norm:.4f} lior={metrics.lior_mean.item():.6f}")
+                print(
+                    f"[PROGRESS] window={window_idx} "
+                    f"mem_norm={mem_norm:.4f} "
+                    f"lior={metrics.lior_mean.item():.6f} "
+                    f"gpu={gpu_alloc_gb:.2f}/{gpu_reserved_gb:.2f}GB"
+                )
 
                 if cfg.max_windows > 0 and window_idx >= cfg.max_windows:
                     print(f"[{_ts()}] max_windows reached: {cfg.max_windows}")
@@ -586,17 +632,20 @@ def trainer2_entrypoint(
             )
     except KeyboardInterrupt:
         print(f"[{_ts()}] KeyboardInterrupt received: forcing checkpoint before exit")
-        force_checkpoint(
-            window_idx=window_idx,
-            epoch_idx=0,
-            cfg=cfg,
-            model=model,
-            field=field,
-            memory=memory,
-            rotor_state=rotor_state,
-            tokenizer=tokenizer,
-            manual_quit=True,
-        )
+        try:
+            force_checkpoint(
+                window_idx=window_idx,
+                epoch_idx=epoch_idx,
+                cfg=cfg,
+                model=model,
+                field=field,
+                memory=memory,
+                rotor_state=rotor_state,
+                tokenizer=tokenizer,
+                reason="manual_quit",
+            )
+        except Exception as ckpt_err:
+            print(f"[{_ts()}] WARNING: checkpoint save failed on interrupt: {ckpt_err}")
         _close_telemetry(telemetry)
         raise
 
@@ -2277,7 +2326,7 @@ def apply_manual_update(
             delta = lior_diff_val * eta
             if math.isfinite(delta):
                 tgt.add_(delta)
-                print(f"[UPDATE] theta_update_target += {delta:.6f} (LIoR diff={lior_diff_val:.6f})")
+                print(f"[UPDATE] theta_update_target += {delta:.4e} (LIoR diff={lior_diff_val:.4e})")
                 updated_something = True
 
     # Option 2 + 3: Combined metric + rotor update
@@ -2317,7 +2366,7 @@ def apply_manual_update(
 
             v_sq_max = v_sq.max().item()
             delta_norm = delta_g.abs().mean().item()
-            print(f"[UPDATE] g0_diag += directional (|Δ|={delta_norm:.6f}, v²_max={v_sq_max:.4f}, LIoR diff={lior_diff_val:.6f})")
+            print(f"[UPDATE] g0_diag += directional (|Δ|={delta_norm:.4e}, v²_max={v_sq_max:.4f}, LIoR diff={lior_diff_val:.4e})")
             updated_something = True
 
             # Step 3: Update rotor angles to align with velocity direction
@@ -2393,7 +2442,7 @@ def apply_manual_update(
                         theta.sub_(math.pi)
 
                         avg_delta = total_delta_theta / total_updates
-                        print(f"[UPDATE] rotor: {total_updates} planes (avg |Δθ|={avg_delta:.6f})")
+                        print(f"[UPDATE] rotor: {total_updates} planes (avg |Δθ|={avg_delta:.4e})")
                         updated_something = True
 
         elif g_diag.is_cuda:
@@ -2406,11 +2455,11 @@ def apply_manual_update(
             adjustment = max(0.95, min(1.05, adjustment))
             g_diag.mul_(adjustment)
             g_diag.clamp_(min=0.01, max=100.0)
-            print(f"[UPDATE] g0_diag *= {adjustment:.6f} (scalar, no velocity, LIoR diff={lior_diff_val:.6f})")
+            print(f"[UPDATE] g0_diag *= {adjustment:.6f} (scalar, no velocity, LIoR diff={lior_diff_val:.4e})")
             updated_something = True
 
     if not updated_something:
-        print(f"[UPDATE] SKIPPED: no update target (LIoR diff={lior_diff_val:.6f})")
+        print(f"[UPDATE] SKIPPED: no update target (LIoR diff={lior_diff_val:.4e})")
 
     return True
 
@@ -3186,6 +3235,7 @@ def maybe_log_metrics(
         "batch": batch_idx,
         "total_loss": lior,
         "lior_mean": lior,
+        "perplexity": math.exp(min(lior, 20.0)),
         "R_mean": r_mean,
         "spd_mean": spd,
         "window_ms": window_ms,
