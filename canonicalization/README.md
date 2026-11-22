@@ -2,19 +2,20 @@
 
 Machine checks of the algebra and representation theory in "Field Theoretic Self-Attention:
 A Canonicalization of Born, Lorentz, and Killing", the companion to "On Information Physics"
-(the Causal Accumulation Law). The paper is `FieldTheoretic_SelfAttention_Born_Lorentz_Killing.pdf`
-in this folder, with its LaTeX source. Each step in the paper carries a short bracketed tag naming
+(the Causal Accumulation Law). The paper comes in two editions that say the same thing block for
+block: the matrix edition in M2(C), `FieldTheoretic_SelfAttention_Born_Lorentz_Killing.pdf`, and
+the Clifford edition in Cl(3,0), `FieldTheoretic_SelfAttention_Born_Lorentz_Killing_Clifford.pdf`,
+both in this folder with their LaTeX sources. Each step carries a short bracketed tag naming
 the principal Lean theorems and sympy checks below. Two independent methods:
 
-- `lean/` - Lean 4 (v4.35.0) with Mathlib v4.35.0 and PhysLean. 207 theorems, no `sorry`,
+- `lean/` - Lean 4 (v4.35.0) with Mathlib v4.35.0 and PhysLean. 294 theorems, no `sorry`,
   no `native_decide`, no custom axioms. `CalChecks/Crosscheck.lean` prints the axioms of
   every theorem; all depend only on `propext`, `Classical.choice`, `Quot.sound`.
 - `python/` - sympy exact symbolic checks, 67 of 67 passing.
 
-The count of 207 is for the nine original files. Three later files add 87 theorems
-(`ThreeWay.lean` 12, `CliffordNative.lean` 72, `CliffordPhyslib.lean` 3) under the same
-conditions; each ends with its own `#print axioms` lines. The paper in this folder predates
-them: it has no Clifford edition and no three-readout row yet.
+Of the 294, 207 are in the nine original files, whose axioms `Crosscheck.lean` prints. The
+other 87 (`ThreeWay.lean` 12, `CliffordNative.lean` 72, `CliffordPhyslib.lean` 3) are under the
+same conditions; each of those files ends with its own `#print axioms` lines.
 
 ## Run
 
@@ -30,6 +31,7 @@ python python/check_clifford_dictionary.py
 python python/check_clifford_native.py
 python python/check_naturality.py
 python python/check_area_killing.py
+python python/check_schild.py
 python python/check_threeway.py
 ```
 
@@ -42,6 +44,7 @@ python python/check_threeway.py
 | `check_clifford_native.py` | The same labels again in Cl(3,0) built from the generator relations, with no matrices until a final block `REP` that ties the product to the Pauli representation; 104 of 104 |
 | `check_naturality.py` | N1-N3: no linear equivariant map from the carrier to the Hermitian slice; `J J†` is the only quadratic one invariant under right U(2), up to scale |
 | `check_area_killing.py` | W1-W4: the area element of a plane of vectors is a Killing norm |
+| `check_schild.py` | S1-S8: the squared area element against its root. The square is Schild's integrand and is invariant only under unit-Jacobian changes of sheet coordinates; its solutions have constant area density and solve the Nambu-Goto equations; a rotating string as a worked case. Classical, flat space |
 | `check_threeway.py` | T1-T3: `det X = (tr X)^2/4 + (1/8) kappa(iX, iX)` on the Hermitian slice, in matrix and Clifford form; runs three scripts in `threeway/` |
 | `threeway/` | Eight independent tests of that relation: exact, 50-digit numeric, mutation, pure-Python rational, step-by-step and symmetry arguments |
 
@@ -85,7 +88,7 @@ unchanged under `J -> J U` with `U` unitary. Additivity is `born_additive`.
 - The complex Killing form stated in Clifford form (sympy only). Several Clifford-form
   theorems are on coordinate families, and most of their proofs transport through the
   isomorphism; only the statements are matrix-free.
-- Naturality N1-N3 and area W1-W4 (sympy only).
+- Naturality N1-N3 and area W1-W4, S1-S8 (sympy only).
 - Zeeman's theorem.
 - Clebsch-Gordan as a decomposition of representations (characters and weights only).
 - The dynamics: the CAL integral itself and the transport and holonomy rows, which the paper defers.
