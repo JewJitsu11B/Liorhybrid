@@ -11,6 +11,11 @@ the principal Lean theorems and sympy checks below. Two independent methods:
   every theorem; all depend only on `propext`, `Classical.choice`, `Quot.sound`.
 - `python/` - sympy exact symbolic checks, 67 of 67 passing.
 
+The count of 207 is for the nine original files. Three later files add 87 theorems
+(`ThreeWay.lean` 12, `CliffordNative.lean` 72, `CliffordPhyslib.lean` 3) under the same
+conditions; each ends with its own `#print axioms` lines. The paper in this folder predates
+them: it has no Clifford edition and no three-readout row yet.
+
 ## Run
 
 ```
@@ -21,7 +26,24 @@ lake build CalChecks
 
 ```
 python python/check_onesheet_sympy.py
+python python/check_clifford_dictionary.py
+python python/check_clifford_native.py
+python python/check_naturality.py
+python python/check_area_killing.py
+python python/check_threeway.py
 ```
+
+## Python files
+
+| File | Content |
+|---|---|
+| `check_onesheet_sympy.py` | The 67 checks of the matrix edition, in M2(C) |
+| `check_clifford_dictionary.py` | D1-D18: each Clifford operation against its matrix counterpart, in the Pauli representation |
+| `check_clifford_native.py` | The same labels again in Cl(3,0) built from the generator relations, with no matrices until a final block `REP` that ties the product to the Pauli representation; 104 of 104 |
+| `check_naturality.py` | N1-N3: no linear equivariant map from the carrier to the Hermitian slice; `J J†` is the only quadratic one invariant under right U(2), up to scale |
+| `check_area_killing.py` | W1-W4: the area element of a plane of vectors is a Killing norm |
+| `check_threeway.py` | T1-T3: `det X = (tr X)^2/4 + (1/8) kappa(iX, iX)` on the Hermitian slice, in matrix and Clifford form; runs three scripts in `threeway/` |
+| `threeway/` | Eight independent tests of that relation: exact, 50-digit numeric, mutation, pure-Python rational, step-by-step and symmetry arguments |
 
 ## Lean files
 
@@ -36,6 +58,19 @@ python python/check_onesheet_sympy.py
 | `Final.lean` | 1 + 3 split under conjugation, boost dependence of purity, the Born rule as a kinematic theorem (`born_kinematic`) |
 | `SO4.lean` | (Sp(1) x Sp(1)) / {+1, -1} isomorphic to SO(4) as groups: every rotation of the four channels is x -> p x q for unit quaternions (via Cartan-Dieudonne), kernel exactly (1,1) and (-1,-1) |
 | `Crosscheck.lean` | Agreement with PhysLean's Pauli matrices and SL(2,C) results; axiom audit |
+| `ThreeWay.lean` | `det X = (tr X)^2/4 + (1/8) kappa(iX, iX)` with Mathlib's `killingForm`: for all complex 2x2 over C, and for Hermitian X with the real form on su(2) |
+| `CliffordNative.lean` | The dictionary as theorems, with Mathlib's `reverse` and `involute` on `CliffordAlgebra`: reversion is dagger, Clifford conjugate is adjugate, `q * conj q` is the determinant, scalar part is half the real trace. Then Clifford-form statements: closure, norm, sign flip under the pseudoscalar, real Killing form, three-readout relation |
+| `CliffordPhyslib.lean` | PhysLean's own Cl(3,0) (`PauliMatrix.ofCliffordAlgebra`): same quadratic form, same map to the Pauli matrices |
+
+## Conventions the Clifford checks pin down
+
+- The constant 1/8 in the three-readout relation is for the Killing form over the centre
+  (the complex Lie algebra) and for the bivector algebra. With Mathlib's real Killing form on
+  all of Cl(3,0) it is 1/16 (`threeway_Cl3_real`, against `threeway_spin3`).
+- `N q = q * conj q` is central, in the span of 1 and the pseudoscalar, and is a real scalar
+  only on paravectors and bivectors (`N_eq`, `N_pre`, `N_biv_val`).
+- The Bell correlation `E(a,b) = -a.b` holds in the tensor product over the centre and fails
+  in the plain real tensor product of two copies of Cl(3,0) (sympy, notes under C1-C3 and D17).
 
 ## Kinematics
 
@@ -47,6 +82,10 @@ unchanged under `J -> J U` with `U` unitary. Additivity is `born_additive`.
 
 ## Not formalized
 
+- The complex Killing form stated in Clifford form (sympy only). Several Clifford-form
+  theorems are on coordinate families, and most of their proofs transport through the
+  isomorphism; only the statements are matrix-free.
+- Naturality N1-N3 and area W1-W4 (sympy only).
 - Zeeman's theorem.
 - Clebsch-Gordan as a decomposition of representations (characters and weights only).
 - The dynamics: the CAL integral itself and the transport and holonomy rows, which the paper defers.
