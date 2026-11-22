@@ -10,3 +10,4 @@ import CalChecks.Crosscheck
 import CalChecks.ThreeWay
 import CalChecks.CliffordNative
 import CalChecks.CliffordPhyslib
+import CalChecks.SchrodingerEdge

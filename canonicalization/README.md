@@ -8,12 +8,12 @@ the Clifford edition in Cl(3,0), `FieldTheoretic_SelfAttention_Born_Lorentz_Kill
 both in this folder with their LaTeX sources. Each step carries a short bracketed tag naming
 the principal Lean theorems and sympy checks below. Two independent methods:
 
-- `lean/` - Lean 4 (v4.35.0) with Mathlib v4.35.0 and PhysLean. 294 theorems, no `sorry`,
+- `lean/` - Lean 4 (v4.35.0) with Mathlib v4.35.0 and PhysLean. 322 theorems, no `sorry`,
   no `native_decide`, no custom axioms. `CalChecks/Crosscheck.lean` prints the axioms of
   every theorem; all depend only on `propext`, `Classical.choice`, `Quot.sound`.
 - `python/` - sympy exact symbolic checks, 67 of 67 passing.
 
-Of the 294, 207 are in the nine original files, whose axioms `Crosscheck.lean` prints. The
+Of the first 294, 207 are in the nine original files, whose axioms `Crosscheck.lean` prints. The
 other 87 (`ThreeWay.lean` 12, `CliffordNative.lean` 72, `CliffordPhyslib.lean` 3) are under the
 same conditions; each of those files ends with its own `#print axioms` lines.
 
@@ -104,3 +104,35 @@ These three points were found by the checks and are corrected in the current edi
    alone allow R = +1 or -1. It does hold for R_n = n.sigma (`uniq_alpha_dotσ`).
 2. The Bell paragraph's local line 1 - 2 theta/pi has the opposite sign to E = -cos theta.
 3. I^alpha e^{s tau} = s^{-alpha} e^{s tau} needs lower limit -infinity and Re s > 0.
+
+## The Schrodinger edge (alpha -> 1 from below)
+
+Independent checks of "Schrodinger evolution from the bare Causal Accumulation Law at alpha -> 1^-"
+(`docs/paper/cal_schrodinger_collapse.pdf`) and of its five-page canonical sheet
+(`docs/paper/cal_schrodinger_canonicalization.pdf`). The paper's own script is
+`scripts/cal_edge_transducer.py`; none of the checks below reuse it, except `N_followup.py`,
+which loads it to compare numbers.
+
+| File | Content |
+|---|---|
+| `lean/CalChecks/SchrodingerEdge.lean` | 28 theorems: a normalizable memory has no root on or outside the unit circle; flat-weight roots below, at and above alpha = 1; the weights tend to 1; the homogeneous recurrence above the edge; concurrence equals 1/gamma and sech of the rapidity; the self-normalization lemma |
+| `python/edge/E_exact.py`, `E_rotation.py` | Exact algebra in sympy: 70 checks labelled by the paper's statement, including the order-by-order expansion behind the rotation theorem and its next-order terms |
+| `python/edge/A_*.py` | mpmath at 40 digits or more: the Weyl integral, the Jonquiere memory sum, exact roots down to 1 - alpha = 1e-40, the tables, root counts by the argument principle |
+| `python/edge/N_own.py`, `N_followup.py` | Direct iteration with independent code, then the paper's script run for comparison |
+| `python/edge/G_check.py` | G1-G4: the corrected impulse response above the edge, the SL(2,R) class of the flat-weight recurrence, the unitarity exponents |
+
+With `SchrodingerEdge.lean` the library has 322 theorems.
+
+`E_exact.py` reports one failure by design: it tests the impulse response as the paper first
+stated it (`exp(-s|n-n0|)/(2 sinh s)`), which has the wrong sign and answers a source held on.
+The paper and the sheet now carry the corrected form, which `G_check.py` verifies.
+
+What the checks changed in the paper: the impulse response above the edge; the wavepacket table
+now shows the norm lost and the distance without rescaling; "70 to 97 percent of the norm" is a
+ratio of amplitudes; the brake thresholds are for the simulated weights (0.097, 0.513); the
+long-wavelength exponent keeps its -(pi/4)(1 - alpha) term; two rows of the normalizable-kernel
+table depended on a 400-lag cut; the frozen carrier at alpha = 1 is stated for convergent sums.
+
+Not proved: the rotation theorem (formal expansion, reproduced symbolically and matched by exact
+roots to 34 digits); Jonquiere's formula (cited, verified numerically); the two-carrier
+"no interaction" remark, which no check covers.
