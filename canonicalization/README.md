@@ -31,6 +31,7 @@ python python/check_clifford_dictionary.py
 python python/check_clifford_native.py
 python python/check_naturality.py
 python python/check_area_killing.py
+python python/check_schild.py
 python python/check_threeway.py
 ```
 
@@ -43,6 +44,7 @@ python python/check_threeway.py
 | `check_clifford_native.py` | The same labels again in Cl(3,0) built from the generator relations, with no matrices until a final block `REP` that ties the product to the Pauli representation; 104 of 104 |
 | `check_naturality.py` | N1-N3: no linear equivariant map from the carrier to the Hermitian slice; `J J†` is the only quadratic one invariant under right U(2), up to scale |
 | `check_area_killing.py` | W1-W4: the area element of a plane of vectors is a Killing norm |
+| `check_schild.py` | S1-S8: the squared area element against its root. The square is Schild's integrand and is invariant only under unit-Jacobian changes of sheet coordinates; its solutions have constant area density and solve the Nambu-Goto equations; a rotating string as a worked case. Classical, flat space |
 | `check_threeway.py` | T1-T3: `det X = (tr X)^2/4 + (1/8) kappa(iX, iX)` on the Hermitian slice, in matrix and Clifford form; runs three scripts in `threeway/` |
 | `threeway/` | Eight independent tests of that relation: exact, 50-digit numeric, mutation, pure-Python rational, step-by-step and symmetry arguments |
 
@@ -86,7 +88,7 @@ unchanged under `J -> J U` with `U` unitary. Additivity is `born_additive`.
 - The complex Killing form stated in Clifford form (sympy only). Several Clifford-form
   theorems are on coordinate families, and most of their proofs transport through the
   isomorphism; only the statements are matrix-free.
-- Naturality N1-N3 and area W1-W4 (sympy only).
+- Naturality N1-N3 and area W1-W4, S1-S8 (sympy only).
 - Zeeman's theorem.
 - Clebsch-Gordan as a decomposition of representations (characters and weights only).
 - The dynamics: the CAL integral itself and the transport and holonomy rows, which the paper defers.
