@@ -2,19 +2,20 @@
 
 Machine checks of the algebra and representation theory in "Field Theoretic Self-Attention:
 A Canonicalization of Born, Lorentz, and Killing", the companion to "On Information Physics"
-(the Causal Accumulation Law). The paper is `FieldTheoretic_SelfAttention_Born_Lorentz_Killing.pdf`
-in this folder, with its LaTeX source. Each step in the paper carries a short bracketed tag naming
+(the Causal Accumulation Law). The paper comes in two editions that say the same thing block for
+block: the matrix edition in M2(C), `FieldTheoretic_SelfAttention_Born_Lorentz_Killing.pdf`, and
+the Clifford edition in Cl(3,0), `FieldTheoretic_SelfAttention_Born_Lorentz_Killing_Clifford.pdf`,
+both in this folder with their LaTeX sources. Each step carries a short bracketed tag naming
 the principal Lean theorems and sympy checks below. Two independent methods:
 
-- `lean/` - Lean 4 (v4.35.0) with Mathlib v4.35.0 and PhysLean. 207 theorems, no `sorry`,
+- `lean/` - Lean 4 (v4.35.0) with Mathlib v4.35.0 and PhysLean. 294 theorems, no `sorry`,
   no `native_decide`, no custom axioms. `CalChecks/Crosscheck.lean` prints the axioms of
   every theorem; all depend only on `propext`, `Classical.choice`, `Quot.sound`.
 - `python/` - sympy exact symbolic checks, 67 of 67 passing.
 
-The count of 207 is for the nine original files. Three later files add 87 theorems
-(`ThreeWay.lean` 12, `CliffordNative.lean` 72, `CliffordPhyslib.lean` 3) under the same
-conditions; each ends with its own `#print axioms` lines. The paper in this folder predates
-them: it has no Clifford edition and no three-readout row yet.
+Of the 294, 207 are in the nine original files, whose axioms `Crosscheck.lean` prints. The
+other 87 (`ThreeWay.lean` 12, `CliffordNative.lean` 72, `CliffordPhyslib.lean` 3) are under the
+same conditions; each of those files ends with its own `#print axioms` lines.
 
 ## Run
 
