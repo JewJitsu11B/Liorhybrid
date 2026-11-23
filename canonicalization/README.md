@@ -8,7 +8,7 @@ the Clifford edition in Cl(3,0), `FieldTheoretic_SelfAttention_Born_Lorentz_Kill
 both in this folder with their LaTeX sources. Each step carries a short bracketed tag naming
 the principal Lean theorems and sympy checks below. Two independent methods:
 
-- `lean/` - Lean 4 (v4.35.0) with Mathlib v4.35.0 and PhysLean. 322 theorems, no `sorry`,
+- `lean/` - Lean 4 (v4.35.0) with Mathlib v4.35.0 and PhysLean. 360 theorems, no `sorry`,
   no `native_decide`, no custom axioms. `CalChecks/Crosscheck.lean` prints the axioms of
   every theorem; all depend only on `propext`, `Classical.choice`, `Quot.sound`.
 - `python/` - sympy exact symbolic checks, 67 of 67 passing.
@@ -136,3 +136,48 @@ table depended on a 400-lag cut; the frozen carrier at alpha = 1 is stated for c
 Not proved: the rotation theorem (formal expansion, reproduced symbolically and matched by exact
 roots to 34 digits); Jonquiere's formula (cited, verified numerically); the two-carrier
 "no interaction" remark, which no check covers.
+
+## The closure at alpha = 2 (the Feynman path sum)
+
+Independent checks of "An Axiomatic Derivation of the Feynman Path Sum at the Light-Cone Kernel Width and
+Closure Order alpha = 2 of the Causal Accumulation Law"
+(`docs/paper/cal_feynman_alpha2.pdf`) and of its five-page canonical sheet
+(`docs/paper/cal_feynman_canonicalization.pdf`). The paper's own script is
+`scripts/cal_feynman_alpha2.py`; none of the checks below reuse it, except `N_compare.py`,
+which loads it unchanged to compare numbers.
+
+| File | Content |
+|---|---|
+| `lean/CalChecks/FeynmanAlphaTwo.lean` | 38 theorems: the light-cone profile `h_alpha` is constant on (0, pi/2) exactly at alpha = 2; the Klein-Gordon dispersion relation with `mu tau_c = 1/sqrt 2` and its sign-flipped form; `(-mu^2)^n = (i mu)^(2n)` and the step from one term of the path sum to the next; an absolute-convergence majorant for the path sum; constancy of the closure on one sign of frequency and the cross terms on two; the two-sided bound on the nonrelativistic dispersion error |
+| `python/alpha2/E_exact.py` | Exact algebra in sympy: 95 checks labelled by the paper's statement |
+| `python/alpha2/G_check.py` | G1-G4: the boost on null coordinates, the class of the pair matrix, the next coefficient of the Lorentz defect, the rotation of (s, c\|k\|) |
+| `python/alpha2/A_symbol.py`, `A_near2.py`, `A_pathsum.py`, `A_nr.py` | mpmath at 40 digits or more, 231 checks: the symbol of the light-cone memory, exact roots near alpha = 2, the path-sum terms and Bessel resummations, the nonrelativistic limit |
+| `python/alpha2/N_sim.py`, `N_tables.py`, `N_compare.py` | Direct simulation on a null lattice with independent code (29 checks), the paper's tables rebuilt, then the paper's script run for comparison |
+| `python/alpha2/T_alpha_test.py` | The law at any one alpha near 2: roots, decay rates, and the crossover from exponential decay to the algebraic tail (`python T_alpha_test.py 1.9 long`) |
+
+With `FeynmanAlphaTwo.lean` the library has 360 theorems. The file ends with its own
+`#print axioms` lines.
+
+`A_near2.py` reports one failure by design: it tests a figure in the caption of the near-2 table
+as the paper first gave it. The paper now carries the corrected figure. `N_tables.py` reports
+five, also by design: its independent rebuild starts the checkerboard walk with a free first step
+(four rows) and differences the 3+1 tail in the interior of the grid (one row), where the paper's
+script fixes the first step and includes the grid edge. Both differences are now stated in the
+paper's captions; `N_compare.py` runs the paper's script and confirms the grid-edge cause.
+
+What the checks changed in the paper: no displayed formula was wrong. The proof of the symbol
+formula now covers 0 < alpha <= 1 by continuation; the first-order rate near 2 is stated for the
+imaginary part only, with its measured next-order coefficient; "not constant" on mixed
+frequencies became "in general not constant", with the exact condition and a counterexample;
+the rescaled nonrelativistic kernel is said not to be a group at finite c; the checkerboard
+normalization is spelled out; three table captions now say what the grid and the counting
+threshold actually do.
+
+New in the paper, found by the checks: below alpha = 2 the exponential decay belongs to the poles
+only. The symbol also has branch points at omega = +-c|k|, and their contribution falls as
+t^(-alpha) at the massless frequency and dominates at late times. This is measured, with the
+origin identified; it is not derived.
+
+Not proved: the symbol formula itself; the retarded Green function and the descent to 3+1; the
+Bessel resummations; the lattice limit of the checkerboard; the near-2 theorem; the step from one
+Fourier mode to L2. All of these are checked symbolically or numerically only.
