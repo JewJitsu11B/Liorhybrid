@@ -11,3 +11,4 @@ import CalChecks.ThreeWay
 import CalChecks.CliffordNative
 import CalChecks.CliffordPhyslib
 import CalChecks.SchrodingerEdge
+import CalChecks.FeynmanAlphaTwo
