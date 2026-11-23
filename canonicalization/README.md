@@ -33,6 +33,7 @@ python python/check_naturality.py
 python python/check_area_killing.py
 python python/check_schild.py
 python python/check_threeway.py
+python python/check_radius.py
 ```
 
 ## Python files
@@ -46,6 +47,7 @@ python python/check_threeway.py
 | `check_area_killing.py` | W1-W4: the area element of a plane of vectors is a Killing norm |
 | `check_schild.py` | S1-S8: the squared area element against its root. The square is Schild's integrand and is invariant only under unit-Jacobian changes of sheet coordinates; its solutions have constant area density and solve the Nambu-Goto equations; a rotating string as a worked case. Classical, flat space |
 | `check_threeway.py` | T1-T3: `det X = (tr X)^2/4 + (1/8) kappa(iX, iX)` on the Hermitian slice, in matrix and Clifford form; runs three scripts in `threeway/` |
+| `check_radius.py` | T4-T7: the relation solved for the radius, `|x|^2 = (tr X)^2/4 - det X = -(1/8) kappa(iX, iX)`; rank one, where the Born and Killing readouts coincide; conjugation keeps all three readouts; congruence keeps only the determinant, a boost trading trace for Killing form, while SU(2) keeps all three. Each in matrix form and in Cl(3,0) without matrices. Sympy only |
 | `threeway/` | Eight independent tests of that relation: exact, 50-digit numeric, mutation, pure-Python rational, step-by-step and symmetry arguments |
 
 ## Lean files
