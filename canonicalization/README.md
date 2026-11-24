@@ -8,10 +8,10 @@ the Clifford edition in Cl(3,0), `FieldTheoretic_SelfAttention_Born_Lorentz_Kill
 both in this folder with their LaTeX sources. Each step carries a short bracketed tag naming
 the principal Lean theorems and sympy checks below. Two independent methods:
 
-- `lean/` - Lean 4 (v4.35.0) with Mathlib v4.35.0 and PhysLean. 360 theorems, no `sorry`,
+- `lean/` - Lean 4 (v4.35.0) with Mathlib v4.35.0 and PhysLean. 400 theorems, no `sorry`,
   no `native_decide`, no custom axioms. `CalChecks/Crosscheck.lean` prints the axioms of
   every theorem; all depend only on `propext`, `Classical.choice`, `Quot.sound`.
-- `python/` - sympy exact symbolic checks, 67 of 67 passing.
+- `python/` - sympy exact symbolic checks, 67 of 67 passing, and `check_biquaternion.py`, 18 of 18.
 
 Of the first 294, 207 are in the nine original files, whose axioms `Crosscheck.lean` prints. The
 other 87 (`ThreeWay.lean` 12, `CliffordNative.lean` 72, `CliffordPhyslib.lean` 3) are under the
@@ -34,6 +34,7 @@ python python/check_area_killing.py
 python python/check_schild.py
 python python/check_threeway.py
 python python/check_radius.py
+python python/check_biquaternion.py
 ```
 
 ## Python files
@@ -49,6 +50,7 @@ python python/check_radius.py
 | `check_threeway.py` | T1-T3: `det X = (tr X)^2/4 + (1/8) kappa(iX, iX)` on the Hermitian slice, in matrix and Clifford form; runs three scripts in `threeway/` |
 | `check_radius.py` | T4-T7: the relation solved for the radius, `|x|^2 = (tr X)^2/4 - det X = -(1/8) kappa(iX, iX)`; rank one, where the Born and Killing readouts coincide; conjugation keeps all three readouts; congruence keeps only the determinant, a boost trading trace for Killing form, while SU(2) keeps all three. Each in matrix form and in Cl(3,0) without matrices. Sympy only |
 | `threeway/` | Eight independent tests of that relation: exact, 50-digit numeric, mutation, pure-Python rational, step-by-step and symmetry arguments |
+| `check_biquaternion.py` | Q1-Q9: biquaternions, complex 2x2 matrices and Cl(3,0) built independently and compared: the three are one algebra; the involutions, norm, trace, units and grades correspond |
 
 ## Lean files
 
@@ -66,6 +68,8 @@ python python/check_radius.py
 | `ThreeWay.lean` | `det X = (tr X)^2/4 + (1/8) kappa(iX, iX)` with Mathlib's `killingForm`: for all complex 2x2 over C, and for Hermitian X with the real form on su(2) |
 | `CliffordNative.lean` | The dictionary as theorems, with Mathlib's `reverse` and `involute` on `CliffordAlgebra`: reversion is dagger, Clifford conjugate is adjugate, `q * conj q` is the determinant, scalar part is half the real trace. Then Clifford-form statements: closure, norm, sign flip under the pseudoscalar, real Killing form, three-readout relation |
 | `CliffordPhyslib.lean` | PhysLean's own Cl(3,0) (`PauliMatrix.ofCliffordAlgebra`): same quadratic form, same map to the Pauli matrices |
+| `Biquaternion.lean` | 29 theorems. `C (x) H = H[C] = M2(C) = Cl(3,0)` as algebra isomorphisms; the map `H[C] -> M2(C)` is the carrier itself. Quaternion conjugate is adjugate is Clifford conjugate; coefficient conjugate is grade involution; both together are dagger and reversion; quaternion norm is det is `N`; `i, j, k` are the unit bivectors; the complex unit is the pseudoscalar; which coefficient part lands in which grade |
+| `Naturality.lean` | 11 theorems. The commuting squares in Mathlib's category-theory types: the closure `c(J) = J J†` as a `NatTrans` between `GL(2,C)`-sets (`closureNat`) and as a morphism in `Action (Type) GL(2,C)` (`closureAction`); trace, det and the Killing quadratic as `NatTrans` into the constant functor, for `U(2)`, `SL(2,C)` and `GL(2,C)` under Ad |
 
 ## Conventions the Clifford checks pin down
 
@@ -158,7 +162,7 @@ which loads it unchanged to compare numbers.
 | `python/alpha2/T_alpha_test.py` | The law at any one alpha near 2: roots, decay rates, and the crossover from exponential decay to the algebraic tail (`python T_alpha_test.py 1.9 long`) |
 
 With `FeynmanAlphaTwo.lean` the library has 360 theorems. The file ends with its own
-`#print axioms` lines.
+`#print axioms` lines. `Biquaternion.lean` (29) and `Naturality.lean` (11), added afterwards, bring it to 400.
 
 `A_near2.py` reports one failure by design: it tests a figure in the caption of the near-2 table
 as the paper first gave it. The paper now carries the corrected figure. `N_tables.py` reports
