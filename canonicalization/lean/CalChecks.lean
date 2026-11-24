@@ -12,3 +12,5 @@ import CalChecks.CliffordNative
 import CalChecks.CliffordPhyslib
 import CalChecks.SchrodingerEdge
 import CalChecks.FeynmanAlphaTwo
+import CalChecks.Biquaternion
+import CalChecks.Naturality
